@@ -1,0 +1,15 @@
+{
+  "name": "hydrosync-dashboard",
+  "version": "1.0.0",
+  "description": "IoT HydroSync - Water Level Dashboard",
+  "scripts": {
+    "build": "mkdir -p dist public && cp index.html dist/ && cp index.html public/ && cp waterlevel.txt dist/ 2>/dev/null || true && cp waterlevel.txt public/ 2>/dev/null || true",
+    "dev": "node server.js",
+    "start": "node server.js",
+    "lint": "echo 'No TS linting needed for vanilla HTML/JS'"
+  },
+  "dependencies": {
+    "mqtt": "^5.15.1",
+    "pg": "^8.22.0"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "IoT HydroSync_DB",
+  "description": "An elegant dashboard for real-time monitoring of cisterns, tanks, and water levels via ESP32 and MQTT.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

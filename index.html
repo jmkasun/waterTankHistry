@@ -1,0 +1,1858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT HydroSync - Water Level Dashboard</title>
+    <!-- Suppress Tailwind Play CDN warning in production console -->
+    <script>
+        (function() {
+            const originalWarn = console.warn;
+            console.warn = function(...args) {
+                if (args[0] && typeof args[0] === 'string' && (args[0].includes('cdn.tailwindcss.com') || args[0].includes('should not be used in production'))) {
+                    return;
+                }
+                originalWarn.apply(console, args);
+            };
+        })();
+    </script>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- MQTT.js Library -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <!-- Chart.js CDN for Historical Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @keyframes wave {
+            0% { transform: translateX(0) translateZ(0) scaleY(1); }
+            50% { transform: translateX(-25%) translateZ(0) scaleY(0.85); }
+            100% { transform: translateX(-50%) translateZ(0) scaleY(1); }
+        }
+        .wave-animation {
+            animation: wave 12s linear infinite;
+        }
+        .water-glass::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(90deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0) 20%, rgba(255,255,255,0) 80%, rgba(255,255,255,0.25) 100%);
+            z-index: 10;
+            pointer-events: none;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 0.2; }
+            50% { opacity: 1; }
+        }
+        .blink-fast {
+            animation: blink 0.5s ease-in-out 2;
+        }
+        @keyframes spin-slow {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .btn-settings-hover:hover svg {
+            animation: spin-slow 4s linear infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between font-sans selection:bg-cyan-500 selection:text-slate-950">
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="fixed top-5 right-5 z-50 flex flex-col gap-3"></div>
+
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-30 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2.5 bg-cyan-500/10 rounded-xl border border-cyan-500/30">
+                    <svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                        HydroSync <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">v1.5</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Arpico 10,000L Cistern Wireless Monitor (ESP32-C3)</p>
+                </div>
+            </div>
+
+            <!-- Connection Badges & Controller -->
+            <div class="flex flex-wrap items-center gap-3">
+                <!-- RX Packet Blinker -->
+                <div id="rxIndicator" class="hidden items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider transition-all">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                    Live Rx Packet
+                </div>
+
+                <div id="statusBadge" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-xs font-semibold">
+                    <span id="statusIndicator" class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
+                    <span id="statusText">MQTT Connecting...</span>
+                </div>
+
+                <!-- Device Status Badge -->
+                <div id="deviceBadge" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 text-xs font-semibold">
+                    <span id="deviceIndicator" class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
+                    <span id="deviceStatusText">Awaiting Device...</span>
+                </div>
+
+                <!-- Settings Button (Gear Icon) -->
+                <button onclick="toggleSettingsDrawer(true)" class="btn-settings-hover flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all shadow-md shadow-slate-950/20">
+                    <svg class="w-4 h-4 text-slate-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    <span>Settings</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Sandbox Warning Alert (Dynamic) -->
+    <div id="sandboxAlert" class="max-w-4xl mx-auto px-6 mt-6 hidden">
+        <div class="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-amber-200 text-sm">
+            <div class="flex gap-3">
+                <svg class="w-5 h-5 text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <div>
+                    <span class="font-bold text-white block mb-0.5">MQTT Connection Pending / Blocked</span>
+                    Web browsers may block external sockets in iframe or sandboxed environments. If connection continues to fail, open the dashboard in a new tab or verify your Device Path Topic and broker details in Settings.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="max-w-4xl w-full mx-auto px-6 py-8 flex-grow flex flex-col gap-8">
+        
+        <!-- Visualization & Telemetry Full Width -->
+        <section class="w-full flex flex-col gap-6">
+            <!-- Visualization Tank Box & Metrics -->
+            <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-center gap-8 md:gap-12 relative overflow-hidden">
+                <div class="absolute inset-0 bg-radial-gradient from-cyan-500/5 to-transparent pointer-events-none"></div>
+                
+                <!-- Graphic Cylindrical Tank Wrapper -->
+                <div class="flex flex-col items-center gap-4 shrink-0">
+                    <!-- Graphic Cylindrical Tank -->
+                    <div class="relative w-56 h-80 flex flex-col justify-end items-center bg-slate-950/80 rounded-t-3xl rounded-b-[40px] border-4 border-slate-700 shadow-[0_0_50px_rgba(0,0,0,0.8)] overflow-hidden water-glass">
+                        <!-- Air/Empty Area Information inside Tank -->
+                        <div class="absolute top-4 left-0 right-0 text-center z-20">
+                            <p id="txtEmptySpace" class="text-xs font-semibold text-slate-400">Sensor Distance: -- cm</p>
+                        </div>
+
+                        <!-- Water Body Container -->
+                        <div id="waterContainer" class="w-full relative transition-all duration-1000 ease-out bg-gradient-to-t from-cyan-600/90 to-blue-500/80" style="height: 0%">
+                            <!-- Animated Waves -->
+                            <div class="absolute -top-6 left-0 w-[300%] h-8 opacity-60">
+                                <svg id="wave1" class="w-full h-full fill-blue-500/80 wave-animation" viewBox="0 0 1200 120" preserveAspectRatio="none">
+                                    <path d="M0,60 C150,100 350,20 500,60 C650,100 850,20 1000,60 C1150,100 1350,20 1500,60 L1500,120 L0,120 Z"></path>
+                                </svg>
+                            </div>
+                            <div class="absolute -top-5 left-0 w-[300%] h-8 opacity-40">
+                                <svg id="wave2" class="w-full h-full fill-cyan-400/90 wave-animation" style="animation-delay: -3s; animation-duration: 8s" viewBox="0 0 1200 120" preserveAspectRatio="none">
+                                    <path d="M0,50 C100,90 250,10 400,50 C550,90 700,10 850,50 C1000,90 1150,10 1300,50 L1300,120 L0,120 Z"></path>
+                                </svg>
+                            </div>
+
+                            <!-- Real-time percentage display in water center -->
+                            <div class="absolute inset-0 flex flex-col items-center justify-center text-white z-10 select-none">
+                                <span id="visualPercent" class="text-5xl font-black drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)]">0%</span>
+                                <span class="text-[10px] tracking-widest uppercase opacity-75 font-semibold drop-shadow">Water Fill</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Beautiful Last Sync UI Badge -->
+                    <div class="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-950/70 border border-slate-800 text-[11px] text-slate-400 shadow-lg shadow-slate-950/40 select-none hover:border-slate-700/80 transition duration-300">
+                        <span id="lastUpdatedIndicator" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                        <span class="font-medium tracking-tight text-slate-400">
+                            Last Sync: <span id="txtLastUpdated" class="text-slate-300 font-bold">Never</span>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Right Side Metrics Panel -->
+                <div class="flex-grow w-full max-w-sm flex flex-col gap-4">
+                    <!-- Total Volume -->
+                    <div class="bg-slate-950/50 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition">
+                        <div class="flex items-center justify-between mb-1">
+                            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Volume</p>
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                        </div>
+                        <div class="flex items-baseline gap-1">
+                            <span id="txtVolume" class="text-3xl font-bold text-white tracking-tight">0.0</span>
+                            <span class="text-sm text-slate-400">Liters</span>
+                        </div>
+                        <div class="w-full bg-slate-900 h-1 rounded-full mt-3 overflow-hidden">
+                            <div id="barVolume" class="bg-emerald-500 h-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Tank Capacity -->
+                    <div class="bg-slate-950/50 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition">
+                        <div class="flex items-center justify-between mb-1">
+                            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Tank Capacity</p>
+                            <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                        </div>
+                        <div class="flex items-baseline gap-1">
+                            <span id="txtPercent" class="text-3xl font-bold text-white tracking-tight">0</span>
+                            <span class="text-sm text-slate-400">% Full</span>
+                        </div>
+                        <div class="w-full bg-slate-900 h-1 rounded-full mt-3 overflow-hidden">
+                            <div id="barPercent" class="bg-blue-500 h-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Water Depth -->
+                    <div class="bg-slate-950/50 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition">
+                        <div class="flex items-center justify-between mb-1">
+                            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Water Depth</p>
+                            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                        </div>
+                        <div class="flex items-baseline gap-1">
+                            <span id="txtLevel" class="text-3xl font-bold text-white tracking-tight">0.0</span>
+                            <span class="text-sm text-slate-400">cm</span>
+                        </div>
+                        <div class="w-full bg-slate-900 h-1 rounded-full mt-3 overflow-hidden">
+                            <div id="barLevel" class="bg-cyan-500 h-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Volumetric Telemetry Bento Card (At the bottom of the focus area) -->
+            <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 md:p-8 flex flex-col gap-6">
+                <div>
+                    <h3 class="text-base font-bold text-white mb-1 flex items-center gap-2">
+                        <span id="telemetryPulseDot" class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></span>
+                        Volumetric Telemetry
+                        <span id="telemetryStateBadge" class="text-[10px] px-2 py-0.5 rounded bg-yellow-500/15 text-yellow-400 border border-yellow-500/20 uppercase font-semibold tracking-wider">Broker Cached</span>
+                    </h3>
+                    <p class="text-xs text-slate-400">Calculated according to the active physical dimensions of the tank.</p>
+                </div>
+
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- Capacity Card -->
+                    <div class="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-5 flex flex-col items-center justify-center text-center gap-2 hover:border-emerald-500/30 hover:bg-slate-900/40 transition duration-300 group">
+                        <div class="p-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-emerald-400 group-hover:scale-110 transition duration-300">
+                            <!-- Cylinder Icon -->
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                            </svg>
+                        </div>
+                        <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Full Volume Capacity</span>
+                        <span id="lblMaxVol" class="text-2xl font-black text-white tracking-tight">0.0 L</span>
+                    </div>
+
+                    <!-- Headroom Card -->
+                    <div class="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-5 flex flex-col items-center justify-center text-center gap-2 hover:border-amber-500/30 hover:bg-slate-900/40 transition duration-300 group">
+                        <div class="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20 text-amber-400 group-hover:scale-110 transition duration-300">
+                            <!-- Ruler/Headroom Icon -->
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 9h8m-8 4h6m-6 4h8M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z" />
+                            </svg>
+                        </div>
+                        <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Air / Headroom Depth</span>
+                        <span id="lblAirDepth" class="text-2xl font-black text-white tracking-tight font-mono">0.0 cm</span>
+                    </div>
+
+                    <!-- Level Ratio Card -->
+                    <div class="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-5 flex flex-col items-center justify-center text-center gap-2 hover:border-cyan-500/30 hover:bg-slate-900/40 transition duration-300 group">
+                        <div class="p-2 bg-cyan-500/10 rounded-xl border border-cyan-500/20 text-cyan-400 group-hover:scale-110 transition duration-300">
+                            <!-- Water percentage level icon -->
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                            </svg>
+                        </div>
+                        <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Current Level Ratio</span>
+                        <span id="lblRatio" class="text-2xl font-black text-cyan-400 tracking-tight">0%</span>
+                    </div>
+
+                    <!-- Mass Card -->
+                    <div class="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-5 flex flex-col items-center justify-center text-center gap-2 hover:border-blue-500/30 hover:bg-slate-900/40 transition duration-300 group">
+                        <div class="p-2 bg-blue-500/10 rounded-xl border border-blue-500/20 text-blue-400 group-hover:scale-110 transition duration-300">
+                            <!-- Weight/Water Mass scale icon -->
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                            </svg>
+                        </div>
+                        <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Calculated Water Mass</span>
+                        <span id="lblMass" class="text-2xl font-black text-white tracking-tight">0.0 kg</span>
+                </div>
+            </div>
+
+            <!-- Historical Analytics & Daily Usage Card -->
+            <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 md:p-8 flex flex-col gap-6 mt-6">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h3 class="text-base font-bold text-white mb-1 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-cyan-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                            </svg>
+                            Historical Analytics & Usage
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/20 uppercase font-semibold tracking-wider">PostgreSQL Active</span>
+                        </h3>
+                        <p class="text-xs text-slate-400">Analyze water consumption trends and ESP32 telemetry network data usage.</p>
+                    </div>
+
+                    <!-- Date/Device Selectors and Control Bar -->
+                    <div class="flex flex-wrap items-center gap-3">
+                        <!-- Seed Data Button -->
+                        <button id="btnSeedData" onclick="seedMockData()" class="px-3.5 py-2.5 text-xs font-bold text-pink-400 hover:text-white bg-pink-500/10 hover:bg-pink-600 border border-pink-500/20 hover:border-pink-500 rounded-xl transition duration-300 flex items-center gap-1.5 shadow-md">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+                            </svg>
+                            Seed Demo Data
+                        </button>
+
+                        <div class="flex items-center gap-2 bg-slate-950/60 border border-slate-800 rounded-xl px-2 py-1.5">
+                            <label class="text-[10px] uppercase tracking-wider font-semibold text-slate-500 px-1">Device Prefix:</label>
+                            <select id="analyticsDeviceSelect" class="bg-transparent text-xs text-slate-200 focus:outline-none border-none cursor-pointer">
+                                <option class="bg-slate-950 text-slate-200" value="mytank123">mytank123</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Date Range Selectors -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end bg-slate-950/40 border border-slate-800/60 rounded-2xl p-4">
+                    <div>
+                        <label class="block text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">Start Date</label>
+                        <input type="date" id="historyStartDate" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">End Date</label>
+                        <input type="date" id="historyEndDate" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500">
+                    </div>
+                    <button onclick="fetchAnalyticsData()" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 py-2.5 px-4 rounded-lg font-bold text-xs tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/10">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        Query Analytics
+                    </button>
+                </div>
+
+                <!-- Summary Metrics for Time Period -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Total Water Consumed -->
+                    <div class="bg-slate-950/40 border border-slate-800/80 rounded-2xl p-4 flex items-center gap-4 hover:border-cyan-500/20 transition">
+                        <div class="p-3 bg-cyan-500/10 rounded-xl text-cyan-400 border border-cyan-500/20">
+                            <!-- Water Drops Icon -->
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547" />
+                            </svg>
+                        </div>
+                        <div>
+                            <span class="block text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Total Water Usage</span>
+                            <span id="txtPeriodWaterUsed" class="text-xl font-bold text-white tracking-tight">0.0 Liters</span>
+                            <span class="block text-[10px] text-slate-500 mt-0.5">Sum of Outflows</span>
+                        </div>
+                    </div>
+
+                    <!-- Daily Average Consumption -->
+                    <div class="bg-slate-950/40 border border-slate-800/80 rounded-2xl p-4 flex items-center gap-4 hover:border-emerald-500/20 transition">
+                        <div class="p-3 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
+                            <!-- Chart line Icon -->
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            </svg>
+                        </div>
+                        <div>
+                            <span class="block text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Avg Daily Outflow</span>
+                            <span id="txtPeriodAvgWater" class="text-xl font-bold text-white tracking-tight">0.0 Liters / day</span>
+                            <span class="block text-[10px] text-slate-500 mt-0.5">Average daily usage rate</span>
+                        </div>
+                    </div>
+
+                    <!-- Total Telemetry Data Overhead -->
+                    <div class="bg-slate-950/40 border border-slate-800/80 rounded-2xl p-4 flex items-center gap-4 hover:border-pink-500/20 transition">
+                        <div class="p-3 bg-pink-500/10 rounded-xl text-pink-400 border border-pink-500/20">
+                            <!-- Database Icon -->
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                            </svg>
+                        </div>
+                        <div>
+                            <span class="block text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Total Data Usage</span>
+                            <span id="txtPeriodDataUsed" class="text-xl font-bold text-white tracking-tight">0.00 KB</span>
+                            <span class="block text-[10px] text-slate-500 mt-0.5">ESP32 transmissions</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Container (Interactive Tabs) -->
+                <div class="bg-slate-950/50 border border-slate-800/80 rounded-2xl p-4">
+                    <div class="flex border-b border-slate-800/80 mb-4 overflow-x-auto gap-2">
+                        <button onclick="switchChartTab('water')" id="btnTabWater" class="px-4 py-2 border-b-2 border-cyan-500 text-cyan-400 font-bold text-xs tracking-wider uppercase transition">
+                            Water Usage Trend
+                        </button>
+                        <button onclick="switchChartTab('data')" id="btnTabData" class="px-4 py-2 border-b-2 border-transparent hover:border-slate-700 text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition">
+                            Data Overhead Trend
+                        </button>
+                        <button onclick="switchChartTab('level')" id="btnTabLevel" class="px-4 py-2 border-b-2 border-transparent hover:border-slate-700 text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition">
+                            Water Level History
+                        </button>
+                    </div>
+
+                    <!-- Canvas container -->
+                    <div class="relative w-full h-64 sm:h-80 flex items-center justify-center">
+                        <canvas id="analyticsChart" class="w-full h-full"></canvas>
+                        <div id="noDataMessage" class="absolute inset-0 flex items-center justify-center text-slate-500 text-xs italic hidden bg-slate-950/90 rounded-xl border border-dashed border-slate-800">
+                            No telemetry records found for this period. Click 'Seed Demo Data' to generate realistic historical graphs.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Settings Drawer Backdrop -->
+    <div id="settingsDrawerBackdrop" onclick="toggleSettingsDrawer(false)" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 hidden transition-opacity duration-300 opacity-0 animate-fade-in"></div>
+
+    <!-- Settings Drawer Content -->
+    <div id="settingsDrawer" class="fixed top-0 right-0 h-full w-full max-w-md bg-slate-950/95 border-l border-slate-800 shadow-[0_0_50px_rgba(0,0,0,0.8)] z-50 transform translate-x-full transition-all duration-300 ease-in-out flex flex-col">
+        <!-- Drawer Header -->
+        <div class="px-6 py-5 border-b border-slate-800/80 flex justify-between items-center bg-slate-900/10">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
+                    <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h2 class="text-base font-bold text-white tracking-tight">System Configuration</h2>
+                    <p class="text-xs text-slate-400">Physical calibration and connectivity</p>
+                </div>
+            </div>
+            <button onclick="toggleSettingsDrawer(false)" class="p-2 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-white transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Scrollable Drawer Body -->
+        <div class="flex-grow overflow-y-auto p-6 space-y-6">
+            <!-- Hardware Calibration Card -->
+            <div class="bg-slate-900/30 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/30">
+                        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white tracking-tight">Physical Calibration</h3>
+                        <p class="text-[11px] text-slate-400">Stored inside ESP32 Non-Volatile Memory (NVS)</p>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Max Water Height (cm)</label>
+                        <div class="relative">
+                            <input type="number" id="heightInput" placeholder="200.0" value="200" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                            <span class="absolute right-4 top-3 text-xs text-slate-500">cm</span>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-1">The maximum depth of water the tank can contain when 100% full (e.g. 200cm).</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Sensor Height Offset (cm)</label>
+                        <div class="relative">
+                            <input type="number" id="sensorHeightInput" placeholder="45.0" value="45" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                            <span class="absolute right-4 top-3 text-xs text-slate-500">cm</span>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-1">Height from the Max Water Height (100% level) up to the physical sensor face (e.g. 45cm).</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Inner Tank Diameter (cm)</label>
+                        <div class="relative">
+                            <input type="number" id="diameterInput" placeholder="228.0" value="228" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                            <span class="absolute right-4 top-3 text-xs text-slate-500">cm</span>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-1">Used to calculate the volume & liters dynamically inside the dashboard and ESP32 (Arpico 10K L is ~228cm).</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Number of Tanks Connected</label>
+                        <div class="relative">
+                            <input type="number" id="tankCountInput" min="1" step="1" placeholder="1" value="1" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                            <span class="absolute right-4 top-3 text-xs text-slate-500 font-medium">tanks</span>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-1">Defines how many identical, parallel-connected tanks are in use. This scales the total volume and mass shown on the dashboard.</p>
+                    </div>
+
+                    <button onclick="updateSettings()" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 py-3.5 px-4 rounded-xl font-bold text-sm tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/10">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
+                        </svg>
+                        Transmit & Save Configurations
+                    </button>
+                </div>
+            </div>
+
+            <!-- WiFi Network Config Card (Setup Guide) -->
+            <div class="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 flex flex-col gap-4 shadow-xl shadow-cyan-500/5">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/30">
+                        <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071a9 9 0 0112.14 0M1.929 8.929a13 13 0 0118.142 0"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white tracking-tight">WiFi Setup Guide</h3>
+                        <p class="text-[11px] text-slate-400">Configure local network credentials over-the-air safely</p>
+                    </div>
+                </div>
+
+                <div class="space-y-4 text-xs">
+                    <div class="flex gap-3 items-start bg-slate-950/40 p-3 rounded-xl border border-slate-800/50">
+                        <span class="flex items-center justify-center w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold text-[10px] shrink-0 mt-0.5">1</span>
+                        <div>
+                            <p class="font-semibold text-slate-200">Connect to Module AP</p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Connect your phone or computer to the offline Wi-Fi: <strong class="text-cyan-400 select-all">ESP32_HydroSync_AP</strong></p>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-3 items-start bg-slate-950/40 p-3 rounded-xl border border-slate-800/50">
+                        <span class="flex items-center justify-center w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold text-[10px] shrink-0 mt-0.5">2</span>
+                        <div>
+                            <p class="font-semibold text-slate-200">Open Setup Portal</p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Open your web browser and go to: <a href="http://192.168.4.1" target="_blank" class="text-cyan-400 hover:underline font-semibold font-mono">http://192.168.4.1/</a></p>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-3 items-start bg-slate-950/40 p-3 rounded-xl border border-slate-800/50">
+                        <span class="flex items-center justify-center w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold text-[10px] shrink-0 mt-0.5">3</span>
+                        <div>
+                            <p class="font-semibold text-slate-200">Save & Reboot</p>
+                            <p class="text-[11px] text-slate-400 mt-0.5">Type your home Wi-Fi SSID, Password, and your custom topic path. Click <strong class="text-slate-200">Connect & Sync</strong>.</p>
+                        </div>
+                    </div>
+
+                    <div class="text-[11px] text-emerald-400 flex items-center gap-1.5 px-3 py-2 bg-emerald-500/5 border border-emerald-500/10 rounded-xl">
+                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                        NVS Storage writes persist even after restarts!
+                    </div>
+                </div>
+            </div>
+
+            <!-- GSM Module & SMS Alerts Card -->
+            <div class="bg-slate-900/30 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-pink-500/10 rounded-lg border border-pink-500/30">
+                        <svg class="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white tracking-tight">GSM Missed Call & SMS Alert</h3>
+                        <p class="text-[11px] text-slate-400">Manage saved phone numbers authorized for missed-call SMS notifications</p>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Numbers list -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between items-center">
+                            <span>Authorized Phone Numbers</span>
+                            <span id="gsmCount" class="text-[10px] text-slate-500 font-normal">0 / 10 saved</span>
+                        </label>
+                        <div id="gsmNumbersList" class="space-y-2 max-h-40 overflow-y-auto pr-1">
+                            <!-- Populated dynamically -->
+                            <div class="text-[11px] text-slate-500 italic p-3 bg-slate-950/40 rounded-xl text-center border border-dashed border-slate-800">No saved phone numbers. Add one below.</div>
+                        </div>
+                    </div>
+
+                    <!-- Add new number Form -->
+                    <div class="flex gap-2">
+                        <input type="text" id="gsmNewNumberInput" placeholder="e.g. +94771234567" class="flex-1 bg-slate-950 border border-slate-850 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-cyan-500 text-white placeholder-slate-705 transition">
+                        <button onclick="addGsmNumber()" class="bg-pink-600 hover:bg-pink-500 text-white px-4 rounded-xl font-bold text-xs tracking-wide transition shadow-lg shadow-pink-500/10">
+                            Add
+                        </button>
+                    </div>
+                    <p class="text-[10px] text-slate-500 leading-normal">
+                        When any of these numbers make a missed call, the ESP32 S3 hanging up immediately sends a SMS with current tank measurements.
+                    </p>
+                </div>
+            </div>
+
+            <!-- OTA (Over-The-Air) Updates Card -->
+            <div id="ota-card" class="bg-slate-900/30 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-purple-500/10 rounded-lg border border-purple-500/30">
+                        <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white tracking-tight">OTA Firmware Updates</h3>
+                        <p class="text-[11px] text-slate-400">Wireless flashing & firmware delivery</p>
+                    </div>
+                </div>
+
+                <div class="space-y-4 text-xs">
+                    <!-- Method 1: Remote MQTT HTTP OTA -->
+                    <div class="bg-slate-950/40 p-3.5 rounded-xl border border-slate-800/80 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-purple-400 text-xs">Remote URL Update</span>
+                            <span class="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 border border-purple-500/20 uppercase font-semibold">Over MQTT</span>
+                        </div>
+                        <p class="text-[10px] text-slate-400 leading-normal">
+                            Provide a public URL to your compiled firmware binary (<code class="text-slate-300 font-mono">.bin</code>). The ESP32 will download and install it automatically.
+                        </p>
+                        <div class="space-y-2">
+                            <input type="url" id="otaBinUrl" placeholder="https://example.com/firmware.bin" class="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-[11px] font-mono focus:outline-none focus:border-purple-500 text-slate-300 placeholder-slate-600 transition">
+                            <button id="otaTriggerBtn" onclick="triggerRemoteOta()" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-2 px-3 rounded-lg transition text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-purple-600/15">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                Trigger OTA Firmware Update
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Method 2: Local Web UI -->
+                    <div class="bg-slate-950/40 p-3.5 rounded-xl border border-slate-800/80 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-cyan-400 text-xs">Local Network Update</span>
+                            <span class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/20 uppercase font-semibold">Web Portal</span>
+                        </div>
+                        <p class="text-[10px] text-slate-400 leading-normal">
+                            Flash directly from your computer if you are connected to the same Wi-Fi network:
+                        </p>
+                        <div class="flex items-center justify-between bg-slate-950 border border-slate-850 px-3 py-2 rounded-lg font-mono text-[11px]">
+                            <a id="espLocalIpLink" href="#" target="_blank" class="text-cyan-400 hover:underline select-all">Searching ESP32 IP...</a>
+                            <button onclick="copyOtaUrl()" class="text-slate-500 hover:text-white transition" title="Copy URL">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m-5 4h6m-6 4h6m-6 4h6" />
+                                </svg>
+                            </button>
+                        </div>
+                        <p class="text-[9px] text-slate-500">
+                            The ESP32 hosts a styled firmware flashing interface on port 80.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MQTT Broker Details -->
+            <div class="bg-slate-900/30 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-blue-500/10 rounded-lg border border-blue-500/30">
+                        <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white tracking-tight">MQTT Broker Details</h3>
+                        <p class="text-[11px] text-slate-400">Configure connection endpoints</p>
+                    </div>
+                </div>
+
+                <div class="space-y-3 text-xs">
+                    <div class="flex flex-col gap-1.5">
+                        <label class="font-semibold text-slate-400">WebSocket Endpoint URL</label>
+                        <input id="brokerInput" type="text" value="wss://broker.hivemq.com:8884/mqtt" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 font-mono focus:outline-none focus:border-cyan-500">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="font-semibold text-slate-400">Device Path Topic</label>
+                            <input id="topicPrefix" type="text" value="mytank123" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 font-mono focus:outline-none focus:border-cyan-500">
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="font-semibold text-slate-400">Client ID</label>
+                            <input id="clientIdInput" type="text" value="hydrosync-dashboard" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-400 font-mono" disabled>
+                        </div>
+                    </div>
+
+                    <button onclick="reconnectMQTT(true)" class="w-full border border-slate-805 hover:border-slate-700 bg-slate-955 hover:bg-slate-900 text-white font-medium py-2 rounded-lg transition text-xs mt-2">
+                        Re-connect / Apply Broker Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <p>© 2026 HydroSync Technologies. Operating with secure NVS persistence.</p>
+            <div class="flex gap-4">
+                <a href="#" class="hover:text-cyan-400 transition">Firmware Instructions</a>
+                <span>•</span>
+                <a href="#" class="hover:text-cyan-400 transition">Hardware Schematics</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Logic Controller Code -->
+    <script>
+        // Configuration state matching the ESP32 code values
+        let config = {
+            height: 200, // cm (Max Water Height)
+            sensorHeight: 45, // cm (Offset from Max Water Height to sensor face)
+            diameter: 228, // cm (Arpico 10,000L)
+            tanks: 1
+        };
+
+        // MQTT client instance holder & Connection state
+        let client = null;
+        let connectionTimeout = null;
+
+        // Device presence & connection state tracking
+        let lastDeviceMessageTime = 0;
+        let deviceOnline = false;
+
+        // Display beautiful customized toast alerts
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `flex items-center gap-2.5 px-4 py-3 rounded-xl border text-sm font-medium shadow-xl transition-all transform translate-y-2 opacity-0 duration-300`;
+            
+            if (type === 'success') {
+                toast.className += ' bg-emerald-500/10 border-emerald-500/30 text-emerald-400';
+            } else if (type === 'error') {
+                toast.className += ' bg-rose-500/10 border-rose-500/30 text-rose-400';
+            } else {
+                toast.className += ' bg-slate-900 border-slate-800 text-slate-300';
+            }
+
+            toast.innerHTML = `
+                <span class="w-2 h-2 rounded-full ${type === 'success' ? 'bg-emerald-400' : type === 'error' ? 'bg-rose-400' : 'bg-slate-400'}"></span>
+                <span>${message}</span>
+            `;
+
+            container.appendChild(toast);
+            
+            // Trigger animation
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            // Destroy toast after timeout
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => {
+                    toast.remove();
+                }, 300);
+            }, 4000);
+        }
+
+        // Toggle Settings Drawer Overlay
+        function toggleSettingsDrawer(show = true) {
+            const drawer = document.getElementById('settingsDrawer');
+            const backdrop = document.getElementById('settingsDrawerBackdrop');
+            if (show) {
+                backdrop.classList.remove('hidden');
+                setTimeout(() => {
+                    backdrop.classList.remove('opacity-0');
+                    backdrop.classList.add('opacity-100');
+                    drawer.classList.remove('translate-x-full');
+                }, 10);
+            } else {
+                backdrop.classList.remove('opacity-100');
+                backdrop.classList.add('opacity-0');
+                drawer.classList.add('translate-x-full');
+                setTimeout(() => {
+                    backdrop.classList.add('hidden');
+                }, 300);
+            }
+        }
+
+        // Read layout dimensions
+        function updateConfigFromUI() {
+            const h = parseFloat(document.getElementById('heightInput').value);
+            const shInput = document.getElementById('sensorHeightInput');
+            const sh = shInput ? parseFloat(shInput.value) : 0;
+            const d = parseFloat(document.getElementById('diameterInput').value);
+            const t = parseInt(document.getElementById('tankCountInput').value);
+            if (!isNaN(h) && h > 0) config.height = h;
+            if (!isNaN(sh) && sh >= 0) config.sensorHeight = sh;
+            else config.sensorHeight = 0;
+            if (!isNaN(d) && d > 0) config.diameter = d;
+            if (!isNaN(t) && t > 0) config.tanks = t;
+            else config.tanks = 1;
+        }
+
+        // Liters calculation: Pi * r^2 * h / 1000 multiplied by total tanks
+        function calculateLiters(percent) {
+            updateConfigFromUI();
+            const radius = config.diameter / 2;
+            const waterHeight = (percent / 100) * config.height;
+            const volumeCm3 = Math.PI * Math.pow(radius, 2) * waterHeight;
+            return (volumeCm3 / 1000) * config.tanks;
+        }
+
+        // Helper to round value to nearest 10 and format with thousands separators
+        function formatNearestTen(val) {
+            const rounded = Math.round(val / 10) * 10;
+            return rounded.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        }
+
+        // Global state to track real-time telemetry inputs without colliding
+        let telemetry = {
+            depth: 0,
+            volume: 0,
+            hasDepth: false,
+            hasVolume: false
+        };
+
+        function resetTelemetryState() {
+            telemetry.depth = 0;
+            telemetry.volume = 0;
+            telemetry.hasDepth = false;
+            telemetry.hasVolume = false;
+        }
+
+        // Visual telemetry refresh logic
+        function updateTelemetryUI(overrideLiters = null, overridePercent = null) {
+            updateConfigFromUI();
+
+            const singleMaxVol = (Math.PI * Math.pow(config.diameter / 2, 2) * config.height) / 1000;
+            const totalMaxVol = singleMaxVol * config.tanks;
+            
+            let percent = 0;
+            let currentLevelCm = 0;
+            let liters = 0;
+
+            if (overrideLiters !== null && overridePercent !== null) {
+                // Initialize or manually override with specific values (e.g. updateTelemetryUI(0,0))
+                percent = overridePercent;
+                currentLevelCm = (percent / 100) * config.height;
+                liters = overrideLiters;
+            } else {
+                // Read from live ESP32 telemetry state
+                if (telemetry.hasDepth) {
+                    currentLevelCm = telemetry.depth;
+                    percent = (currentLevelCm / config.height) * 100;
+                } else if (telemetry.hasVolume) {
+                    percent = (telemetry.volume / totalMaxVol) * 100;
+                    currentLevelCm = (percent / 100) * config.height;
+                }
+
+                if (telemetry.hasVolume) {
+                    liters = telemetry.volume;
+                } else {
+                    liters = ((Math.PI * Math.pow(config.diameter / 2, 2) * currentLevelCm) / 1000) * config.tanks;
+                }
+            }
+
+            // Outer bound checks
+            percent = Math.min(Math.max(percent, 0), 100);
+            currentLevelCm = Math.min(Math.max(currentLevelCm, 0), config.height);
+            const airSpaceCm = Math.max((config.height + config.sensorHeight) - currentLevelCm, 0);
+
+            // Update DOM Texts
+            document.getElementById('txtLevel').innerText = currentLevelCm.toFixed(1);
+            document.getElementById('txtVolume').innerText = formatNearestTen(liters);
+            document.getElementById('txtPercent').innerText = percent.toFixed(0);
+            document.getElementById('visualPercent').innerText = `${percent.toFixed(0)}%`;
+
+            document.getElementById('lblMaxVol').innerText = `${formatNearestTen(totalMaxVol)} L`;
+            document.getElementById('lblAirDepth').innerText = `${airSpaceCm.toFixed(1)} cm`;
+            document.getElementById('lblRatio').innerText = `${percent.toFixed(0)}%`;
+            document.getElementById('lblMass').innerText = `${formatNearestTen(liters)} kg`;
+            document.getElementById('txtEmptySpace').innerText = `Sensor Distance: ${airSpaceCm.toFixed(1)} cm`;
+
+            // Progress bar elements
+            document.getElementById('barLevel').style.width = `${(currentLevelCm / config.height) * 100}%`;
+            document.getElementById('barPercent').style.width = `${percent}%`;
+            document.getElementById('barVolume').style.width = `${Math.min((liters / totalMaxVol) * 100, 100)}%`;
+
+            // Tank display container size
+            document.getElementById('waterContainer').style.height = `${percent}%`;
+        }
+
+        // Flash packet indicator
+        function triggerRxFlash() {
+            const rxIndicator = document.getElementById('rxIndicator');
+            if (rxIndicator) {
+                rxIndicator.classList.remove('hidden');
+                rxIndicator.classList.add('flex', 'blink-fast');
+                
+                // Clean animation classes after it finishes blinking
+                setTimeout(() => {
+                    rxIndicator.classList.remove('blink-fast');
+                }, 1000);
+            }
+        }
+
+        // Update the visual device status badge and handle presence alerts
+        function updateDeviceStatusUI() {
+            const deviceBadge = document.getElementById('deviceBadge');
+            const deviceIndicator = document.getElementById('deviceIndicator');
+            const deviceStatusText = document.getElementById('deviceStatusText');
+            if (!deviceBadge || !deviceIndicator || !deviceStatusText) return;
+
+            const tDot = document.getElementById('telemetryPulseDot');
+            const tBadge = document.getElementById('telemetryStateBadge');
+
+            const txtLastUpdated = document.getElementById('txtLastUpdated');
+            const lastUpdatedIndicator = document.getElementById('lastUpdatedIndicator');
+
+            if (lastDeviceMessageTime === 0) {
+                // Initial state - connected to broker but awaiting first telemetry payload
+                deviceBadge.className = "flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-xs font-semibold";
+                deviceIndicator.className = "w-2 h-2 rounded-full bg-yellow-400 animate-pulse";
+                deviceStatusText.innerText = "Awaiting Device...";
+                deviceOnline = false;
+
+                if (tDot) tDot.className = "w-2 h-2 rounded-full bg-yellow-500 animate-pulse";
+                if (tBadge) {
+                    tBadge.innerText = "Broker Cached";
+                    tBadge.className = "text-[10px] px-2 py-0.5 rounded bg-yellow-500/15 text-yellow-500 border border-yellow-500/20 uppercase font-semibold tracking-wider";
+                }
+
+                if (txtLastUpdated) txtLastUpdated.innerText = "Never";
+                if (lastUpdatedIndicator) lastUpdatedIndicator.className = "w-1.5 h-1.5 rounded-full bg-slate-600 animate-pulse";
+            } else {
+                const elapsedSec = Math.floor((Date.now() - lastDeviceMessageTime) / 1000);
+                let elapsedText = "";
+                let indicatorClass = "w-1.5 h-1.5 rounded-full";
+
+                if (elapsedSec < 3) {
+                    elapsedText = "Just now";
+                } else if (elapsedSec < 60) {
+                    elapsedText = elapsedSec + "s ago";
+                } else {
+                    const mins = Math.floor(elapsedSec / 60);
+                    if (mins < 60) {
+                        elapsedText = mins + "m ago";
+                    } else {
+                        const hrs = Math.floor(mins / 60);
+                        if (hrs < 24) {
+                            elapsedText = hrs + "h ago";
+                        } else {
+                            const days = Math.floor(hrs / 24);
+                            elapsedText = days + "d ago";
+                        }
+                    }
+                }
+
+                if (elapsedSec < 70) {
+                    // Device sent a message recently (within 70 seconds) -> Online
+                    if (!deviceOnline) {
+                        deviceOnline = true;
+                        showToast("ESP32 Device is Online & active!", "success");
+                    }
+                    deviceBadge.className = "flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold hover:border-emerald-500/40 transition duration-300";
+                    deviceIndicator.className = "w-2 h-2 rounded-full bg-emerald-400";
+                    deviceStatusText.innerText = "Device Online";
+
+                    if (tDot) tDot.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
+                    if (tBadge) {
+                        tBadge.innerText = "Live";
+                        tBadge.className = "text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 uppercase font-semibold tracking-wider";
+                    }
+
+                    indicatorClass += " bg-emerald-400 animate-pulse";
+                } else {
+                    // Silence for more than 70 seconds -> Device Offline
+                    if (deviceOnline) {
+                        deviceOnline = false;
+                        showToast("ESP32 Device has gone offline (Signal lost)!", "error");
+                    }
+                    deviceBadge.className = "flex items-center gap-2 px-3 py-2 rounded-lg bg-rose-500/15 text-rose-400 border border-rose-500/30 text-xs font-semibold animate-pulse";
+                    deviceIndicator.className = "w-2 h-2 rounded-full bg-rose-500";
+                    deviceStatusText.innerText = "Device Offline";
+
+                    if (tDot) tDot.className = "w-2 h-2 rounded-full bg-rose-500";
+                    if (tBadge) {
+                        tBadge.innerText = "Stale (Offline)";
+                        tBadge.className = "text-[10px] px-2 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/20 uppercase font-semibold tracking-wider animate-pulse";
+                    }
+
+                    // Ensure stale RX indicators are hidden
+                    const rxIndicator = document.getElementById('rxIndicator');
+                    if (rxIndicator) {
+                        rxIndicator.classList.add('hidden');
+                    }
+
+                    if (elapsedSec < 150) {
+                        indicatorClass += " bg-amber-500 animate-pulse";
+                    } else {
+                        indicatorClass += " bg-rose-500";
+                    }
+                }
+
+                if (txtLastUpdated) txtLastUpdated.innerText = elapsedText;
+                if (lastUpdatedIndicator) lastUpdatedIndicator.className = indicatorClass;
+            }
+
+            // Dynamic water & wave coloring based on stale duration (>= 150 seconds / 2.5 minutes)
+            const waterContainer = document.getElementById('waterContainer');
+            const wave1 = document.getElementById('wave1');
+            const wave2 = document.getElementById('wave2');
+
+            if (waterContainer && wave1 && wave2) {
+                const elapsedSec = lastDeviceMessageTime > 0 ? Math.floor((Date.now() - lastDeviceMessageTime) / 1000) : 0;
+                const isStale = lastDeviceMessageTime > 0 && elapsedSec >= 150;
+
+                if (isStale) {
+                    // Turn water to warning amber/rose colors for easy identify
+                    waterContainer.className = "w-full relative transition-all duration-1000 ease-out bg-gradient-to-t from-amber-600/90 to-rose-500/80";
+                    wave1.setAttribute("class", "w-full h-full fill-rose-500/80 wave-animation");
+                    wave2.setAttribute("class", "w-full h-full fill-amber-400/90 wave-animation");
+                } else {
+                    // Normal healthy blue-cyan styling
+                    waterContainer.className = "w-full relative transition-all duration-1000 ease-out bg-gradient-to-t from-cyan-600/90 to-blue-500/80";
+                    wave1.setAttribute("class", "w-full h-full fill-blue-500/80 wave-animation");
+                    wave2.setAttribute("class", "w-full h-full fill-cyan-400/90 wave-animation");
+                }
+            }
+        }
+
+        // MQTT Connection
+        function reconnectMQTT(isManual = false) {
+            if (isManual) {
+                saveSettingsToLocalStorage();
+                loadTelemetryFromLocalStorage();
+            }
+
+            if (client) {
+                client.end();
+            }
+            if (connectionTimeout) {
+                clearTimeout(connectionTimeout);
+            }
+
+            // Reset device online status on reconnect if no last sync time exists
+            if (lastDeviceMessageTime === 0) {
+                deviceOnline = false;
+            }
+            updateDeviceStatusUI();
+
+            const brokerUrl = document.getElementById('brokerInput').value;
+            const prefix = document.getElementById('topicPrefix').value;
+            const statusBadge = document.getElementById('statusBadge');
+            const statusText = document.getElementById('statusText');
+            const statusIndicator = document.getElementById('statusIndicator');
+            const sandboxAlert = document.getElementById('sandboxAlert');
+
+            statusBadge.className = "flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-xs font-semibold";
+            statusText.innerText = "Connecting to Broker...";
+            statusIndicator.className = "w-2 h-2 rounded-full bg-yellow-400 animate-pulse";
+
+            try {
+                // Connect to HiveMQ public broker with more resilient handshake configuration
+                client = mqtt.connect(brokerUrl, {
+                    clientId: 'hydrosync-dashboard-' + Math.random().toString(16).substr(2, 6),
+                    keepalive: 60,
+                    reconnectPeriod: 3000,
+                    connectTimeout: 15000 
+                });
+
+                client.on('connect', () => {
+                    if (connectionTimeout) clearTimeout(connectionTimeout);
+                    sandboxAlert.classList.add('hidden'); // Hide warning on connection success
+                    statusBadge.className = "flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold";
+                    statusText.innerText = "MQTT Active";
+                    statusIndicator.className = "w-2 h-2 rounded-full bg-emerald-400";
+                    showToast("Successfully connected to HiveMQ Broker!", "success");
+
+                    // Clear any historically retained Wi-Fi credentials from the public broker to prevent conflicts
+                    client.publish(`${prefix}/config/wifi_ssid`, "", { qos: 1, retain: true });
+                    client.publish(`${prefix}/config/wifi_pass`, "", { qos: 1, retain: true });
+
+                    // Subscribe to incoming ESP32 data feeds and stored calibrations
+                    const subTopics = [
+                        `${prefix}/status/level`,
+                        `${prefix}/status/volume`,
+                        `${prefix}/status/ip`,
+                        `${prefix}/config/height`,
+                        `${prefix}/config/sensor_height`,
+                        `${prefix}/config/diameter`,
+                        `${prefix}/config/tanks`,
+                        `${prefix}/config/gsm_numbers`
+                    ];
+                    
+                    client.subscribe(subTopics, (err) => {
+                        if (!err) {
+                            console.log(`Subscribed to: ${subTopics.join(', ')}`);
+                        }
+                    });
+                });
+
+                client.on('message', (topic, message, packet) => {
+                    const prefixVal = document.getElementById('topicPrefix').value;
+                    const rawStr = message.toString().trim();
+
+                    // Only process messages targeting our assigned device prefix
+                    if (!topic.startsWith(prefixVal + '/')) return;
+
+                    // Differentiate between historical retained messages and fresh active packets
+                    const isRetained = (packet && packet.retain) === true;
+                    if (!isRetained) {
+                        lastDeviceMessageTime = Date.now();
+                        saveTelemetryToLocalStorage();
+                        updateDeviceStatusUI();
+                        triggerRxFlash();
+                    }
+
+                    // Process non-numeric config/gsm_numbers & status/ip topics first
+                    if (topic === `${prefixVal}/config/gsm_numbers`) {
+                        if (rawStr === "" || rawStr === "none" || rawStr === "[]") {
+                            gsmNumbers = [];
+                        } else {
+                            gsmNumbers = rawStr.split(',').map(n => n.trim()).filter(n => n !== "");
+                        }
+                        renderGsmNumbers();
+                        showToast(`Loaded saved phone numbers list from ESP32.`, "info");
+                        return;
+                    }
+
+                    if (topic === `${prefixVal}/status/ip`) {
+                        updateEspIp(rawStr);
+                        return;
+                    }
+
+                    const val = parseFloat(rawStr);
+
+                    if (isNaN(val)) return;
+
+                    updateConfigFromUI();
+
+                    if (topic === `${prefixVal}/status/level`) {
+                        // Level is the depth in cm sent by ESP32 (actual water level depth)
+                        telemetry.depth = val;
+                        telemetry.hasDepth = true;
+                        updateTelemetryUI();
+                        saveTelemetryToLocalStorage();
+                    } else if (topic === `${prefixVal}/status/volume`) {
+                        // Volume is calculated in Liters sent directly by ESP32
+                        telemetry.volume = val;
+                        telemetry.hasVolume = true;
+                        updateTelemetryUI();
+                        saveTelemetryToLocalStorage();
+                    } else if (topic === `${prefixVal}/config/height`) {
+                        // Match received height configured in ESP32 / broker
+                        const currentInputHeight = parseFloat(document.getElementById('heightInput').value);
+                        if (currentInputHeight !== val) {
+                            document.getElementById('heightInput').value = val;
+                            config.height = val;
+                            showToast(`ESP32 Calibration Loaded: Height set to ${val} cm`, "info");
+                            updateTelemetryUI();
+                            saveSettingsToLocalStorage();
+                        }
+                    } else if (topic === `${prefixVal}/config/sensor_height`) {
+                        // Match received sensor_height configured in ESP32 / broker
+                        const currentInputSensorHeight = document.getElementById('sensorHeightInput') ? parseFloat(document.getElementById('sensorHeightInput').value) : 0;
+                        if (currentInputSensorHeight !== val) {
+                            const shInput = document.getElementById('sensorHeightInput');
+                            if (shInput) shInput.value = val;
+                            config.sensorHeight = val;
+                            showToast(`ESP32 Calibration Loaded: Sensor Offset set to ${val} cm`, "info");
+                            updateTelemetryUI();
+                            saveSettingsToLocalStorage();
+                        }
+                    } else if (topic === `${prefixVal}/config/diameter`) {
+                        // Match received diameter configured in ESP32 / broker
+                        const currentInputDiameter = parseFloat(document.getElementById('diameterInput').value);
+                        if (currentInputDiameter !== val) {
+                            document.getElementById('diameterInput').value = val;
+                            config.diameter = val;
+                            showToast(`ESP32 Calibration Loaded: Diameter set to ${val} cm`, "info");
+                            updateTelemetryUI();
+                            saveSettingsToLocalStorage();
+                        }
+                    } else if (topic === `${prefixVal}/config/tanks`) {
+                        // Match received tank count configured in broker
+                        const currentInputTanks = parseInt(document.getElementById('tankCountInput').value);
+                        if (currentInputTanks !== val) {
+                            document.getElementById('tankCountInput').value = val;
+                            config.tanks = val;
+                            showToast(`Loaded Tank Count: ${val} tanks configured`, "info");
+                            updateTelemetryUI();
+                            saveSettingsToLocalStorage();
+                        }
+                    }
+                });
+
+                client.on('error', (err) => {
+                    console.warn("MQTT connection error caught:", err);
+                    if (statusText.innerText !== "MQTT Active") {
+                        statusBadge.className = "flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-xs font-semibold";
+                        statusText.innerText = "Connecting/Retrying...";
+                        statusIndicator.className = "w-2 h-2 rounded-full bg-yellow-400 animate-pulse";
+                    }
+                });
+
+                client.on('offline', () => {
+                    if (statusText.innerText !== "MQTT Active" && statusText.innerText !== "Connecting/Retrying...") {
+                        statusBadge.className = "flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-xs font-semibold";
+                        statusText.innerText = "Broker Offline";
+                        statusIndicator.className = "w-2 h-2 rounded-full bg-yellow-400 animate-pulse";
+                    }
+                });
+
+                // Check connection state after 15 seconds (more lenient for cold start & slow websockets)
+                connectionTimeout = setTimeout(() => {
+                    if (!client.connected) {
+                        handleConnectionFailure("Sandbox Security Restriction");
+                    }
+                }, 15000);
+
+            } catch (ex) {
+                console.warn("Exception caught gracefully:", ex.message);
+                handleConnectionFailure(ex.message);
+            }
+        }
+
+        // Fallback or warning alert if broker cannot be contacted
+        function handleConnectionFailure(reason) {
+            const statusBadge = document.getElementById('statusBadge');
+            const statusText = document.getElementById('statusText');
+            const statusIndicator = document.getElementById('statusIndicator');
+            const sandboxAlert = document.getElementById('sandboxAlert');
+
+            statusBadge.className = "flex items-center gap-2 px-3 py-2 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold";
+            statusText.innerText = "Connection Failed";
+            statusIndicator.className = "w-2 h-2 rounded-full bg-rose-400";
+            
+            // Show the warning panel explaining how to resolve
+            sandboxAlert.classList.remove('hidden');
+        }
+
+        // --- OTA Centre JS Helpers ---
+        let espLocalIp = "";
+
+        function updateEspIp(ip) {
+            if (!ip || ip.trim() === "" || ip.includes("<") || ip.includes("Searching")) return;
+            espLocalIp = ip.trim();
+            const link = document.getElementById('espLocalIpLink');
+            if (link) {
+                link.href = `http://${espLocalIp}/update`;
+                link.textContent = `http://${espLocalIp}/update`;
+                link.className = "text-cyan-400 hover:underline select-all font-bold font-mono text-[11px]";
+            }
+        }
+
+        function copyOtaUrl() {
+            const link = document.getElementById('espLocalIpLink');
+            if (!link || espLocalIp === "") {
+                showToast("No active ESP32 IP address detected over MQTT yet.", "error");
+                return;
+            }
+            const url = `http://${espLocalIp}/update`;
+            navigator.clipboard.writeText(url).then(() => {
+                showToast("Local web OTA portal URL copied to clipboard!", "success");
+            }).catch(err => {
+                console.error("Could not copy:", err);
+                showToast(`URL: ${url}`, "info");
+            });
+        }
+
+        function triggerRemoteOta() {
+            const urlInput = document.getElementById('otaBinUrl');
+            const btn = document.getElementById('otaTriggerBtn');
+            const prefix = document.getElementById('topicPrefix').value;
+
+            if (!urlInput || !urlInput.value || urlInput.value.trim() === "") {
+                showToast("Please enter a valid binary HTTP/HTTPS URL.", "error");
+                return;
+            }
+
+            const url = urlInput.value.trim();
+            if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                showToast("Firmware URL must start with http:// or https://", "error");
+                return;
+            }
+
+            if (!client || !client.connected) {
+                showToast("Please connect to MQTT Broker first to transmit OTA command.", "error");
+                return;
+            }
+
+            if (btn) {
+                btn.disabled = true;
+                btn.className = "w-full bg-slate-800 text-slate-500 font-semibold py-2 px-3 rounded-lg text-xs flex items-center justify-center gap-1.5 cursor-not-allowed";
+                btn.innerHTML = `<span class="inline-block animate-spin">🌀</span> Broadcasting OTA Command...`;
+            }
+
+            try {
+                // Publish remote URL update command to ESP32
+                client.publish(`${prefix}/cmd/ota`, url, { qos: 1, retain: false });
+                showToast(`OTA firmware URL published! The ESP32 device will now download and reboot.`, "success");
+            } catch (err) {
+                console.error(err);
+                showToast("Failed to publish OTA command.", "error");
+            } finally {
+                setTimeout(() => {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.className = "w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-2 px-3 rounded-lg transition text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-purple-600/15";
+                        btn.innerHTML = `
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Trigger OTA Firmware Update
+                        `;
+                    }
+                }, 5000);
+            }
+        }
+
+        // Setting updater (Sends messages to ESP32 configuration channels)
+        function updateSettings() {
+            updateConfigFromUI();
+            saveSettingsToLocalStorage();
+            
+            // Highlight validation
+            if (config.height <= 0 || config.diameter <= 0 || config.tanks <= 0 || config.sensorHeight < 0) {
+                showToast("Values must be non-zero positive numbers.", "error");
+                return;
+            }
+
+            const prefix = document.getElementById('topicPrefix').value;
+
+            if (client && client.connected) {
+                // Publish settings configured on topics that the ESP32 is listening to
+                client.publish(`${prefix}/config/height`, config.height.toString(), { qos: 1, retain: true });
+                client.publish(`${prefix}/config/sensor_height`, config.sensorHeight.toString(), { qos: 1, retain: true });
+                client.publish(`${prefix}/config/diameter`, config.diameter.toString(), { qos: 1, retain: true });
+                client.publish(`${prefix}/config/tanks`, config.tanks.toString(), { qos: 1, retain: true });
+                
+                showToast(`Settings Transmitted! Configured max water height: ${config.height}cm, sensor offset: ${config.sensorHeight}cm, diameter: ${config.diameter}cm with ${config.tanks} tanks configuration.`, "success");
+            } else {
+                showToast(`Settings saved locally with ${config.tanks} tanks and sensor offset: ${config.sensorHeight}cm. Connect to MQTT to transmit to ESP32.`, "success");
+            }
+            // Reset telemetry state and clean UI indicators on dimension updates
+            resetTelemetryState();
+            updateTelemetryUI(0, 0);
+        }
+
+
+
+        // --- Local Storage Configuration Persistence Helpers ---
+        function loadSettingsFromLocalStorage() {
+            const savedBroker = localStorage.getItem('hydrosync_broker');
+            const savedPrefix = localStorage.getItem('hydrosync_prefix');
+            const savedHeight = localStorage.getItem('hydrosync_height');
+            const savedSensorHeight = localStorage.getItem('hydrosync_sensor_height');
+            const savedDiameter = localStorage.getItem('hydrosync_diameter');
+            const savedTanks = localStorage.getItem('hydrosync_tanks');
+            const savedGsmNumbers = localStorage.getItem('hydrosync_gsm_numbers');
+
+            if (savedBroker) document.getElementById('brokerInput').value = savedBroker;
+            if (savedPrefix) document.getElementById('topicPrefix').value = savedPrefix;
+            if (savedHeight) document.getElementById('heightInput').value = savedHeight;
+            if (savedSensorHeight) {
+                const shInput = document.getElementById('sensorHeightInput');
+                if (shInput) shInput.value = savedSensorHeight;
+            }
+            if (savedDiameter) document.getElementById('diameterInput').value = savedDiameter;
+            if (savedTanks) document.getElementById('tankCountInput').value = savedTanks;
+            
+            if (savedGsmNumbers) {
+                try {
+                    gsmNumbers = JSON.parse(savedGsmNumbers);
+                } catch(e) {
+                    gsmNumbers = [];
+                }
+            } else {
+                gsmNumbers = [];
+            }
+        }
+
+        function saveSettingsToLocalStorage() {
+            const broker = document.getElementById('brokerInput').value;
+            const prefix = document.getElementById('topicPrefix').value;
+            const height = document.getElementById('heightInput').value;
+            const sensorHeight = document.getElementById('sensorHeightInput') ? document.getElementById('sensorHeightInput').value : "0";
+            const diameter = document.getElementById('diameterInput').value;
+            const tanks = document.getElementById('tankCountInput').value;
+
+            localStorage.setItem('hydrosync_broker', broker);
+            localStorage.setItem('hydrosync_prefix', prefix);
+            localStorage.setItem('hydrosync_height', height);
+            localStorage.setItem('hydrosync_sensor_height', sensorHeight);
+            localStorage.setItem('hydrosync_diameter', diameter);
+            localStorage.setItem('hydrosync_tanks', tanks);
+            localStorage.setItem('hydrosync_gsm_numbers', JSON.stringify(gsmNumbers));
+        }
+
+        // --- Local Storage Telemetry & Heartbeat Persistence Helpers ---
+        function loadTelemetryFromLocalStorage() {
+            const prefix = document.getElementById('topicPrefix').value || "mytank123";
+            const savedLastMessageTime = localStorage.getItem('hydrosync_last_device_message_time_' + prefix);
+            if (savedLastMessageTime) {
+                lastDeviceMessageTime = parseInt(savedLastMessageTime);
+            } else {
+                lastDeviceMessageTime = 0;
+            }
+
+            const savedDepth = localStorage.getItem('hydrosync_last_depth_' + prefix);
+            const savedHasDepth = localStorage.getItem('hydrosync_last_has_depth_' + prefix);
+            if (savedDepth && savedHasDepth === 'true') {
+                telemetry.depth = parseFloat(savedDepth);
+                telemetry.hasDepth = true;
+            } else {
+                telemetry.depth = 0;
+                telemetry.hasDepth = false;
+            }
+
+            const savedVolume = localStorage.getItem('hydrosync_last_volume_' + prefix);
+            const savedHasVolume = localStorage.getItem('hydrosync_last_has_volume_' + prefix);
+            if (savedVolume && savedHasVolume === 'true') {
+                telemetry.volume = parseFloat(savedVolume);
+                telemetry.hasVolume = true;
+            } else {
+                telemetry.volume = 0;
+                telemetry.hasVolume = false;
+            }
+        }
+
+        function saveTelemetryToLocalStorage() {
+            const prefix = document.getElementById('topicPrefix').value || "mytank123";
+            localStorage.setItem('hydrosync_last_device_message_time_' + prefix, lastDeviceMessageTime.toString());
+            localStorage.setItem('hydrosync_last_depth_' + prefix, telemetry.depth.toString());
+            localStorage.setItem('hydrosync_last_has_depth_' + prefix, telemetry.hasDepth ? 'true' : 'false');
+            localStorage.setItem('hydrosync_last_volume_' + prefix, telemetry.volume.toString());
+            localStorage.setItem('hydrosync_last_has_volume_' + prefix, telemetry.hasVolume ? 'true' : 'false');
+        }
+
+        // --- GSM Phone Numbers State Management ---
+        let gsmNumbers = [];
+
+        function renderGsmNumbers() {
+            const listContainer = document.getElementById('gsmNumbersList');
+            const countLabel = document.getElementById('gsmCount');
+            if (!listContainer) return;
+
+            if (countLabel) {
+                countLabel.innerText = `${gsmNumbers.length} / 10 saved`;
+            }
+
+            if (gsmNumbers.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="text-[11px] text-slate-500 italic p-3 bg-slate-950/40 rounded-xl text-center border border-dashed border-slate-800">
+                        No saved phone numbers. Add one below.
+                    </div>
+                `;
+                return;
+            }
+
+            listContainer.innerHTML = gsmNumbers.map((number, idx) => `
+                <div class="flex items-center justify-between bg-slate-950 border border-slate-850 px-3 py-2 rounded-xl text-xs text-white">
+                    <span class="font-mono text-xs font-semibold tracking-wider text-slate-300">${number}</span>
+                    <button onclick="deleteGsmNumber(${idx})" class="p-1.5 hover:bg-slate-900 border border-transparent hover:border-slate-800 rounded-lg text-rose-500 hover:text-rose-400 transition" title="Delete Number">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                    </button>
+                </div>
+            `).join('');
+
+            // Automatically preserve state in local storage
+            saveSettingsToLocalStorage();
+        }
+
+        function addGsmNumber() {
+            const input = document.getElementById('gsmNewNumberInput');
+            if (!input) return;
+
+            let num = input.value.trim();
+            if (!num) {
+                showToast("Please enter a phone number", "error");
+                return;
+            }
+
+            // Simple validation: should be digits, maybe starts with + (length 5 to 15)
+            if (!/^\+?[0-9]{5,15}$/.test(num)) {
+                showToast("Invalid phone number format. Must use digits, optionally starting with '+' (5-15 digits).", "error");
+                return;
+            }
+
+            if (gsmNumbers.includes(num)) {
+                showToast("Number already exists in the whitelist.", "error");
+                return;
+            }
+
+            if (gsmNumbers.length >= 10) {
+                showToast("Maximum of 10 phone numbers allowed.", "error");
+                return;
+            }
+
+            gsmNumbers.push(num);
+            renderGsmNumbers();
+            transmitGsmNumbers();
+            input.value = "";
+        }
+
+        function deleteGsmNumber(index) {
+            if (index < 0 || index >= gsmNumbers.length) return;
+            const removedNum = gsmNumbers[index];
+            gsmNumbers.splice(index, 1);
+            renderGsmNumbers();
+            transmitGsmNumbers();
+            showToast(`Deleted ${removedNum} local reference.`, "info");
+        }
+
+        function transmitGsmNumbers() {
+            const prefix = document.getElementById('topicPrefix').value;
+            if (client && client.connected) {
+                const payload = gsmNumbers.length > 0 ? gsmNumbers.join(',') : "none";
+                client.publish(`${prefix}/config/gsm_numbers`, payload, { qos: 1, retain: true });
+                showToast("Phone numbers whitelist synchronized with ESP32.", "success");
+            } else {
+                showToast("Saved locally. Connect to MQTT to transmit to ESP32.", "info");
+            }
+        }
+
+        // --- Historical Analytics & PostgreSQL Integration Logic ---
+        let currentChartTab = 'water'; // 'water', 'data', or 'level'
+        let chartInstance = null;
+        let analyticsData = {
+            usage: [], // [{ usage_date, daily_water_used, daily_data_used_kb }]
+            history: [] // [{ hour_timestamp, avg_level, avg_volume }]
+        };
+
+        // Initialize default dates in date pickers (last 14 days)
+        function initAnalyticsDates() {
+            const end = new Date();
+            const start = new Date();
+            start.setDate(end.getDate() - 13); // Default to last 14 days inclusive
+
+            document.getElementById('historyEndDate').value = end.toISOString().split('T')[0];
+            document.getElementById('historyStartDate').value = start.toISOString().split('T')[0];
+        }
+
+        // Load list of unique device prefixes from PostgreSQL
+        async function loadAnalyticsDevices() {
+            try {
+                const response = await fetch('/api/devices');
+                const result = await response.json();
+                if (result.success && result.devices) {
+                    const select = document.getElementById('analyticsDeviceSelect');
+                    if (!select) return;
+
+                    const currentVal = select.value;
+                    select.innerHTML = '';
+                    result.devices.forEach(dev => {
+                        const option = document.createElement('option');
+                        option.value = dev;
+                        option.textContent = dev;
+                        option.className = "bg-slate-950 text-slate-200";
+                        select.appendChild(option);
+                    });
+
+                    // Match main config's prefix first
+                    const activePrefix = document.getElementById('topicPrefix').value || "mytank123";
+                    if (result.devices.includes(activePrefix)) {
+                        select.value = activePrefix;
+                    } else if (result.devices.includes(currentVal)) {
+                        select.value = currentVal;
+                    } else {
+                        select.value = result.devices[0];
+                    }
+                }
+            } catch (err) {
+                console.error('[Analytics] Error loading devices:', err);
+            }
+        }
+
+        // Seed mock historical data for demo / testing of given period
+        async function seedMockData() {
+            const select = document.getElementById('analyticsDeviceSelect');
+            const deviceId = select ? select.value : 'mytank123';
+            
+            const btn = document.getElementById('btnSeedData');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="inline-block animate-spin mr-1">🌀</span> Seeding...`;
+            }
+
+            try {
+                const response = await fetch(`/api/seed?device_id=${encodeURIComponent(deviceId)}`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showToast(`Seeded 14 days of realistic telemetry records for: ${deviceId}`, 'success');
+                    await loadAnalyticsDevices();
+                    await fetchAnalyticsData();
+                } else {
+                    showToast(`Failed to seed: ${result.error}`, 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast(`Network error when seeding database`, 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = `
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+                        </svg>
+                        Seed Demo Data
+                    `;
+                }
+            }
+        }
+
+        // Fetch daily usage statistics and water level history for the given time period
+        async function fetchAnalyticsData() {
+            const select = document.getElementById('analyticsDeviceSelect');
+            const deviceId = select ? select.value : 'mytank123';
+            const startDate = document.getElementById('historyStartDate').value;
+            const endDate = document.getElementById('historyEndDate').value;
+
+            if (!startDate || !endDate) {
+                showToast("Please select start and end dates.", "error");
+                return;
+            }
+
+            const startISO = new Date(startDate + 'T00:00:00').toISOString();
+            const endISO = new Date(endDate + 'T23:59:59').toISOString();
+
+            try {
+                const [usageRes, historyRes] = await Promise.all([
+                    fetch(`/api/usage?device_id=${encodeURIComponent(deviceId)}&start_date=${startISO}&end_date=${endISO}`),
+                    fetch(`/api/history?device_id=${encodeURIComponent(deviceId)}&start_date=${startISO}&end_date=${endISO}`)
+                ]);
+
+                const usageResult = await usageRes.json();
+                const historyResult = await historyRes.json();
+
+                if (usageResult.success && historyResult.success) {
+                    analyticsData.usage = usageResult.data || [];
+                    analyticsData.history = historyResult.data || [];
+
+                    updateAnalyticsSummaryUI();
+                    renderAnalyticsChart();
+                } else {
+                    showToast("Failed to load historical analytics", "error");
+                }
+            } catch (err) {
+                console.error('[Analytics] Fetch error:', err);
+                showToast("Failed to connect to PostgreSQL analytics API.", "error");
+            }
+        }
+
+        // Calculate totals and averages to update summary UI cards
+        function updateAnalyticsSummaryUI() {
+            let totalWater = 0;
+            let totalData = 0;
+            const daysCount = analyticsData.usage.length;
+
+            analyticsData.usage.forEach(row => {
+                totalWater += parseFloat(row.daily_water_used || 0);
+                totalData += parseFloat(row.daily_data_used_kb || 0);
+            });
+
+            const avgWater = daysCount > 0 ? (totalWater / daysCount) : 0;
+
+            document.getElementById('txtPeriodWaterUsed').innerText = `${totalWater.toLocaleString(undefined, {maximumFractionDigits:1})} L`;
+            document.getElementById('txtPeriodAvgWater').innerText = `${avgWater.toLocaleString(undefined, {maximumFractionDigits:1})} L / day`;
+            document.getElementById('txtPeriodDataUsed').innerText = `${totalData.toLocaleString(undefined, {maximumFractionDigits:2})} KB`;
+        }
+
+        // Switch active chart tab
+        function switchChartTab(tab) {
+            currentChartTab = tab;
+
+            const btnWater = document.getElementById('btnTabWater');
+            const btnData = document.getElementById('btnTabData');
+            const btnLevel = document.getElementById('btnTabLevel');
+
+            [btnWater, btnData, btnLevel].forEach(btn => {
+                if (btn) {
+                    btn.className = "px-4 py-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition";
+                }
+            });
+
+            const activeBtn = document.getElementById('btnTab' + tab.charAt(0).toUpperCase() + tab.slice(1));
+            if (activeBtn) {
+                activeBtn.className = "px-4 py-2 border-b-2 border-cyan-500 text-cyan-400 font-bold text-xs tracking-wider uppercase transition";
+            }
+
+            renderAnalyticsChart();
+        }
+
+        // Draw interactive Chart.js chart based on active selection
+        function renderAnalyticsChart() {
+            const canvas = document.getElementById('analyticsChart');
+            const noDataMsg = document.getElementById('noDataMessage');
+            if (!canvas) return;
+
+            if (chartInstance) {
+                chartInstance.destroy();
+                chartInstance = null;
+            }
+
+            const ctx = canvas.getContext('2d');
+            
+            const hasUsageData = analyticsData.usage && analyticsData.usage.length > 0;
+            const hasHistoryData = analyticsData.history && analyticsData.history.length > 0;
+
+            const showNoData = (currentChartTab === 'level' && !hasHistoryData) || 
+                              ((currentChartTab === 'water' || currentChartTab === 'data') && !hasUsageData);
+
+            if (showNoData) {
+                noDataMsg.classList.remove('hidden');
+                canvas.classList.add('opacity-0');
+                return;
+            } else {
+                noDataMsg.classList.add('hidden');
+                canvas.classList.remove('opacity-0');
+            }
+
+            let chartConfig = {};
+
+            if (currentChartTab === 'water') {
+                const labels = analyticsData.usage.map(r => r.usage_date);
+                const values = analyticsData.usage.map(r => parseFloat(r.daily_water_used || 0));
+
+                chartConfig = {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Daily Water Consumption (Liters)',
+                            data: values,
+                            backgroundColor: 'rgba(6, 182, 212, 0.45)',
+                            borderColor: '#06b6d4',
+                            borderWidth: 2,
+                            borderRadius: 6,
+                            hoverBackgroundColor: 'rgba(6, 182, 212, 0.7)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            x: {
+                                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                                ticks: { color: '#94a3b8', font: { size: 10 } }
+                            },
+                            y: {
+                                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                                ticks: { color: '#94a3b8', font: { size: 10 } }
+                            }
+                        }
+                    }
+                };
+            } 
+            else if (currentChartTab === 'data') {
+                const labels = analyticsData.usage.map(r => r.usage_date);
+                const values = analyticsData.usage.map(r => parseFloat(r.daily_data_used_kb || 0));
+
+                chartConfig = {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Daily ESP32 Network Overhead (KB)',
+                            data: values,
+                            backgroundColor: 'rgba(236, 72, 153, 0.45)',
+                            borderColor: '#ec4899',
+                            borderWidth: 2,
+                            borderRadius: 6,
+                            hoverBackgroundColor: 'rgba(236, 72, 153, 0.7)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            x: {
+                                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                                ticks: { color: '#94a3b8', font: { size: 10 } }
+                            },
+                            y: {
+                                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                                ticks: { color: '#94a3b8', font: { size: 10 } }
+                            }
+                        }
+                    }
+                };
+            } 
+            else if (currentChartTab === 'level') {
+                const labels = analyticsData.history.map(r => {
+                    const d = new Date(r.hour_timestamp);
+                    return d.toLocaleDateString(undefined, {month:'short', day:'numeric'}) + ' ' + d.getHours() + ':00';
+                });
+                const volumes = analyticsData.history.map(r => parseFloat(r.avg_volume || 0));
+
+                chartConfig = {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Water Volume (Liters)',
+                            data: volumes,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            fill: true,
+                            tension: 0.35,
+                            borderWidth: 3,
+                            pointRadius: 1,
+                            pointHoverRadius: 6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            x: {
+                                grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                                ticks: { color: '#94a3b8', font: { size: 9 }, maxTicksLimit: 12 }
+                            },
+                            y: {
+                                grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                                ticks: { color: '#94a3b8', font: { size: 10 } }
+                            }
+                        }
+                    }
+                };
+            }
+
+            chartInstance = new Chart(ctx, chartConfig);
+        }
+
+        // Initialize App on load
+        window.onload = function() {
+            // First load saved configurations from local storage
+            loadSettingsFromLocalStorage();
+            updateConfigFromUI();
+            
+            // Load previously synchronized telemetry state if present in local storage
+            loadTelemetryFromLocalStorage();
+            
+            // Render initial state
+            updateTelemetryUI();
+            renderGsmNumbers();
+            
+            // Immediately start connecting to live MQTT Broker
+            reconnectMQTT();
+
+            // Start physical device online/offline heartbeat check every 2.5 seconds
+            setInterval(updateDeviceStatusUI, 2500);
+
+            // Initialize Analytics Dates & Devices list from PostgreSQL
+            initAnalyticsDates();
+            loadAnalyticsDevices();
+
+            // Auto-trigger first analytics query after a slight delay
+            setTimeout(fetchAnalyticsData, 1000);
+        };
+    </script>
+</body>
+</html>

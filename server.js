@@ -93,7 +93,7 @@ function sendJSON(res, data, statusCode = 200) {
 }
 
 // HTTP Server
-http.createServer(async (req, res) => {
+const server = http.createServer(async (req, res) => {
     // Enable CORS for preflight options
     if (req.method === 'OPTIONS') {
         res.writeHead(204, {
@@ -294,6 +294,12 @@ http.createServer(async (req, res) => {
         }
     });
 
-}).listen(3000, () => {
-    console.log('HydroSync Server listening on port 3000');
 });
+
+if (require.main === module || !process.env.VERCEL) {
+    server.listen(3000, () => {
+        console.log('HydroSync Server listening on port 3000');
+    });
+}
+
+module.exports = server;

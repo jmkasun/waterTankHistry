@@ -171,16 +171,28 @@ const server = http.createServer(async (req, res) => {
                         timestamp,
                         volume,
                         data_usage,
-                        LAG(volume) OVER (ORDER BY timestamp) as prev_volume,
+                        AVG(volume) OVER (
+                            ORDER BY timestamp 
+                            ROWS BETWEEN 20 PRECEDING AND CURRENT ROW
+                        ) as smoothed_volume,
                         LAG(data_usage) OVER (ORDER BY timestamp) as prev_data_usage
                     FROM w_telemetry
                     WHERE device_id = $1 AND timestamp >= $2 AND timestamp <= $3
-                 ),
-                 deltas AS (
+                ),
+                smoothed_deltas AS (
+                    SELECT
+                        timestamp,
+                        smoothed_volume,
+                        data_usage,
+                        prev_data_usage,
+                        LAG(smoothed_volume) OVER (ORDER BY timestamp) as prev_smoothed_volume
+                    FROM ordered_telemetry
+                ),
+                deltas AS (
                     SELECT
                         timestamp::date as usage_date,
                         CASE 
-                            WHEN prev_volume IS NOT NULL AND prev_volume > volume THEN prev_volume - volume 
+                            WHEN prev_smoothed_volume IS NOT NULL AND prev_smoothed_volume > smoothed_volume THEN prev_smoothed_volume - smoothed_volume 
                             ELSE 0 
                         END as water_outflow,
                         CASE
@@ -188,15 +200,15 @@ const server = http.createServer(async (req, res) => {
                             WHEN prev_data_usage IS NOT NULL AND data_usage < prev_data_usage THEN data_usage
                             ELSE 0
                         END as data_increment
-                    FROM ordered_telemetry
-                 )
-                 SELECT 
+                    FROM smoothed_deltas
+                )
+                SELECT 
                     usage_date::text as usage_date,
                     ROUND(SUM(water_outflow)::numeric, 1) as daily_water_used,
                     ROUND((SUM(data_increment) / 1024.0)::numeric, 2) as daily_data_used_kb
-                 FROM deltas
-                 GROUP BY usage_date
-                 ORDER BY usage_date ASC`,
+                FROM deltas
+                GROUP BY usage_date
+                ORDER BY usage_date ASC`,
                 [deviceId, startDate, endDate]
             );
 

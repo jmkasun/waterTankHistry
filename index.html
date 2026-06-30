@@ -338,21 +338,11 @@
                     </div>
 
                     <!-- Canvas container -->
-                    <div class="relative w-full h-64 sm:h-80 select-none">
-                        <canvas id="analyticsChart" class="w-full h-full cursor-crosshair"></canvas>
-                        <!-- Drag Selection Box Overlay -->
-                        <div id="chartSelectionBox" class="absolute top-0 bottom-0 bg-cyan-500/20 border-l border-r border-cyan-400 pointer-events-none hidden z-10"></div>
+                    <div class="relative w-full h-64 sm:h-80">
+                        <canvas id="analyticsChart" class="w-full h-full"></canvas>
                         <div id="noDataMessage" class="absolute inset-0 flex items-center justify-center text-slate-500 text-xs italic hidden bg-slate-950/90 rounded-xl border border-dashed border-slate-800">
                             No telemetry records found for this period.
                         </div>
-                    </div>
-                    <div class="mt-2 text-center">
-                        <span class="inline-flex items-center gap-1.5 text-[10px] text-slate-500 font-medium">
-                            <svg class="w-3.5 h-3.5 text-cyan-500/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            Tip: Click and drag horizontally on the chart to select and zoom into a specific date range.
-                        </span>
                     </div>
                 </div>
 
@@ -1561,119 +1551,6 @@
             document.getElementById('historyStartDate').value = start.toISOString().split('T')[0];
         }
 
-        let isDragSelecting = false;
-        let dragStartX = 0;
-
-        function setupChartDragEvents() {
-            const canvas = document.getElementById('analyticsChart');
-            if (!canvas) return;
-            const container = canvas.parentElement;
-            const selectionBox = document.getElementById('chartSelectionBox');
-            if (!selectionBox) return;
-
-            canvas.addEventListener('mousedown', function(e) {
-                if (!chartInstance) return;
-                
-                // Get mouse position relative to canvas container
-                const rect = container.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left;
-                
-                // Ensure mousedown is within the chart area
-                const xAxis = chartInstance.scales.x;
-                const chartLeft = xAxis.left;
-                const chartRight = xAxis.right;
-                
-                if (mouseX >= chartLeft && mouseX <= chartRight) {
-                    isDragSelecting = true;
-                    dragStartX = mouseX;
-                    
-                    selectionBox.style.left = mouseX + 'px';
-                    selectionBox.style.width = '0px';
-                    selectionBox.classList.remove('hidden');
-                }
-            });
-
-            window.addEventListener('mousemove', function(e) {
-                if (!isDragSelecting || !chartInstance) return;
-                
-                const rect = container.getBoundingClientRect();
-                let mouseX = e.clientX - rect.left;
-                
-                const xAxis = chartInstance.scales.x;
-                const chartLeft = xAxis.left;
-                const chartRight = xAxis.right;
-                
-                // Constrain mouseX to chart area
-                mouseX = Math.max(chartLeft, Math.min(chartRight, mouseX));
-                
-                const currentLeft = Math.min(dragStartX, mouseX);
-                const currentWidth = Math.abs(dragStartX - mouseX);
-                
-                selectionBox.style.left = currentLeft + 'px';
-                selectionBox.style.width = currentWidth + 'px';
-            });
-
-            window.addEventListener('mouseup', function(e) {
-                if (!isDragSelecting) return;
-                isDragSelecting = false;
-                selectionBox.classList.add('hidden');
-
-                if (!chartInstance) return;
-
-                const rect = container.getBoundingClientRect();
-                let mouseX = e.clientX - rect.left;
-
-                const xAxis = chartInstance.scales.x;
-                const chartLeft = xAxis.left;
-                const chartRight = xAxis.right;
-
-                // Constrain mouseX to chart area
-                mouseX = Math.max(chartLeft, Math.min(chartRight, mouseX));
-
-                // If drag width is small, ignore
-                if (Math.abs(dragStartX - mouseX) < 8) {
-                    return;
-                }
-
-                // Convert pixel values to indices using Chart.js scales
-                const index1 = Math.round(xAxis.getValueForPixel(dragStartX));
-                const index2 = Math.round(xAxis.getValueForPixel(mouseX));
-
-                const dataLength = currentChartTab === 'level' 
-                    ? (analyticsData.history ? analyticsData.history.length : 0)
-                    : (analyticsData.usage ? analyticsData.usage.length : 0);
-
-                if (dataLength === 0) return;
-
-                const minIdx = Math.max(0, Math.min(index1, index2, dataLength - 1));
-                const maxIdx = Math.max(0, Math.min(Math.max(index1, index2), dataLength - 1));
-
-                if (minIdx === maxIdx) return;
-
-                let startStr = '';
-                let endStr = '';
-
-                if (currentChartTab === 'level') {
-                    const startRaw = analyticsData.history[minIdx].hour_timestamp;
-                    const endRaw = analyticsData.history[maxIdx].hour_timestamp;
-                    
-                    startStr = new Date(startRaw).toISOString().split('T')[0];
-                    endStr = new Date(endRaw).toISOString().split('T')[0];
-                } else {
-                    startStr = analyticsData.usage[minIdx].usage_date;
-                    endStr = analyticsData.usage[maxIdx].usage_date;
-                }
-
-                if (startStr && endStr) {
-                    document.getElementById('historyStartDate').value = startStr;
-                    document.getElementById('historyEndDate').value = endStr;
-                    clearPresetActiveState();
-                    fetchAnalyticsData();
-                    showToast(`Zoomed in: ${startStr} to ${endStr}`, 'success');
-                }
-            });
-        }
-
         // Smart Date Presets
         function setPresetRange(preset, btn) {
             const end = new Date();
@@ -2117,9 +1994,6 @@
             // Initialize Analytics Dates & Devices list from PostgreSQL
             initAnalyticsDates();
             loadAnalyticsDevices();
-
-            // Set up drag-to-select range events on chart
-            setupChartDragEvents();
 
             // Auto-trigger first analytics query after a slight delay
             setTimeout(fetchAnalyticsData, 1000);

@@ -1541,14 +1541,22 @@
             history: [] // [{ hour_timestamp, avg_level, avg_volume }]
         };
 
+        // Helper to format date in local timezone YYYY-MM-DD
+        function getLocalYYYYMMDD(date) {
+            const yyyy = date.getFullYear();
+            const mm = String(date.getMonth() + 1).padStart(2, '0');
+            const dd = String(date.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        }
+
         // Initialize default dates in date pickers (last 14 days)
         function initAnalyticsDates() {
             const end = new Date();
             const start = new Date();
             start.setDate(end.getDate() - 13); // Default to last 14 days inclusive
 
-            document.getElementById('historyEndDate').value = end.toISOString().split('T')[0];
-            document.getElementById('historyStartDate').value = start.toISOString().split('T')[0];
+            document.getElementById('historyEndDate').value = getLocalYYYYMMDD(end);
+            document.getElementById('historyStartDate').value = getLocalYYYYMMDD(start);
         }
 
         // Smart Date Presets
@@ -1570,8 +1578,8 @@
                 start.setDate(end.getDate() - 89);
             }
 
-            document.getElementById('historyEndDate').value = end.toISOString().split('T')[0];
-            document.getElementById('historyStartDate').value = start.toISOString().split('T')[0];
+            document.getElementById('historyEndDate').value = getLocalYYYYMMDD(end);
+            document.getElementById('historyStartDate').value = getLocalYYYYMMDD(start);
 
             // Update preset buttons visually
             const container = document.getElementById('datePresetContainer');
@@ -1633,44 +1641,7 @@
             }
         }
 
-        // Seed mock historical data for demo / testing of given period
-        async function seedMockData() {
-            const select = document.getElementById('analyticsDeviceSelect');
-            const deviceId = select ? select.value : 'mytank123';
-            
-            const btn = document.getElementById('btnSeedData');
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = `<span class="inline-block animate-spin mr-1">🌀</span> Seeding...`;
-            }
 
-            try {
-                const response = await fetch(`/api/seed?device_id=${encodeURIComponent(deviceId)}`, {
-                    method: 'POST'
-                });
-                const result = await response.json();
-                if (result.success) {
-                    showToast(`Seeded 14 days of realistic telemetry records for: ${deviceId}`, 'success');
-                    await loadAnalyticsDevices();
-                    await fetchAnalyticsData();
-                } else {
-                    showToast(`Failed to seed: ${result.error}`, 'error');
-                }
-            } catch (err) {
-                console.error(err);
-                showToast(`Network error when seeding database`, 'error');
-            } finally {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = `
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
-                        </svg>
-                        Seed Demo Data
-                    `;
-                }
-            }
-        }
 
         // Clear historical telemetry data up to now
         async function clearHistoricalData() {

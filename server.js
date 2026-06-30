@@ -220,70 +220,7 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // API: Seed mock historical data for demonstration
-    if (urlPath === '/api/seed' && req.method === 'POST') {
-        try {
-            const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
-            
-            // Delete existing records for this device first to prevent overflow/confusion
-            await pool.query('DELETE FROM w_telemetry WHERE device_id = $1', [deviceId]);
 
-            const insertQuery = `INSERT INTO w_telemetry (device_id, level, volume, data_usage, timestamp) VALUES ($1, $2, $3, $4, $5)`;
-            
-            const totalDays = 14;
-            const readingsPerDay = 24; // Hourly readings
-            let currentBytes = 500; // Start bytes count
-
-            // Generate levels fluctuating over time (daily cyclical usage)
-            // Water level max height is 200cm
-            for (let day = totalDays - 1; day >= 0; day--) {
-                const dayDate = new Date();
-                dayDate.setDate(dayDate.getDate() - day);
-
-                // Water usually starts full in the morning, decreases during peak hours, and might refill
-                for (let hour = 0; hour < readingsPerDay; hour++) {
-                    const recordDate = new Date(dayDate);
-                    recordDate.setHours(hour, 0, 0, 0);
-
-                    // Cyclical daily model: Peak water usages around morning 8am and evening 7pm
-                    // Base fill level around 170cm, fluctuates down by up to 40cm
-                    let fluctuation = 0;
-                    if (hour >= 6 && hour <= 10) {
-                        fluctuation = (hour - 6) * 8; // morning drawdown
-                    } else if (hour > 10 && hour < 17) {
-                        fluctuation = 32 - (hour - 10) * 1.5; // slight daytime stabilization
-                    } else if (hour >= 17 && hour <= 21) {
-                        fluctuation = 22 + (hour - 17) * 4.5; // evening drawdown
-                    } else {
-                        // Night refill cycle
-                        fluctuation = Math.max(0, 15 - (hour > 21 ? hour - 21 : hour + 3) * 2);
-                    }
-
-                    const level = Math.max(120, 180 - fluctuation);
-                    // Liters: Pi * (228/2)^2 * level / 1000
-                    const radius = 228 / 2;
-                    const volume = (Math.PI * Math.pow(radius, 2) * level) / 1000;
-
-                    // Each telemetry transmission uses about 120 bytes
-                    currentBytes += 120;
-
-                    await pool.query(insertQuery, [
-                        deviceId,
-                        level,
-                        volume,
-                        currentBytes,
-                        recordDate
-                    ]);
-                }
-            }
-
-            sendJSON(res, { success: true, message: `Successfully seeded 14 days of telemetry for device: ${deviceId}` });
-        } catch (err) {
-            console.error('[API Error] /api/seed:', err);
-            sendJSON(res, { success: false, error: err.message }, 500);
-        }
-        return;
-    }
 
     // API: Clear historical telemetry data
     if (urlPath === '/api/clear' && req.method === 'POST') {

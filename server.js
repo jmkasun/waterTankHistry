@@ -274,7 +274,8 @@ const server = http.createServer(async (req, res) => {
     }
 
     // Static Web Server fallback for HTML/CSS/JS/TXT
-    let filePath = '.' + (urlPath === '/' ? '/index.html' : urlPath);
+    const safePath = urlPath === '/' ? 'index.html' : urlPath.substring(1);
+    const filePath = path.join(__dirname, safePath);
     
     fs.readFile(filePath, (err, data) => {
         if (err) {

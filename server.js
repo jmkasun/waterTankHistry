@@ -273,6 +273,24 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // API: Clear historical telemetry data
+    if (urlPath === '/api/clear' && req.method === 'POST') {
+        try {
+            const deviceId = reqUrl.searchParams.get('device_id');
+            if (deviceId && deviceId !== 'all') {
+                await pool.query('DELETE FROM w_telemetry WHERE device_id = $1', [deviceId]);
+                sendJSON(res, { success: true, message: `Successfully cleared telemetry data for device: ${deviceId}` });
+            } else {
+                await pool.query('DELETE FROM w_telemetry');
+                sendJSON(res, { success: true, message: 'Successfully cleared all historical telemetry data.' });
+            }
+        } catch (err) {
+            console.error('[API Error] /api/clear:', err);
+            sendJSON(res, { success: false, error: err.message }, 500);
+        }
+        return;
+    }
+
     // Static Web Server fallback for HTML/CSS/JS/TXT
     const safePath = urlPath === '/' ? 'index.html' : urlPath.substring(1);
     const filePath = path.join(__dirname, safePath);

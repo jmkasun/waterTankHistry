@@ -134,18 +134,22 @@ const server = http.createServer(async (req, res) => {
             const endDate = reqUrl.searchParams.get('end_date') || new Date().toISOString();
             // Default start date is 7 days ago
             const startDate = reqUrl.searchParams.get('start_date') || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+            let tz = reqUrl.searchParams.get('tz') || 'UTC';
+            if (!/^[a-zA-Z0-9_\-\/]+$/.test(tz)) {
+                tz = 'UTC';
+            }
 
-            // Fetch downsampled hourly data to keep charts highly performant
+            // Fetch downsampled hourly data to keep charts highly performant with timezone-aware grouping
             const result = await pool.query(
                 `SELECT 
-                    date_trunc('hour', timestamp) as hour_timestamp,
+                    (date_trunc('hour', timestamp AT TIME ZONE $4) AT TIME ZONE $4) as hour_timestamp,
                     ROUND(AVG(level)::numeric, 1) as avg_level,
                     ROUND(AVG(volume)::numeric, 1) as avg_volume
                  FROM w_telemetry
                  WHERE device_id = $1 AND timestamp >= $2 AND timestamp <= $3
                  GROUP BY hour_timestamp
                  ORDER BY hour_timestamp ASC`,
-                [deviceId, startDate, endDate]
+                [deviceId, startDate, endDate, tz]
             );
 
             sendJSON(res, { success: true, data: result.rows });

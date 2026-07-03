@@ -23,6 +23,10 @@
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <!-- Chart.js CDN for Historical Analytics -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Hammer.js for Chart.js Zoom Touch Support -->
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
+    <!-- Chart.js Zoom Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <style>
         @keyframes wave {
             0% { transform: translateX(0) translateZ(0) scaleY(1); }
@@ -329,13 +333,48 @@
 
                 <!-- Charts Container (Interactive Tabs) -->
                 <div class="bg-slate-950/50 border border-slate-800/80 rounded-2xl pt-4 pb-4 px-0">
-                    <div class="flex border-b border-slate-800/80 mb-4 overflow-x-auto gap-2 px-4">
-                        <button onclick="switchChartTab('level')" id="btnTabLevel" class="px-4 py-2 border-b-2 border-cyan-500 text-cyan-400 font-bold text-xs tracking-wider uppercase transition">
-                            Water Level History
-                        </button>
-                        <button onclick="switchChartTab('water')" id="btnTabWater" class="px-4 py-2 border-b-2 border-transparent hover:border-slate-700 text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition">
-                            Water Usage Trend
-                        </button>
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-800/80 mb-4 px-4 pb-2 sm:pb-0 gap-3 overflow-x-auto">
+                        <div class="flex gap-2 shrink-0">
+                            <button onclick="switchChartTab('level')" id="btnTabLevel" class="px-4 py-2 border-b-2 border-cyan-500 text-cyan-400 font-bold text-xs tracking-wider uppercase transition">
+                                Water Level History
+                            </button>
+                            <button onclick="switchChartTab('water')" id="btnTabWater" class="px-4 py-2 border-b-2 border-transparent hover:border-slate-700 text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition">
+                                Water Usage Trend
+                            </button>
+                        </div>
+                        
+                        <!-- Extra controls for resolution & zoom -->
+                        <div class="flex items-center flex-wrap gap-2 text-xs">
+                            <!-- Resolution Selector -->
+                            <div class="flex items-center gap-1 bg-slate-900/80 border border-slate-800 rounded-xl px-1.5 py-0.5" id="resolutionControlGroup">
+                                <span class="text-[9px] uppercase tracking-wider font-bold text-slate-500 hidden md:inline">Detail:</span>
+                                <select id="selResolution" onchange="setAnalyticsResolution(this.value)" class="bg-slate-800 text-white font-bold text-[10px] tracking-wider uppercase rounded-lg border border-slate-700 px-2 py-1 outline-none cursor-pointer focus:border-cyan-500">
+                                    <option value="hour">Hourly</option>
+                                    <option value="30m" selected>30Min</option>
+                                    <option value="15m">15Min</option>
+                                    <option value="10m">10Min</option>
+                                    <option value="5m">5Min</option>
+                                </select>
+                            </div>
+
+                            <!-- Zoom Controls -->
+                            <div class="flex items-center gap-1 bg-slate-900/80 border border-slate-800 rounded-xl p-0.5">
+                                <span class="text-[9px] uppercase tracking-wider font-bold text-slate-500 px-1.5 hidden md:inline">Zoom:</span>
+                                <button onclick="zoomChart(1.15)" class="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition" title="Zoom In X-Axis">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
+                                    </svg>
+                                </button>
+                                <button onclick="zoomChart(0.85)" class="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition" title="Zoom Out X-Axis">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 12H4" />
+                                    </svg>
+                                </button>
+                                <button onclick="resetChartZoom()" class="px-2 py-1 text-[9px] uppercase font-bold text-slate-400 hover:text-white hover:bg-slate-800 rounded transition" title="Reset Zoom">
+                                    Reset
+                                </button>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Canvas container -->
@@ -433,6 +472,92 @@
             </div>
         </section>
     </main>
+
+    <!-- Password Prompt Modal -->
+    <div id="passwordModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden transition-opacity duration-300 opacity-0 flex items-center justify-center p-4 animate-fade-in">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-sm shadow-[0_0_50px_rgba(0,0,0,0.8)] space-y-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/30">
+                    <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-white tracking-tight">Security Verification</h3>
+                    <p class="text-[11px] text-slate-400">Settings modification is restricted</p>
+                </div>
+            </div>
+            <div class="space-y-3">
+                <p class="text-xs text-slate-300">Enter system administrator password to open configuration panel:</p>
+                <input type="password" id="passwordInput" placeholder="Password" class="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none transition">
+                <p id="passwordError" class="text-[10px] text-rose-400 hidden">Access Denied: Incorrect Password.</p>
+            </div>
+            <div class="flex gap-2 justify-end pt-2">
+                <button onclick="closePasswordModal()" class="px-3.5 py-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white font-semibold text-xs transition">
+                    Cancel
+                </button>
+                <button onclick="submitPassword()" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-xl transition">
+                    Verify
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clear History Modal -->
+    <div id="clearHistoryModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden transition-opacity duration-300 opacity-0 flex items-center justify-center p-4 animate-fade-in">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-[0_0_50px_rgba(0,0,0,0.8)] space-y-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-rose-500/10 rounded-lg border border-rose-500/30">
+                    <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-white tracking-tight">Clear Telemetry History</h3>
+                    <p class="text-[11px] text-slate-400">Database deletion action</p>
+                </div>
+            </div>
+            
+            <div class="space-y-3">
+                <p class="text-xs text-slate-300 leading-relaxed">
+                    You are about to clear telemetry history. Please select your scope:
+                </p>
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
+                    <div class="flex items-center gap-2">
+                        <input type="radio" name="clearScope" id="clearScopeDevice" value="device" checked class="text-cyan-500 focus:ring-0 cursor-pointer">
+                        <label for="clearScopeDevice" class="text-xs text-slate-300 cursor-pointer">
+                            Clear ONLY device: <span id="clearModalDeviceLabel" class="font-bold text-cyan-400">mytank123</span>
+                        </label>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="radio" name="clearScope" id="clearScopeAll" value="all" class="text-cyan-500 focus:ring-0 cursor-pointer">
+                        <label for="clearScopeAll" class="text-xs text-slate-300 cursor-pointer">
+                            Clear data for <span class="font-bold text-rose-400">ALL</span> devices
+                        </label>
+                    </div>
+                </div>
+                <div class="space-y-1.5">
+                    <label class="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">Type confirmation keyword below:</label>
+                    <p class="text-[10px] text-slate-500">Type <span class="text-slate-300 font-bold">YES</span> (to confirm specific device) or <span class="text-slate-300 font-bold">ALL</span> (to confirm all devices)</p>
+                    <input type="text" id="clearConfirmInput" placeholder="YES or ALL" class="w-full bg-slate-950 border border-slate-800 focus:border-rose-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition uppercase">
+                    <p id="clearModalError" class="text-[10px] text-rose-400 hidden">Invalid confirmation key or scope mismatch.</p>
+                </div>
+                <p class="text-[10px] text-amber-500/90 leading-normal flex items-start gap-1">
+                    <span>⚠️</span>
+                    <span>Warning: This action permanently deletes records from PostgreSQL database and cannot be undone.</span>
+                </p>
+            </div>
+            
+            <div class="flex gap-2 justify-end pt-2">
+                <button onclick="closeClearHistoryModal()" class="px-3.5 py-2 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white font-semibold text-xs transition">
+                    Cancel
+                </button>
+                <button onclick="submitClearHistory()" class="px-4 py-2 bg-rose-500 hover:bg-rose-400 text-white font-bold text-xs rounded-xl transition">
+                    Confirm Deletion
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Settings Drawer Backdrop -->
     <div id="settingsDrawerBackdrop" onclick="toggleSettingsDrawer(false)" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 hidden transition-opacity duration-300 opacity-0 animate-fade-in"></div>
@@ -683,6 +808,33 @@
                     </button>
                 </div>
             </div>
+
+            <!-- Database & History Management -->
+            <div class="bg-slate-900/30 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-rose-500/10 rounded-lg border border-rose-500/30">
+                        <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white tracking-tight">Database & Telemetry History</h3>
+                        <p class="text-[11px] text-slate-400">Manage saved analytics and cleanup storage</p>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <p class="text-[11px] text-slate-400 leading-normal">
+                        Permanently clear saved historical telemetry data points. This is useful for resolving testing artifacts or recalibrating the sensors.
+                    </p>
+                    <button id="btnClearData" onclick="clearHistoricalData()" class="w-full bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 hover:border-rose-500 text-rose-400 hover:text-white font-bold py-3 px-4 rounded-xl text-xs tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-rose-500/5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                        Clear Telemetry History Data
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -751,21 +903,77 @@
             }, 4000);
         }
 
+        // Custom Password Modal Functions
+        function openPasswordModal() {
+            const modal = document.getElementById('passwordModal');
+            const pwdInput = document.getElementById('passwordInput');
+            const errorMsg = document.getElementById('passwordError');
+            if (pwdInput) pwdInput.value = '';
+            if (errorMsg) errorMsg.classList.add('hidden');
+            if (modal) {
+                modal.classList.remove('hidden');
+                setTimeout(() => {
+                    modal.classList.remove('opacity-0');
+                    modal.classList.add('opacity-100');
+                    pwdInput.focus();
+                }, 10);
+                
+                // Submit on press enter
+                pwdInput.onkeydown = function(e) {
+                    if (e.key === 'Enter') {
+                        submitPassword();
+                    }
+                };
+            }
+        }
+
+        function closePasswordModal() {
+            const modal = document.getElementById('passwordModal');
+            if (modal) {
+                modal.classList.remove('opacity-100');
+                modal.classList.add('opacity-0');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                }, 300);
+            }
+        }
+
+        function submitPassword() {
+            const pwdInput = document.getElementById('passwordInput');
+            const errorMsg = document.getElementById('passwordError');
+            if (pwdInput && pwdInput.value === "kk123") {
+                closePasswordModal();
+                
+                // Open Settings Drawer
+                const drawer = document.getElementById('settingsDrawer');
+                const backdrop = document.getElementById('settingsDrawerBackdrop');
+                if (backdrop && drawer) {
+                    backdrop.classList.remove('hidden');
+                    setTimeout(() => {
+                        backdrop.classList.remove('opacity-0');
+                        backdrop.classList.add('opacity-100');
+                        drawer.classList.remove('translate-x-full');
+                    }, 10);
+                }
+            } else {
+                if (errorMsg) errorMsg.classList.remove('hidden');
+                if (pwdInput) {
+                    pwdInput.select();
+                    pwdInput.focus();
+                }
+            }
+        }
+
         // Toggle Settings Drawer Overlay
         function toggleSettingsDrawer(show = true) {
             const drawer = document.getElementById('settingsDrawer');
             const backdrop = document.getElementById('settingsDrawerBackdrop');
             if (show) {
-                backdrop.classList.remove('hidden');
-                setTimeout(() => {
-                    backdrop.classList.remove('opacity-0');
-                    backdrop.classList.add('opacity-100');
-                    drawer.classList.remove('translate-x-full');
-                }, 10);
+                openPasswordModal();
             } else {
                 backdrop.classList.remove('opacity-100');
                 backdrop.classList.add('opacity-0');
-                drawer.classList.add('translate-x-full');
+                if (drawer) drawer.classList.add('translate-x-full');
                 setTimeout(() => {
                     backdrop.classList.add('hidden');
                 }, 300);
@@ -1515,10 +1723,36 @@
         // --- Historical Analytics & PostgreSQL Integration Logic ---
         let currentChartTab = 'level'; // 'water', 'data', or 'level'
         let chartInstance = null;
+        let analyticsResolution = '30m'; // Default is 30m: 'hour', '30m', '15m', '10m', '5m'
         let analyticsData = {
             usage: [], // [{ usage_date, daily_water_used, daily_data_used_kb }]
             history: [] // [{ hour_timestamp, avg_level, avg_volume }]
         };
+
+        function setAnalyticsResolution(res) {
+            analyticsResolution = res;
+            syncResolutionUI();
+            fetchAnalyticsData();
+        }
+
+        function syncResolutionUI() {
+            const selRes = document.getElementById('selResolution');
+            if (selRes) {
+                selRes.value = analyticsResolution;
+            }
+        }
+
+        function zoomChart(ratio) {
+            if (chartInstance) {
+                chartInstance.zoom(ratio);
+            }
+        }
+
+        function resetChartZoom() {
+            if (chartInstance) {
+                chartInstance.resetZoom();
+            }
+        }
 
         // Helper to format date in local timezone YYYY-MM-DD
         function getLocalYYYYMMDD(date) {
@@ -1545,17 +1779,25 @@
             
             if (preset === 'today') {
                 // Today: Start and end are today
+                analyticsResolution = '30m';
             } else if (preset === '7d') {
                 start.setDate(end.getDate() - 6);
+                analyticsResolution = 'hour';
             } else if (preset === '14d') {
                 start.setDate(end.getDate() - 13);
+                analyticsResolution = 'hour';
             } else if (preset === '30d') {
                 start.setDate(end.getDate() - 29);
+                analyticsResolution = 'hour';
             } else if (preset === 'month') {
                 start.setDate(1); // 1st of current month
+                analyticsResolution = 'hour';
             } else if (preset === '90d') {
                 start.setDate(end.getDate() - 89);
+                analyticsResolution = 'hour';
             }
+
+            syncResolutionUI();
 
             document.getElementById('historyEndDate').value = getLocalYYYYMMDD(end);
             document.getElementById('historyStartDate').value = getLocalYYYYMMDD(start);
@@ -1623,13 +1865,90 @@
 
 
         // Clear historical telemetry data up to now
-        async function clearHistoricalData() {
+        function clearHistoricalData() {
             const select = document.getElementById('analyticsDeviceSelect');
             const deviceId = select ? select.value : 'mytank123';
             
-            if (!confirm(`Are you sure you want to clear historical data up to now for device: ${deviceId}? This action cannot be undone.`)) {
-                return;
+            // Set up modal elements
+            const deviceLabel = document.getElementById('clearModalDeviceLabel');
+            if (deviceLabel) deviceLabel.innerText = deviceId;
+            
+            const confirmInput = document.getElementById('clearConfirmInput');
+            if (confirmInput) confirmInput.value = '';
+            
+            const errorMsg = document.getElementById('clearModalError');
+            if (errorMsg) errorMsg.classList.add('hidden');
+            
+            // Reset radios to 'device' clear scope
+            const deviceRadio = document.getElementById('clearScopeDevice');
+            if (deviceRadio) deviceRadio.checked = true;
+            
+            const modal = document.getElementById('clearHistoryModal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                setTimeout(() => {
+                    modal.classList.remove('opacity-0');
+                    modal.classList.add('opacity-100');
+                    confirmInput.focus();
+                }, 10);
+                
+                // Allow enter key
+                confirmInput.onkeydown = function(e) {
+                    if (e.key === 'Enter') {
+                        submitClearHistory();
+                    }
+                };
             }
+        }
+
+        function closeClearHistoryModal() {
+            const modal = document.getElementById('clearHistoryModal');
+            if (modal) {
+                modal.classList.remove('opacity-100');
+                modal.classList.add('opacity-0');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                }, 300);
+            }
+        }
+
+        async function submitClearHistory() {
+            const select = document.getElementById('analyticsDeviceSelect');
+            const deviceId = select ? select.value : 'mytank123';
+            
+            const confirmInput = document.getElementById('clearConfirmInput');
+            const confirmVal = confirmInput ? confirmInput.value.trim().toUpperCase() : '';
+            
+            const errorMsg = document.getElementById('clearModalError');
+            
+            let targetDevice = deviceId;
+            let successMessage = `Successfully cleared historical telemetry records for: ${deviceId}`;
+            
+            const selectedScope = document.querySelector('input[name="clearScope"]:checked');
+            const actualScope = selectedScope ? selectedScope.value : 'device';
+
+            if (actualScope === 'all') {
+                if (confirmVal !== 'ALL') {
+                    if (errorMsg) {
+                        errorMsg.innerText = "Scope mismatch: Please type 'ALL' to confirm clearing all data.";
+                        errorMsg.classList.remove('hidden');
+                    }
+                    return;
+                }
+                targetDevice = 'all';
+                successMessage = 'Successfully cleared historical telemetry records for ALL devices.';
+            } else {
+                if (confirmVal !== 'YES') {
+                    if (errorMsg) {
+                        errorMsg.innerText = "Scope mismatch: Please type 'YES' to confirm clearing the selected device.";
+                        errorMsg.classList.remove('hidden');
+                    }
+                    return;
+                }
+            }
+            
+            // Close modal and call backend
+            closeClearHistoryModal();
             
             const btn = document.getElementById('btnClearData');
             if (btn) {
@@ -1638,12 +1957,12 @@
             }
 
             try {
-                const response = await fetch(`/api/clear?device_id=${encodeURIComponent(deviceId)}`, {
+                const response = await fetch(`/api/clear?device_id=${encodeURIComponent(targetDevice)}`, {
                     method: 'POST'
                 });
                 const result = await response.json();
                 if (result.success) {
-                    showToast(`Successfully cleared historical telemetry records for: ${deviceId}`, 'success');
+                    showToast(successMessage, 'success');
                     await loadAnalyticsDevices();
                     await fetchAnalyticsData();
                 } else {
@@ -1656,10 +1975,10 @@
                 if (btn) {
                     btn.disabled = false;
                     btn.innerHTML = `
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                         </svg>
-                        Clear History
+                        Clear Telemetry History Data
                     `;
                 }
             }
@@ -1684,7 +2003,7 @@
             try {
                 const [usageRes, historyRes] = await Promise.all([
                     fetch(`/api/usage?device_id=${encodeURIComponent(deviceId)}&start_date=${startISO}&end_date=${endISO}`),
-                    fetch(`/api/history?device_id=${encodeURIComponent(deviceId)}&start_date=${startISO}&end_date=${endISO}&tz=${encodeURIComponent(tz)}`)
+                    fetch(`/api/history?device_id=${encodeURIComponent(deviceId)}&start_date=${startISO}&end_date=${endISO}&tz=${encodeURIComponent(tz)}&resolution=${analyticsResolution}`)
                 ]);
 
                 const usageResult = await usageRes.json();
@@ -1919,8 +2238,24 @@
                 // Sort by actual chronological time first
                 historyRows.sort((a, b) => new Date(a.hour_timestamp) - new Date(b.hour_timestamp));
 
-                // If we have at least 2 points, interpolate intermediate missing hours with nulls
+                // If we have at least 2 points, interpolate intermediate missing points with nulls
                 // to maintain an accurate, physically proportional timeline on the X-axis
+                let stepMinutes = 60;
+                if (analyticsResolution === '30m') stepMinutes = 30;
+                else if (analyticsResolution === '15m') stepMinutes = 15;
+                else if (analyticsResolution === '10m') stepMinutes = 10;
+                else if (analyticsResolution === '5m') stepMinutes = 5;
+
+                const stepMs = stepMinutes * 60 * 1000;
+
+                const getRecordKey = (d) => {
+                    if (stepMinutes < 60) {
+                        return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate() + '-' + d.getHours() + '-' + (Math.floor(d.getMinutes() / stepMinutes) * stepMinutes);
+                    } else {
+                        return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate() + '-' + d.getHours();
+                    }
+                };
+
                 if (historyRows.length >= 2) {
                     const filledHistory = [];
                     const firstDate = new Date(historyRows[0].hour_timestamp);
@@ -1929,15 +2264,16 @@
                     const recordMap = {};
                     historyRows.forEach(r => {
                         const d = new Date(r.hour_timestamp);
-                        const key = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate() + '-' + d.getHours();
+                        const key = getRecordKey(d);
                         recordMap[key] = r;
                     });
                     
                     let current = new Date(firstDate);
                     let safetyCounter = 0;
-                    while (current <= lastDate && safetyCounter < 1500) {
+                    
+                    while (current <= lastDate && safetyCounter < 4000) {
                         safetyCounter++;
-                        const key = current.getFullYear() + '-' + current.getMonth() + '-' + current.getDate() + '-' + current.getHours();
+                        const key = getRecordKey(current);
                         
                         if (recordMap[key]) {
                             filledHistory.push(recordMap[key]);
@@ -1948,14 +2284,20 @@
                                 avg_volume: null
                             });
                         }
-                        current.setHours(current.getHours() + 1);
+                        current.setTime(current.getTime() + stepMs);
                     }
                     historyRows = filledHistory;
                 }
 
                 const labels = historyRows.map(r => {
                     const d = new Date(r.hour_timestamp);
-                    return d.toLocaleDateString(undefined, {month:'short', day:'numeric'}) + ' ' + d.getHours() + ':00';
+                    const dateStr = d.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+                    const minutesStr = String(d.getMinutes()).padStart(2, '0');
+                    if (stepMinutes < 60) {
+                        return dateStr + ' ' + d.getHours() + ':' + minutesStr;
+                    } else {
+                        return dateStr + ' ' + d.getHours() + ':00';
+                    }
                 });
                 const volumes = historyRows.map(r => r.avg_volume !== null ? parseFloat(r.avg_volume) : null);
 
@@ -1991,7 +2333,26 @@
                             }
                         },
                         plugins: {
-                            legend: { display: false }
+                            legend: { display: false },
+                            zoom: {
+                                zoom: {
+                                    wheel: {
+                                        enabled: false,
+                                    },
+                                    pinch: {
+                                        enabled: false
+                                    },
+                                    mode: 'x',
+                                    drag: {
+                                        enabled: false
+                                    }
+                                },
+                                pan: {
+                                    enabled: true,
+                                    mode: 'x',
+                                    threshold: 10
+                                }
+                            }
                         },
                         scales: {
                             x: {

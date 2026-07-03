@@ -139,18 +139,41 @@ const server = http.createServer(async (req, res) => {
                 tz = 'UTC';
             }
 
-            // Fetch downsampled hourly data to keep charts highly performant with timezone-aware grouping
-            const result = await pool.query(
-                `SELECT 
+            const resolution = reqUrl.searchParams.get('resolution') || '30m';
+
+            // Fetch downsampled hourly or high-res granular data to keep charts highly performant with timezone-aware grouping
+            let queryStr = `
+                SELECT 
                     (date_trunc('hour', timestamp AT TIME ZONE $4) AT TIME ZONE $4) as hour_timestamp,
                     ROUND(AVG(level)::numeric, 1) as avg_level,
                     ROUND(AVG(volume)::numeric, 1) as avg_volume
                  FROM w_telemetry
                  WHERE device_id = $1 AND timestamp >= $2 AND timestamp <= $3
                  GROUP BY hour_timestamp
-                 ORDER BY hour_timestamp ASC`,
-                [deviceId, startDate, endDate, tz]
-            );
+                 ORDER BY hour_timestamp ASC
+            `;
+
+            let intervalMinutes = 0;
+            if (resolution === '30m') intervalMinutes = 30;
+            else if (resolution === '15m') intervalMinutes = 15;
+            else if (resolution === '10m') intervalMinutes = 10;
+            else if (resolution === '5m') intervalMinutes = 5;
+
+            if (intervalMinutes > 0) {
+                queryStr = `
+                    SELECT 
+                        (date_trunc('hour', timestamp AT TIME ZONE $4) + 
+                         (EXTRACT(minute FROM timestamp AT TIME ZONE $4)::int / ${intervalMinutes} * ${intervalMinutes}) * interval '1 minute') AT TIME ZONE $4 as hour_timestamp,
+                        ROUND(AVG(level)::numeric, 1) as avg_level,
+                        ROUND(AVG(volume)::numeric, 1) as avg_volume
+                     FROM w_telemetry
+                     WHERE device_id = $1 AND timestamp >= $2 AND timestamp <= $3
+                     GROUP BY hour_timestamp
+                     ORDER BY hour_timestamp ASC
+                `;
+            }
+
+            const result = await pool.query(queryStr, [deviceId, startDate, endDate, tz]);
 
             sendJSON(res, { success: true, data: result.rows });
         } catch (err) {

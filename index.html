@@ -2324,6 +2324,13 @@
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
+                        transitions: {
+                            zoom: {
+                                animation: {
+                                    duration: 0
+                                }
+                            }
+                        },
                         layout: {
                             padding: {
                                 left: 0,
@@ -2350,7 +2357,7 @@
                                 pan: {
                                     enabled: true,
                                     mode: 'x',
-                                    threshold: 10
+                                    threshold: 0
                                 }
                             }
                         },

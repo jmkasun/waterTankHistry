@@ -206,165 +206,6 @@ const char* HTML_PORTAL_PAGE = R"rawliteral(
 </html>
 )rawliteral";
 
-// --- HTML OTA Web Interface ---
-const char* HTML_OTA_PAGE = R"rawliteral(
-<!DOCTYPE html>
-<html>
-<head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HydroSync Firmware Update</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-            color: #f8fafc;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-        .container {
-            background-color: rgba(15, 23, 42, 0.85);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(16px);
-            border-radius: 20px;
-            padding: 30px;
-            width: 100%;
-            max-width: 420px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-            text-align: center;
-        }
-        h1 {
-            font-size: 22px;
-            font-weight: 700;
-            margin-bottom: 8px;
-            letter-spacing: -0.025em;
-            color: #c084fc;
-        }
-        p {
-            font-size: 13px;
-            color: #94a3b8;
-            margin-bottom: 24px;
-            line-height: 1.5;
-        }
-        .file-upload-box {
-            border: 2px dashed rgba(192, 132, 252, 0.4);
-            border-radius: 12px;
-            padding: 24px;
-            background: rgba(0, 0, 0, 0.2);
-            margin-bottom: 20px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .file-upload-box:hover {
-            border-color: #c084fc;
-            background: rgba(192, 132, 252, 0.05);
-        }
-        input[type="file"] {
-            display: none;
-        }
-        .upload-label {
-            display: block;
-            font-size: 13px;
-            font-weight: 600;
-            color: #e2e8f0;
-            cursor: pointer;
-        }
-        .file-info {
-            font-size: 11px;
-            color: #cbd5e1;
-            margin-top: 8px;
-            word-break: break-all;
-            display: none;
-        }
-        button {
-            width: 100%;
-            padding: 14px 20px;
-            background: #c084fc;
-            color: #0f172a;
-            border: none;
-            border-radius: 10px;
-            font-weight: 700;
-            font-size: 14px;
-            cursor: pointer;
-            transition: background-color 0.2s, transform 0.1s;
-            letter-spacing: 0.025em;
-        }
-        button:hover {
-            background: #a855f7;
-        }
-        button:active {
-            transform: scale(0.98);
-        }
-        .footer-link {
-            display: inline-block;
-            margin-top: 20px;
-            font-size: 12px;
-            color: #94a3b8;
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-        .footer-link:hover {
-            color: #cbd5e1;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>OTA Firmware Update</h1>
-        <p>Upload a compiled binary file (.bin) to wirelessly flash your ESP32-C3 device.</p>
-        
-        <form method="POST" action="/update" enctype="multipart/form-data" id="uploadForm">
-            <div class="file-upload-box" onclick="document.getElementById('fileInput').click()">
-                <svg style="width: 36px; height: 36px; color: #c084fc; margin: 0 auto 12px; display: block;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                <span class="upload-label" id="boxLabel">Select or Drag & Drop .bin file</span>
-                <input type="file" name="update" id="fileInput" accept=".bin" onchange="fileSelected(this)">
-                <div class="file-info" id="fileInfo"></div>
-            </div>
-            
-            <button type="submit" id="submitBtn">Start Flashing</button>
-        </form>
-        
-        <a href="/" class="footer-link">&larr; Back to configuration</a>
-    </div>
-
-    <script>
-        function fileSelected(input) {
-            const fileInfo = document.getElementById('fileInfo');
-            const boxLabel = document.getElementById('boxLabel');
-            if (input.files.length > 0) {
-                const file = input.files[0];
-                boxLabel.textContent = "Selected File:";
-                fileInfo.textContent = file.name + " (" + (file.size / 1024).toFixed(1) + " KB)";
-                fileInfo.style.display = "block";
-            } else {
-                boxLabel.textContent = "Select or Drag & Drop .bin file";
-                fileInfo.style.display = "none";
-            }
-        }
-        
-        document.getElementById('uploadForm').onsubmit = function() {
-            const input = document.getElementById('fileInput');
-            if (input.files.length === 0) {
-                alert("Please select a valid .bin firmware file before uploading.");
-                return false;
-            }
-            const btn = document.getElementById('submitBtn');
-            btn.disabled = true;
-            btn.style.background = '#64748b';
-            btn.textContent = "Uploading & Flashing... Do NOT power off!";
-            return true;
-        };
-    </script>
-</body>
-</html>
-)rawliteral";
-
 // --- Captive web server handlers ---
 void handleRoot() { 
     preferences.begin(PREF_NAMESPACE, true);
@@ -428,44 +269,13 @@ void handleSave() {
     ESP.restart();
 }
 
-// --- Configures Web Server endpoints (Config & Web OTA) ---
+// --- Configures Web Server endpoints (Config Mode Only) ---
 void setupWebServer() {
     server.on("/", handleRoot);
     server.on("/save", handleSave);
-    
-    // Register Web-based OTA Update UI Page
-    server.on("/update", HTTP_GET, []() {
-        server.send(200, "text/html", HTML_OTA_PAGE);
-    });
-    
-    // Register Web-based OTA Flash Action handler
-    server.on("/update", HTTP_POST, []() {
-        server.sendHeader("Connection", "close");
-        server.send(200, "text/html", "<h3>Flashing complete. Rebooting ESP32...</h3><script>setTimeout(function(){ window.location.href='/'; }, 6000);</script>");
-        delay(1000);
-        ESP.restart();
-    }, []() {
-        HTTPUpload& upload = server.upload();
-        if (upload.status == UPLOAD_FILE_START) {
-            Serial.printf("[OTA] Local network flash upload starting: %s\n", upload.filename.c_str());
-            if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
-                Update.printError(Serial);
-            }
-        } else if (upload.status == UPLOAD_FILE_WRITE) {
-            if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
-                Update.printError(Serial);
-            }
-        } else if (upload.status == UPLOAD_FILE_END) {
-            if (Update.end(true)) {
-                Serial.printf("[OTA] Success: %u bytes flashed locally. Rebooting device...\n", upload.totalSize);
-            } else {
-                Update.printError(Serial);
-            }
-        }
-    });
 
     server.begin();
-    Serial.println("[SYS] Local Web Portal and Web OTA service active on Port 80.");
+    Serial.println("[SYS] Local Web Portal active on Port 80.");
 }
 
 // --- Configures local AP for setting Wi-Fi ---
@@ -894,7 +704,7 @@ void setup() {
             Serial.print("[SYS] IP Address: ");
             Serial.println(WiFi.localIP());
             
-            setupWebServer(); // Initialize Local WebServer & Web OTA
+            setupWebServer(); // Initialize Local WebServer (Config Portal)
             
             mqttClient.setServer(mqttServer, mqttPort);
             mqttClient.setCallback(mqttCallback);
@@ -908,7 +718,7 @@ void setup() {
 
 // --- Continuous System Application Loop ---
 void loop() {
-    // Process local WebServer requests (Configs, Web OTA upload) in both modes
+    // Process local WebServer requests (Configs) in both modes
     server.handleClient();
 
     if (isConfigMode) {

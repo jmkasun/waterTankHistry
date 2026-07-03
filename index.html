@@ -625,14 +625,14 @@
                 </div>
 
                 <div class="space-y-4 text-xs">
-                    <!-- Method 1: Remote MQTT HTTP OTA -->
+                    <!-- Remote MQTT HTTP OTA -->
                     <div class="bg-slate-950/40 p-3.5 rounded-xl border border-slate-800/80 space-y-3">
                         <div class="flex items-center justify-between">
                             <span class="font-bold text-purple-400 text-xs">Remote URL Update</span>
                             <span class="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 border border-purple-500/20 uppercase font-semibold">Over MQTT</span>
                         </div>
                         <p class="text-[10px] text-slate-400 leading-normal">
-                            Provide a public URL to your compiled firmware binary (<code class="text-slate-300 font-mono">.bin</code>). The ESP32 will download and install it automatically.
+                            Provide a public URL to your compiled firmware binary (<code class="text-slate-300 font-mono">.bin</code>). The ESP32 will download, flash, and install it automatically.
                         </p>
                         <div class="space-y-2">
                             <input type="url" id="otaBinUrl" placeholder="https://example.com/firmware.bin" class="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-[11px] font-mono focus:outline-none focus:border-purple-500 text-slate-300 placeholder-slate-600 transition">
@@ -643,28 +643,6 @@
                                 Trigger OTA Firmware Update
                             </button>
                         </div>
-                    </div>
-
-                    <!-- Method 2: Local Web UI -->
-                    <div class="bg-slate-950/40 p-3.5 rounded-xl border border-slate-800/80 space-y-2">
-                        <div class="flex items-center justify-between">
-                            <span class="font-bold text-cyan-400 text-xs">Local Network Update</span>
-                            <span class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/20 uppercase font-semibold">Web Portal</span>
-                        </div>
-                        <p class="text-[10px] text-slate-400 leading-normal">
-                            Flash directly from your computer if you are connected to the same Wi-Fi network:
-                        </p>
-                        <div class="flex items-center justify-between bg-slate-950 border border-slate-850 px-3 py-2 rounded-lg font-mono text-[11px]">
-                            <a id="espLocalIpLink" href="#" target="_blank" class="text-cyan-400 hover:underline select-all">Searching ESP32 IP...</a>
-                            <button onclick="copyOtaUrl()" class="text-slate-500 hover:text-white transition" title="Copy URL">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m-5 4h6m-6 4h6m-6 4h6" />
-                                </svg>
-                            </button>
-                        </div>
-                        <p class="text-[9px] text-slate-500">
-                            The ESP32 hosts a styled firmware flashing interface on port 80.
-                        </p>
                     </div>
                 </div>
             </div>
@@ -1936,11 +1914,50 @@
                 };
             } 
             else if (currentChartTab === 'level') {
-                const labels = analyticsData.history.map(r => {
+                let historyRows = [...analyticsData.history];
+                
+                // Sort by actual chronological time first
+                historyRows.sort((a, b) => new Date(a.hour_timestamp) - new Date(b.hour_timestamp));
+
+                // If we have at least 2 points, interpolate intermediate missing hours with nulls
+                // to maintain an accurate, physically proportional timeline on the X-axis
+                if (historyRows.length >= 2) {
+                    const filledHistory = [];
+                    const firstDate = new Date(historyRows[0].hour_timestamp);
+                    const lastDate = new Date(historyRows[historyRows.length - 1].hour_timestamp);
+                    
+                    const recordMap = {};
+                    historyRows.forEach(r => {
+                        const d = new Date(r.hour_timestamp);
+                        const key = d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate() + '-' + d.getHours();
+                        recordMap[key] = r;
+                    });
+                    
+                    let current = new Date(firstDate);
+                    let safetyCounter = 0;
+                    while (current <= lastDate && safetyCounter < 1500) {
+                        safetyCounter++;
+                        const key = current.getFullYear() + '-' + current.getMonth() + '-' + current.getDate() + '-' + current.getHours();
+                        
+                        if (recordMap[key]) {
+                            filledHistory.push(recordMap[key]);
+                        } else {
+                            filledHistory.push({
+                                hour_timestamp: current.toISOString(),
+                                avg_level: null,
+                                avg_volume: null
+                            });
+                        }
+                        current.setHours(current.getHours() + 1);
+                    }
+                    historyRows = filledHistory;
+                }
+
+                const labels = historyRows.map(r => {
                     const d = new Date(r.hour_timestamp);
                     return d.toLocaleDateString(undefined, {month:'short', day:'numeric'}) + ' ' + d.getHours() + ':00';
                 });
-                const volumes = analyticsData.history.map(r => parseFloat(r.avg_volume || 0));
+                const volumes = historyRows.map(r => r.avg_volume !== null ? parseFloat(r.avg_volume) : null);
 
                 chartConfig = {
                     type: 'line',
@@ -1954,8 +1971,12 @@
                             fill: true,
                             tension: 0.35,
                             borderWidth: 3,
-                            pointRadius: 1,
-                            pointHoverRadius: 6
+                            pointRadius: (ctx) => {
+                                const val = ctx.dataset.data[ctx.dataIndex];
+                                return val === null ? 0 : 3;
+                            },
+                            pointHoverRadius: 6,
+                            spanGaps: true
                         }]
                     },
                     options: {

@@ -472,7 +472,14 @@ void setupWebServer() {
 void startConfigMode() {
     isConfigMode = true;
     Serial.println("[SYS] Booting Config AP Portal...");
-    WiFi.disconnect();
+    if (wifiSSID != "") {
+        // Run in dual AP + STA mode so we can auto-reconnect in the background
+        WiFi.mode(WIFI_AP_STA);
+        WiFi.begin(wifiSSID.c_str(), wifiPASS.c_str());
+        Serial.println("[SYS] Configured as AP_STA. Still trying to connect to saved Wi-Fi in background...");
+    } else {
+        WiFi.mode(WIFI_AP);
+    }
     WiFi.softAP("ESP32_HydroSync_AP");
     setupWebServer();
     Serial.println("[SYS] Captive Portal up! Connect to SSID: 'ESP32_HydroSync_AP' (Open Network)");
@@ -911,6 +918,54 @@ void loop() {
             lastLedBlinkTime = currentMs;
             ledState = !ledState;
             digitalWrite(LED_PIN, ledState);
+        }
+
+        // Maintain and process incoming SIM/GSM serial communications (so SMS queries still work!)
+        updateGSMModule();
+
+        // Feed the filter continuously in the background
+        if (currentMs - lastSensorMeasureTime > 150) {
+            lastSensorMeasureTime = currentMs;
+            getFilteredDistance();
+        }
+
+        // Update GSM cache values occasionally
+        if (currentMs - lastMeasureTime > 30000) {
+            lastMeasureTime = currentMs;
+            float distance = (smoothedDistance >= 0.0) ? smoothedDistance : getFilteredDistance();
+            float depth = (tankHeight + sensorHeight) - distance;
+            if (depth < 0.0) depth = 0.0;
+            if (depth > tankHeight) depth = tankHeight;
+
+            float radius = tankDiameter / 2.0;
+            float volume = ((3.14159265 * radius * radius * depth) / 1000.0) * numTanks;
+
+            currentDepthValue = depth;
+            currentVolumeValue = volume;
+            Serial.printf("[SENS Config AP] Distance: %.1f cm | Depth: %.1f cm | Volume: %.1f L\n", distance, depth, volume);
+        }
+
+        // Check if Wi-Fi successfully connected in the background
+        if (wifiSSID != "" && WiFi.status() == WL_CONNECTED) {
+            Serial.println("\n[SYS] Background Wi-Fi connected successfully!");
+            Serial.print("[SYS] IP Address: ");
+            Serial.println(WiFi.localIP());
+
+            // Close the AP mode to save power and clear the airwaves, switch to pure STA station mode
+            WiFi.softAPdisconnect(true);
+            WiFi.mode(WIFI_STA);
+
+            // Configure MQTT
+            mqttClient.setServer(mqttServer, mqttPort);
+            mqttClient.setCallback(mqttCallback);
+            connectMQTTNonBlocking();
+
+            // Set LED stable high (connected)
+            digitalWrite(LED_PIN, HIGH);
+
+            // Exit Config mode
+            isConfigMode = false;
+            Serial.println("[SYS] Transitioned from Config AP Mode to Normal Station Mode automatically.");
         }
     } else {
         // Keep MQTT live without blocking

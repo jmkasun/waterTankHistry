@@ -108,6 +108,46 @@ const server = http.createServer(async (req, res) => {
     const reqUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const urlPath = reqUrl.pathname;
 
+    // API: Receive telemetry via HTTP POST (keeps server active and logs 24/7)
+    if (urlPath === '/api/telemetry' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', async () => {
+            try {
+                const data = JSON.parse(body);
+                const { device_id, level, volume, data_usage } = data;
+
+                if (!device_id || level === undefined || volume === undefined) {
+                    sendJSON(res, { success: false, error: 'Missing required fields' }, 400);
+                    return;
+                }
+
+                const levelVal = parseFloat(level);
+                const volumeVal = parseFloat(volume);
+                const dataUsageVal = parseInt(data_usage, 10) || 0;
+
+                if (isNaN(levelVal) || isNaN(volumeVal)) {
+                    sendJSON(res, { success: false, error: 'Invalid level or volume' }, 400);
+                    return;
+                }
+
+                await pool.query(
+                    `INSERT INTO w_telemetry (device_id, level, volume, data_usage) VALUES ($1, $2, $3, $4)`,
+                    [device_id, levelVal, volumeVal, dataUsageVal]
+                );
+                
+                console.log(`[HTTP API Log] Successfully saved telemetry for ${device_id}: Level=${levelVal}cm, Volume=${volumeVal}L, DataUsage=${dataUsageVal} Bytes`);
+                sendJSON(res, { success: true, message: 'Telemetry logged successfully' });
+            } catch (err) {
+                console.error('[API Error] /api/telemetry:', err);
+                sendJSON(res, { success: false, error: err.message }, 500);
+            }
+        });
+        return;
+    }
+
     // API: List unique device IDs
     if (urlPath === '/api/devices' && req.method === 'GET') {
         try {

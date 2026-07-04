@@ -56,6 +56,7 @@ float sensorHeight = 45.0;   // Sensor offset height from Max Water Height to ph
 float tankDiameter = 228.0;  // Inner tank diameter (cm) - Arpico 10,000L
 int numTanks = 1;            // Number of parallel connected tanks
 String mqttPrefix = "mytank123";
+String apiServerUrl = "";    // Web App Server HTTP URL (for 24/7 background logging)
 
 // --- GSM Missed Call & SMS Alert Parameters ---
 #define GSM_RX_PIN 20
@@ -199,6 +200,10 @@ const char* HTML_PORTAL_PAGE = R"rawliteral(
                 <label>Authorized GSM Numbers (Comma separated)</label>
                 <input type="text" name="gsm_nums" value="%GSM_NUMS%" placeholder="e.g. +94771234567, +94777654321">
             </div>
+            <div class="form-group">
+                <label>Web App Server URL (for 24/7 background logging)</label>
+                <input type="text" name="api_url" value="%API_URL%" placeholder="https://your-app.vercel.app">
+            </div>
             <button type="submit">Connect & Sync</button>
         </form>
     </div>
@@ -221,6 +226,7 @@ void handleRoot() {
     String currentPrefix = preferences.getString("prefix", "mytank123");
     int currentTanks = preferences.getInt("tanks", 1);
     String currentGsm = preferences.getString("gsm_nums", "");
+    String currentApiUrl = preferences.getString("api_url", "");
     preferences.end();
 
     String html = String(HTML_PORTAL_PAGE);
@@ -229,6 +235,7 @@ void handleRoot() {
     html.replace("%PREFIX%", currentPrefix);
     html.replace("%TANKS%", String(currentTanks));
     html.replace("%GSM_NUMS%", currentGsm);
+    html.replace("%API_URL%", currentApiUrl);
 
     server.send(200, "text/html", html); 
 }
@@ -239,6 +246,7 @@ void handleSave() {
     String reqPrefix = server.arg("prefix");
     String reqTanks = server.arg("tanks");
     String reqGsm = server.arg("gsm_nums");
+    String reqApiUrl = server.arg("api_url");
 
     preferences.begin(PREF_NAMESPACE, false);
     preferences.putString("ssid", reqSsid);
@@ -250,6 +258,7 @@ void handleSave() {
         preferences.putInt("tanks", reqTanks.toInt());
     }
     preferences.putString("gsm_nums", reqGsm);
+    preferences.putString("api_url", reqApiUrl);
     preferences.putBool("configured", true);
     preferences.end();
 
@@ -661,10 +670,12 @@ void setup() {
     numTanks = preferences.getInt("tanks", 1);
     mqttPrefix = preferences.getString("prefix", "mytank123");
     gsmNumbersList = preferences.getString("gsm_nums", "");
+    apiServerUrl = preferences.getString("api_url", "");
     preferences.end();
 
     Serial.printf("[NVS] Loaded WiFi SSID: '%s' | Password: '%s' | Configured: %s\n", 
                   wifiSSID.c_str(), wifiPASS.c_str(), isConfigured ? "YES" : "NO");
+    Serial.printf("[NVS] Loaded Web App Server URL: '%s'\n", apiServerUrl.c_str());
     Serial.printf("[NVS] Tank specs: Height=%.1fcm | SensorOffset=%.1fcm | Diameter=%.1fcm | Tanks=%d\n", tankHeight, sensorHeight, tankDiameter, numTanks);
     Serial.printf("[NVS] Topic config path prefix: %s\n", mqttPrefix.c_str());
 
@@ -851,6 +862,30 @@ void loop() {
                 digitalWrite(LED_PIN, LOW);
                 delay(100);
                 digitalWrite(LED_PIN, HIGH);
+            }
+
+            // Send HTTP POST telemetry to keep server logging 24/7 (even when dashboard is closed)
+            if (WiFi.status() == WL_CONNECTED && apiServerUrl.length() > 0) {
+                WiFiClient client;
+                HTTPClient http;
+                String endpoint = apiServerUrl;
+                if (!endpoint.endsWith("/")) {
+                    endpoint += "/";
+                }
+                endpoint += "api/telemetry";
+                
+                Serial.println("[HTTP] Sending telemetry POST to: " + endpoint);
+                http.begin(client, endpoint);
+                http.addHeader("Content-Type", "application/json");
+                
+                String jsonPayload = "{\"device_id\":\"" + mqttPrefix + "\",\"level\":" + String(depth, 1) + ",\"volume\":" + String(volume, 1) + ",\"data_usage\":" + String(totalBytesSent) + "}";
+                int httpResponseCode = http.POST(jsonPayload);
+                if (httpResponseCode > 0) {
+                    Serial.printf("[HTTP] Telemetry POST success, response: %d\n", httpResponseCode);
+                } else {
+                    Serial.printf("[HTTP] Telemetry POST failed, error: %s\n", http.errorToString(httpResponseCode).c_str());
+                }
+                http.end();
             }
         }
     }

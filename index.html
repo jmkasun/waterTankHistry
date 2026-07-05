@@ -384,7 +384,7 @@
                             Stable / Falling
                         </span>
                         <span class="flex items-center gap-1.5">
-                            <span class="w-3.5 h-1.5 rounded bg-[#eab308]"></span>
+                            <span class="w-3.5 h-1.5 rounded bg-[#5a8f6a]"></span>
                             Filling (Motor 1 - 1" Pipe)
                         </span>
                         <span class="flex items-center gap-1.5">
@@ -2579,8 +2579,8 @@
                         if (overallRate >= 100) {
                             const threshold = parseFloat(document.getElementById('pumpThresholdInput')?.value || '2500');
                             let motor = 'Motor 1 (1-inch Pipe)';
-                            let color = '#eab308'; // Yellow
-                            let borderColor = '#b45309';
+                            let color = '#5a8f6a'; // Muted sage green
+                            let borderColor = '#3a5f45';
                             
                             if (overallRate >= threshold) {
                                 motor = 'Motor 2 (2-inch Pipe)';

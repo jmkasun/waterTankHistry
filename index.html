@@ -903,6 +903,48 @@
                 </div>
             </div>
 
+            <!-- Water Level Threshold Alerts Card -->
+            <div id="alerts-threshold-card" class="bg-slate-900/30 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-rose-500/10 rounded-lg border border-rose-500/30">
+                        <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white tracking-tight">Water Level Alerts</h3>
+                        <p class="text-[11px] text-slate-400">Configure alert bounds for water level status</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Min Alert Level (%)</label>
+                        <div class="relative">
+                            <input type="number" id="alertMinLevelInput" placeholder="20" min="0" max="100" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-rose-500 text-white placeholder-slate-600 transition">
+                            <span class="absolute right-4 top-3 text-xs text-slate-500">%</span>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-1">Triggers error toast if level falls below this value.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Max Alert Level (%)</label>
+                        <div class="relative">
+                            <input type="number" id="alertMaxLevelInput" placeholder="90" min="0" max="100" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-rose-500 text-white placeholder-slate-600 transition">
+                            <span class="absolute right-4 top-3 text-xs text-slate-500">%</span>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-1">Triggers error toast if level rises above this value.</p>
+                    </div>
+                </div>
+
+                <button onclick="updateAlertThresholds()" class="w-full bg-rose-600 hover:bg-rose-500 text-white py-3.5 px-4 rounded-xl font-bold text-sm tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-rose-600/15">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Save Alert Thresholds
+                </button>
+            </div>
+
             <!-- Database & History Management -->
             <div class="bg-slate-900/30 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
                 <div class="flex items-center gap-3">
@@ -954,6 +996,13 @@
             tanks: 1,
             interval: 15 // seconds (Default telemetry logging interval)
         };
+
+        // Threshold Alerts Settings
+        let alertThresholds = {
+            min: 20,
+            max: 90
+        };
+        let lastAlertState = 'unknown';
 
         // MQTT client instance holder & Connection state
         let client = null;
@@ -1160,6 +1209,10 @@
 
             // Outer bound checks
             percent = Math.min(Math.max(percent, 0), 100);
+
+            // Check water level thresholds and trigger alerts
+            checkWaterLevelAlerts(percent);
+
             currentLevelCm = Math.min(Math.max(currentLevelCm, 0), config.height);
             const airSpaceCm = Math.max((config.height + config.sensorHeight) - currentLevelCm, 0);
 
@@ -1713,6 +1766,9 @@
             const savedMotor2Rate = localStorage.getItem('hydrosync_motor2_rate');
             const savedPumpThreshold = localStorage.getItem('hydrosync_pump_threshold');
 
+            const savedAlertMin = localStorage.getItem('hydrosync_alert_min');
+            const savedAlertMax = localStorage.getItem('hydrosync_alert_max');
+
             if (savedBroker) document.getElementById('brokerInput').value = savedBroker;
             if (savedPrefix) document.getElementById('topicPrefix').value = savedPrefix;
             if (savedHeight) document.getElementById('heightInput').value = savedHeight;
@@ -1732,6 +1788,14 @@
             if (savedMotor1Rate) document.getElementById('motor1RateInput').value = savedMotor1Rate;
             if (savedMotor2Rate) document.getElementById('motor2RateInput').value = savedMotor2Rate;
             if (savedPumpThreshold) document.getElementById('pumpThresholdInput').value = savedPumpThreshold;
+
+            alertThresholds.min = savedAlertMin !== null ? parseFloat(savedAlertMin) : 20;
+            alertThresholds.max = savedAlertMax !== null ? parseFloat(savedAlertMax) : 90;
+
+            const minEl = document.getElementById('alertMinLevelInput');
+            const maxEl = document.getElementById('alertMaxLevelInput');
+            if (minEl) minEl.value = alertThresholds.min;
+            if (maxEl) maxEl.value = alertThresholds.max;
 
             toggleMethodFields();
             
@@ -1773,6 +1837,63 @@
             localStorage.setItem('hydrosync_motor1_rate', motor1Rate);
             localStorage.setItem('hydrosync_motor2_rate', motor2Rate);
             localStorage.setItem('hydrosync_pump_threshold', pumpThreshold);
+
+            localStorage.setItem('hydrosync_alert_min', alertThresholds.min.toString());
+            localStorage.setItem('hydrosync_alert_max', alertThresholds.max.toString());
+        }
+
+        // --- Water Level Threshold Alerts Logic ---
+        function checkWaterLevelAlerts(percent) {
+            if (percent < alertThresholds.min) {
+                if (lastAlertState !== 'low') {
+                    showToast(`⚠️ Alert: Water level is critically low at ${percent.toFixed(0)}%! (Below ${alertThresholds.min}% threshold)`, 'error');
+                    lastAlertState = 'low';
+                }
+            } else if (percent > alertThresholds.max) {
+                if (lastAlertState !== 'high') {
+                    showToast(`⚠️ Alert: Water level is critically high at ${percent.toFixed(0)}%! (Above ${alertThresholds.max}% threshold)`, 'error');
+                    lastAlertState = 'high';
+                }
+            } else {
+                if (lastAlertState !== 'normal' && lastAlertState !== 'unknown') {
+                    showToast(`ℹ️ Notice: Water level has returned to safe range: ${percent.toFixed(0)}%.`, 'success');
+                }
+                lastAlertState = 'normal';
+            }
+        }
+
+        function updateAlertThresholds() {
+            const minInput = document.getElementById('alertMinLevelInput');
+            const maxInput = document.getElementById('alertMaxLevelInput');
+            if (!minInput || !maxInput) return;
+
+            const minVal = parseFloat(minInput.value);
+            const maxVal = parseFloat(maxInput.value);
+
+            if (isNaN(minVal) || minVal < 0 || minVal > 100 || isNaN(maxVal) || maxVal < 0 || maxVal > 100) {
+                showToast("Alert thresholds must be numbers between 0 and 100%.", "error");
+                return;
+            }
+
+            if (minVal >= maxVal) {
+                showToast("Min threshold must be strictly less than Max threshold.", "error");
+                return;
+            }
+
+            alertThresholds.min = minVal;
+            alertThresholds.max = maxVal;
+
+            saveSettingsToLocalStorage();
+            showToast("Water level alert thresholds saved successfully!", "success");
+
+            // Re-render level chart dynamically if displayed to update dashed red lines
+            if (activeMainTab === 'analytics' && currentChartTab === 'level') {
+                renderAnalyticsChart();
+            }
+
+            // Force alert state re-evaluation of current level
+            lastAlertState = 'unknown';
+            updateTelemetryUI();
         }
 
         // --- Local Storage Telemetry & Heartbeat Persistence Helpers ---
@@ -2709,6 +2830,9 @@
                     }
                 }
 
+                const singleMaxVol = (Math.PI * Math.pow(config.diameter / 2, 2) * config.height) / 1000;
+                const totalMaxVol = singleMaxVol * config.tanks;
+
                 chartConfig = {
                     type: 'line',
                     data: {
@@ -2744,6 +2868,28 @@
                                     return '#3b82f6';
                                 }
                             }
+                        }, {
+                            label: 'Min Level Alert Threshold',
+                            data: Array(labels.length).fill(totalMaxVol * (alertThresholds.min / 100)),
+                            borderColor: '#f43f5e',
+                            borderWidth: 1.5,
+                            borderDash: [5, 5],
+                            fill: false,
+                            pointRadius: 0,
+                            pointHoverRadius: 0,
+                            tension: 0,
+                            spanGaps: true
+                        }, {
+                            label: 'Max Level Alert Threshold',
+                            data: Array(labels.length).fill(totalMaxVol * (alertThresholds.max / 100)),
+                            borderColor: '#ef4444',
+                            borderWidth: 1.5,
+                            borderDash: [5, 5],
+                            fill: false,
+                            pointRadius: 0,
+                            pointHoverRadius: 0,
+                            tension: 0,
+                            spanGaps: true
                         }]
                     },
                     options: {
@@ -2779,6 +2925,7 @@
                                         return label;
                                     },
                                     afterLabel: function(context) {
+                                        if (context.datasetIndex !== 0) return '';
                                         const idx = context.dataIndex;
                                         const meta = pointMotorLabels[idx];
                                         if (meta) {

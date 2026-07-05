@@ -231,7 +231,12 @@ const server = http.createServer(async (req, res) => {
             // Default start date is 30 days ago
             const startDate = reqUrl.searchParams.get('start_date') || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-            // Calculate daily usage using the robust window function
+            const method = reqUrl.searchParams.get('method') || 'method_1';
+            const motor1_rate = parseFloat(reqUrl.searchParams.get('motor1_rate')) || 1000.0;
+            const motor2_rate = parseFloat(reqUrl.searchParams.get('motor2_rate')) || 5000.0;
+            const threshold = parseFloat(reqUrl.searchParams.get('threshold')) || 2500.0;
+
+            // Calculate daily usage using the robust window function or Method 1 flow-rate correction
             const result = await pool.query(
                 `WITH ordered_telemetry AS (
                     SELECT 
@@ -242,7 +247,8 @@ const server = http.createServer(async (req, res) => {
                             ORDER BY timestamp 
                             ROWS BETWEEN 20 PRECEDING AND CURRENT ROW
                         ) as smoothed_volume,
-                        LAG(data_usage) OVER (ORDER BY timestamp) as prev_data_usage
+                        LAG(data_usage) OVER (ORDER BY timestamp) as prev_data_usage,
+                        LAG(timestamp) OVER (ORDER BY timestamp) as prev_timestamp
                     FROM w_telemetry
                     WHERE device_id = $1 AND timestamp >= $2 AND timestamp <= $3
                 ),
@@ -252,15 +258,41 @@ const server = http.createServer(async (req, res) => {
                         smoothed_volume,
                         data_usage,
                         prev_data_usage,
-                        LAG(smoothed_volume) OVER (ORDER BY timestamp) as prev_smoothed_volume
+                        LAG(smoothed_volume) OVER (ORDER BY timestamp) as prev_smoothed_volume,
+                        prev_timestamp
                     FROM ordered_telemetry
                 ),
                 deltas AS (
                     SELECT
                         timestamp::date as usage_date,
                         CASE 
-                            WHEN prev_smoothed_volume IS NOT NULL AND prev_smoothed_volume > smoothed_volume THEN prev_smoothed_volume - smoothed_volume 
-                            ELSE 0 
+                            -- Method 1: Flow Rate Correction
+                            WHEN $4 = 'method_1' THEN
+                                CASE
+                                    WHEN prev_timestamp IS NOT NULL AND prev_smoothed_volume IS NOT NULL AND timestamp > prev_timestamp THEN
+                                        CASE
+                                            -- If water level is rising (smoothed_volume > prev_smoothed_volume)
+                                            WHEN smoothed_volume > prev_smoothed_volume THEN
+                                                CASE
+                                                    -- Motor 2 (2-inch)
+                                                    WHEN ((smoothed_volume - prev_smoothed_volume) / (EXTRACT(EPOCH FROM (timestamp - prev_timestamp)) / 3600.0)) >= $7 THEN
+                                                        GREATEST(0, ($6 * (EXTRACT(EPOCH FROM (timestamp - prev_timestamp)) / 3600.0)) - (smoothed_volume - prev_smoothed_volume))
+                                                    -- Motor 1 (1-inch)
+                                                    ELSE
+                                                        GREATEST(0, ($5 * (EXTRACT(EPOCH FROM (timestamp - prev_timestamp)) / 3600.0)) - (smoothed_volume - prev_smoothed_volume))
+                                                END
+                                            -- If water level is falling or stable
+                                            ELSE
+                                                GREATEST(0, prev_smoothed_volume - smoothed_volume)
+                                        END
+                                    ELSE 0
+                                END
+                            -- Method 0: Standard Net Delta Only
+                            ELSE
+                                CASE 
+                                    WHEN prev_smoothed_volume IS NOT NULL AND prev_smoothed_volume > smoothed_volume THEN prev_smoothed_volume - smoothed_volume 
+                                    ELSE 0 
+                                END
                         END as water_outflow,
                         CASE
                             WHEN prev_data_usage IS NOT NULL AND data_usage >= prev_data_usage THEN data_usage - prev_data_usage
@@ -276,7 +308,7 @@ const server = http.createServer(async (req, res) => {
                 FROM deltas
                 GROUP BY usage_date
                 ORDER BY usage_date ASC`,
-                [deviceId, startDate, endDate]
+                [deviceId, startDate, endDate, method, motor1_rate, motor2_rate, threshold]
             );
 
             sendJSON(res, { success: true, data: result.rows });

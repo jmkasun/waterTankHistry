@@ -309,8 +309,8 @@ const server = http.createServer(async (req, res) => {
 
     // Static Web Server fallback for HTML/CSS/JS/TXT
     let safePath = urlPath === '/' ? 'index.html' : urlPath.substring(1);
-    if (safePath.toLowerCase() === 'waterlevel.bin') {
-        safePath = 'Waterlevel.ino.bin';
+    if (safePath.toLowerCase() === 'waterlevel.ino.bin' || safePath.toLowerCase() === 'waterlevel.bin') {
+        safePath = 'waterlevel.bin';
     }
     const filePath = path.join(__dirname, safePath);
     

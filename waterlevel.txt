@@ -892,7 +892,6 @@ void loop() {
 
             // Send HTTP POST telemetry to keep server logging 24/7 (even when dashboard is closed)
             if (WiFi.status() == WL_CONNECTED && apiServerUrl.length() > 0) {
-                WiFiClient client;
                 HTTPClient http;
                 String endpoint = apiServerUrl;
                 if (!endpoint.endsWith("/")) {
@@ -901,11 +900,23 @@ void loop() {
                 endpoint += "api/telemetry";
                 
                 Serial.println("[HTTP] Sending telemetry POST to: " + endpoint);
-                http.begin(client, endpoint);
-                http.addHeader("Content-Type", "application/json");
                 
                 String jsonPayload = "{\"device_id\":\"" + mqttPrefix + "\",\"level\":" + String(depth, 1) + ",\"volume\":" + String(volume, 1) + ",\"data_usage\":" + String(totalBytesSent) + "}";
-                int httpResponseCode = http.POST(jsonPayload);
+                int httpResponseCode = -1;
+
+                if (endpoint.startsWith("https://")) {
+                    WiFiClientSecure clientSecure;
+                    clientSecure.setInsecure(); // Skip certificate verification for SSL
+                    http.begin(clientSecure, endpoint);
+                    http.addHeader("Content-Type", "application/json");
+                    httpResponseCode = http.POST(jsonPayload);
+                } else {
+                    WiFiClient client;
+                    http.begin(client, endpoint);
+                    http.addHeader("Content-Type", "application/json");
+                    httpResponseCode = http.POST(jsonPayload);
+                }
+
                 if (httpResponseCode > 0) {
                     Serial.printf("[HTTP] Telemetry POST success, response: %d\n", httpResponseCode);
                 } else {

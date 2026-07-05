@@ -1,4 +1,5 @@
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
@@ -337,6 +338,80 @@ const server = http.createServer(async (req, res) => {
             console.error('[API Error] /api/clear:', err);
             sendJSON(res, { success: false, error: err.message }, 500);
         }
+        return;
+    }
+
+    // API: Send SMS via Text.lk
+    if (urlPath === '/api/send-sms' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', async () => {
+            try {
+                const data = JSON.parse(body);
+                const { recipient, message, sender_id } = data;
+
+                if (!recipient || !message) {
+                    sendJSON(res, { success: false, error: 'Recipient and message are required' }, 400);
+                    return;
+                }
+
+                const token = process.env.TEXT_LK_API_TOKEN || "5812|zSz889GfK4tAKEJO3PaYaPOyw3kUW86LRgLbu7JSd908c821";
+                const payload = JSON.stringify({
+                    recipient: recipient.trim(),
+                    sender_id: (sender_id || "Sandbox").trim(),
+                    message: message.trim()
+                });
+
+                const options = {
+                    hostname: 'app.text.lk',
+                    port: 443,
+                    path: '/api/v3/sms/send',
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'Content-Length': Buffer.byteLength(payload)
+                    }
+                };
+
+                const smsReq = https.request(options, (smsRes) => {
+                    let smsResponseBody = '';
+                    smsRes.on('data', (chunk) => {
+                        smsResponseBody += chunk;
+                    });
+                    smsRes.on('end', () => {
+                        console.log('[SMS Response]', smsResponseBody);
+                        try {
+                            const parsedResponse = JSON.parse(smsResponseBody);
+                            const isApiError = parsedResponse.status === 'error' || parsedResponse.success === false;
+                            if (smsRes.statusCode >= 200 && smsRes.statusCode < 300 && !isApiError) {
+                                sendJSON(res, { success: true, response: parsedResponse });
+                            } else {
+                                const errMsg = parsedResponse.message || parsedResponse.error || 'Failed to send SMS';
+                                sendJSON(res, { success: false, error: errMsg, response: parsedResponse }, (smsRes.statusCode >= 200 && smsRes.statusCode < 300 && isApiError) ? 400 : smsRes.statusCode);
+                            }
+                        } catch (e) {
+                            sendJSON(res, { success: false, error: 'Failed to parse gateway response', responseText: smsResponseBody }, 502);
+                        }
+                    });
+                });
+
+                smsReq.on('error', (err) => {
+                    console.error('[SMS Error]', err);
+                    sendJSON(res, { success: false, error: err.message }, 500);
+                });
+
+                smsReq.write(payload);
+                smsReq.end();
+
+            } catch (err) {
+                console.error('[API Error] /api/send-sms:', err);
+                sendJSON(res, { success: false, error: err.message }, 500);
+            }
+        });
         return;
     }
 

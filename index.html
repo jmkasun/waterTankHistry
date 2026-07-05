@@ -300,6 +300,100 @@
                         </div>
                         <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Calculated Water Mass</span>
                         <span id="lblMass" class="text-2xl font-black text-white tracking-tight">0.0 kg</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SMS Telemetry Alerts & Dispatch Bento Card -->
+            <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 md:p-8 flex flex-col gap-6">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h3 class="text-base font-bold text-white mb-1 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                            </svg>
+                            SMS Telemetry Alerts & Dispatch
+                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 uppercase font-semibold tracking-wider">text.lk API</span>
+                        </h3>
+                        <p class="text-xs text-slate-400">Broadcast real-time cistern water level metrics via the Text.lk SMS gateway.</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- SMS Sender Input Column -->
+                    <div class="space-y-4 bg-slate-950/40 border border-slate-800/80 rounded-2xl p-5">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <label for="smsRecipient" class="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">Recipient Phone</label>
+                                <div class="relative">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-500 text-xs font-mono">+</span>
+                                    <input type="text" id="smsRecipient" placeholder="94771234567" class="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-xl pl-6 pr-2 py-2 text-xs text-white placeholder-slate-600 font-mono focus:outline-none transition">
+                                </div>
+                            </div>
+
+                            <div class="space-y-2">
+                                <label for="smsSenderId" class="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">Sender ID</label>
+                                <input type="text" id="smsSenderId" value="Sandbox" placeholder="Sandbox" class="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none transition">
+                            </div>
+                        </div>
+                        <p class="text-[10px] text-slate-500 -mt-2 leading-tight">
+                            Sri Lanka format: <span class="text-slate-300 font-semibold">94771234567</span>.
+                            <span id="smsWhitelistPreset" class="hidden">
+                                Or use <button type="button" onclick="useWhitelistSmsPreset()" class="text-cyan-400 hover:underline font-semibold cursor-pointer">whitelisted number</button>
+                            </span>
+                        </p>
+
+                        <!-- SMS Template Textarea -->
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <label for="smsTemplate" class="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">SMS Message Template</label>
+                                <button type="button" onclick="resetSmsTemplate()" class="text-[9px] text-cyan-400 hover:underline font-semibold cursor-pointer">Reset Default</button>
+                            </div>
+                            <textarea id="smsTemplate" rows="3" oninput="updateSmsPreview()" class="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-xl p-3 text-xs text-slate-200 focus:outline-none transition resize-none">Water Tank level is at {percent}% {volume} L. Last updated: {time}.</textarea>
+                            
+                            <!-- Dynamic Tags helpers -->
+                            <div class="flex flex-wrap items-center gap-1.5">
+                                <span class="text-[9px] text-slate-500">Insert tag:</span>
+                                <button type="button" onclick="insertSmsTag('{percent}')" class="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] text-cyan-400 font-mono font-bold transition">+ {percent}</button>
+                                <button type="button" onclick="insertSmsTag('{volume}')" class="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] text-cyan-400 font-mono font-bold transition">+ {volume}</button>
+                                <button type="button" onclick="insertSmsTag('{time}')" class="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] text-cyan-400 font-mono font-bold transition">+ {time}</button>
+                            </div>
+                        </div>
+
+                        <button id="btnSendSms" onclick="dispatchTelemetrySms()" class="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10">
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                            </svg>
+                            <span>Send Water Level as SMS</span>
+                        </button>
+                    </div>
+
+                    <!-- Live Message Preview Column -->
+                    <div class="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-5 flex flex-col justify-between gap-4">
+                        <div class="space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Live SMS Preview</span>
+                                <span class="text-[10px] text-slate-500 font-mono" id="smsCharCount">0 characters</span>
+                            </div>
+                            <!-- Phone screen graphic styling for preview -->
+                            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 relative min-h-[100px] flex items-start gap-3">
+                                <div class="w-7 h-7 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-full flex items-center justify-center text-xs shrink-0 font-bold font-mono">
+                                    HS
+                                </div>
+                                <div class="space-y-1">
+                                    <div class="text-[10px] text-slate-400 font-semibold">HydroSync Monitor</div>
+                                    <p id="smsPreviewText" class="text-xs text-slate-200 leading-relaxed italic bg-slate-950 px-3 py-2 rounded-lg border border-slate-800/60">
+                                        Loading active water level metrics...
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 text-[10px] text-slate-500">
+                            <span class="p-1 bg-cyan-500/10 text-cyan-400 rounded-md border border-cyan-500/20">💡</span>
+                            <span>The message is dynamically updated in real-time as the telemetry sensor uploads new water levels.</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -1255,6 +1349,13 @@
                     el.className = "text-[11px] font-mono font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2.5 py-1 rounded-lg animate-pulse";
                 }
             }
+
+            // Update dynamically the Live SMS preview
+            try {
+                updateSmsPreview();
+            } catch (err) {
+                console.warn('SMS Preview update skipped:', err);
+            }
         }
 
         // Flash packet indicator
@@ -2055,6 +2156,16 @@
 
             // Automatically preserve state in local storage
             saveSettingsToLocalStorage();
+
+            // Toggle SMS Whitelist Preset button visibility
+            const presetSpan = document.getElementById('smsWhitelistPreset');
+            if (presetSpan) {
+                if (gsmNumbers && gsmNumbers.length > 0) {
+                    presetSpan.classList.remove('hidden');
+                } else {
+                    presetSpan.classList.add('hidden');
+                }
+            }
         }
 
         function addGsmNumber() {
@@ -2106,6 +2217,147 @@
                 showToast("Phone numbers whitelist synchronized with ESP32.", "success");
             } else {
                 showToast("Saved locally. Connect to MQTT to transmit to ESP32.", "info");
+            }
+        }
+
+        // --- SMS Gateway Integration Helpers ---
+        function updateSmsPreview() {
+            const level = document.getElementById('txtLevel')?.innerText || "0.0";
+            const volume = document.getElementById('txtVolume')?.innerText || "0";
+            const percent = document.getElementById('txtPercent')?.innerText || "0";
+            const prefix = document.getElementById('topicPrefix')?.value || "mytank123";
+            
+            // Format time as hh:mm AM/PM reliably
+            const now = new Date();
+            let hours = now.getHours();
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            const strTime = hours.toString().padStart(2, '0') + ':' + minutes + ' ' + ampm;
+
+            const templateEl = document.getElementById('smsTemplate');
+            const templateText = templateEl ? templateEl.value : "Water Tank level is at {percent}% {volume} L. Last updated: {time}.";
+            
+            // Compile template
+            const compiledMsg = templateText
+                .replace(/{percent}/g, percent)
+                .replace(/{volume}/g, volume)
+                .replace(/{time}/g, strTime);
+
+            const previewEl = document.getElementById('smsPreviewText');
+            const countEl = document.getElementById('smsCharCount');
+            if (previewEl) {
+                previewEl.innerText = compiledMsg;
+            }
+            if (countEl) {
+                countEl.innerText = `${compiledMsg.length} characters`;
+            }
+        }
+
+        function resetSmsTemplate() {
+            const templateEl = document.getElementById('smsTemplate');
+            if (templateEl) {
+                templateEl.value = "Water Tank level is at {percent}% {volume} L. Last updated: {time}.";
+                updateSmsPreview();
+                showToast("SMS template reset to default layout.", "info");
+            }
+        }
+
+        function insertSmsTag(tag) {
+            const templateEl = document.getElementById('smsTemplate');
+            if (templateEl) {
+                const startPos = templateEl.selectionStart;
+                const endPos = templateEl.selectionEnd;
+                const value = templateEl.value;
+                templateEl.value = value.substring(0, startPos) + tag + value.substring(endPos, value.length);
+                templateEl.focus();
+                // Put cursor right after the newly inserted tag
+                templateEl.selectionStart = startPos + tag.length;
+                templateEl.selectionEnd = startPos + tag.length;
+                updateSmsPreview();
+            }
+        }
+
+        function useWhitelistSmsPreset() {
+            if (gsmNumbers && gsmNumbers.length > 0) {
+                const recipientInput = document.getElementById('smsRecipient');
+                if (recipientInput) {
+                    let num = gsmNumbers[0];
+                    if (num.startsWith('+')) num = num.substring(1);
+                    recipientInput.value = num;
+                    showToast(`Loaded whitelisted number +${num} as recipient.`, "info");
+                }
+            }
+        }
+
+        async function dispatchTelemetrySms() {
+            const recipientInput = document.getElementById('smsRecipient');
+            const senderIdInput = document.getElementById('smsSenderId');
+            const previewEl = document.getElementById('smsPreviewText');
+            const btn = document.getElementById('btnSendSms');
+
+            if (!recipientInput || !btn) return;
+
+            let recipient = recipientInput.value.trim();
+            const sender_id = senderIdInput ? senderIdInput.value.trim() : "Sandbox";
+            const message = previewEl ? previewEl.innerText : "";
+
+            if (!recipient) {
+                showToast("Please enter a recipient phone number.", "error");
+                recipientInput.focus();
+                return;
+            }
+
+            // Standardize number (e.g. if starting with 0, convert to 94 or keep digits)
+            if (recipient.startsWith('0') && recipient.length === 10) {
+                recipient = '94' + recipient.substring(1);
+            }
+            // Strip any '+' characters or spaces
+            recipient = recipient.replace(/\+/g, '').replace(/\s+/g, '');
+
+            if (!/^[0-9]{9,15}$/.test(recipient)) {
+                showToast("Invalid phone number format. Must contain 9 to 15 digits.", "error");
+                return;
+            }
+
+            // Set loading state
+            const originalBtnHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `
+                <svg class="animate-spin -ml-1 mr-3 h-4 w-4 text-slate-950 inline" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Sending SMS...</span>
+            `;
+
+            try {
+                const response = await fetch('/api/send-sms', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        recipient: recipient,
+                        sender_id: sender_id || "Sandbox",
+                        message: message
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showToast(`SMS sent successfully to +${recipient}!`, "success");
+                } else {
+                    showToast(`Failed to send SMS: ${result.error || 'Server error'}`, "error");
+                }
+            } catch (err) {
+                console.error('[SMS Client Error]', err);
+                showToast("Failed to connect to server SMS API.", "error");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalBtnHtml;
             }
         }
 

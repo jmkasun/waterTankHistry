@@ -437,12 +437,20 @@
                             <label class="block text-[10px] uppercase tracking-wider font-bold text-slate-400 mb-1">End Date</label>
                             <input type="date" id="historyEndDate" onchange="clearPresetActiveState()" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500">
                         </div>
-                        <button onclick="fetchAnalyticsData()" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 py-2.5 px-4 rounded-lg font-bold text-xs tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/10">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                            </svg>
-                            Query Analytics
-                        </button>
+                        <div class="flex gap-2 w-full">
+                            <button onclick="fetchAnalyticsData()" class="flex-1 bg-cyan-500 hover:bg-cyan-400 text-slate-950 py-2.5 px-3 rounded-lg font-bold text-xs tracking-wide transition flex items-center justify-center gap-1.5 shadow-lg shadow-cyan-500/10">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                </svg>
+                                Query
+                            </button>
+                            <button id="btnExportCSV" onclick="exportDataToCSV()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white py-2.5 px-3 rounded-lg font-bold text-xs tracking-wide border border-slate-700 transition flex items-center justify-center gap-1.5" title="Export Current Filtered Data to CSV">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                                Export CSV
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -1896,6 +1904,74 @@
             updateTelemetryUI();
         }
 
+        // --- Export to CSV ---
+        function exportDataToCSV() {
+            if ((!analyticsData.history || analyticsData.history.length === 0) && 
+                (!analyticsData.usage || analyticsData.usage.length === 0)) {
+                showToast("No analytics data loaded. Please query a date range first.", "error");
+                return;
+            }
+
+            const select = document.getElementById('analyticsDeviceSelect');
+            const deviceId = select ? select.value : 'mytank123';
+            const startDate = document.getElementById('historyStartDate')?.value || 'start';
+            const endDate = document.getElementById('historyEndDate')?.value || 'end';
+
+            let csvContent = "";
+
+            // Section 1: Water Level History
+            csvContent += `=== WATER LEVEL HISTORY ===\r\n`;
+            csvContent += `Device ID,${deviceId}\r\n`;
+            csvContent += `Date Range,${startDate} to ${endDate}\r\n`;
+            csvContent += `Resolution,${analyticsResolution}\r\n\r\n`;
+            csvContent += `Timestamp,Water Level (cm),Water Volume (Liters)\r\n`;
+
+            if (analyticsData.history && analyticsData.history.length > 0) {
+                analyticsData.history.forEach(row => {
+                    const levelVal = row.avg_level !== null ? parseFloat(row.avg_level).toFixed(2) : 'N/A';
+                    const volVal = row.avg_volume !== null ? parseFloat(row.avg_volume).toFixed(1) : 'N/A';
+                    csvContent += `"${row.hour_timestamp}",${levelVal},${volVal}\r\n`;
+                });
+            } else {
+                csvContent += `No history data available for this period\r\n`;
+            }
+
+            csvContent += `\r\n\r\n`;
+
+            // Section 2: Daily Water Usage & Network Overhead
+            csvContent += `=== DAILY WATER USAGE & NETWORK OVERHEAD ===\r\n`;
+            csvContent += `Device ID,${deviceId}\r\n`;
+            csvContent += `Date Range,${startDate} to ${endDate}\r\n\r\n`;
+            csvContent += `Date,Daily Water Used (Liters),Daily Network Overhead (KB)\r\n`;
+
+            if (analyticsData.usage && analyticsData.usage.length > 0) {
+                analyticsData.usage.forEach(row => {
+                    const waterVal = row.daily_water_used !== null ? parseFloat(row.daily_water_used).toFixed(1) : '0.0';
+                    const dataVal = row.daily_data_used_kb !== null ? parseFloat(row.daily_data_used_kb).toFixed(2) : '0.00';
+                    csvContent += `"${row.usage_date}",${waterVal},${dataVal}\r\n`;
+                });
+            } else {
+                csvContent += `No daily usage data available for this period\r\n`;
+            }
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const filename = `hydrosync_analytics_${deviceId}_${startDate}_to_${endDate}.csv`;
+            
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showToast("CSV file downloaded successfully!", "success");
+            } else {
+                showToast("CSV Export not supported in this browser.", "error");
+            }
+        }
+
         // --- Local Storage Telemetry & Heartbeat Persistence Helpers ---
         function loadTelemetryFromLocalStorage() {
             const prefix = document.getElementById('topicPrefix').value || "mytank123";
@@ -2833,6 +2909,25 @@
                 const singleMaxVol = (Math.PI * Math.pow(config.diameter / 2, 2) * config.height) / 1000;
                 const totalMaxVol = singleMaxVol * config.tanks;
 
+                const validVolumes = volumes.filter(v => v !== null && !isNaN(v));
+                let yMin = undefined;
+                let yMax = undefined;
+
+                if (validVolumes.length > 0) {
+                    const minDataVol = Math.min(...validVolumes);
+                    const maxDataVol = Math.max(...validVolumes);
+                    const diff = maxDataVol - minDataVol;
+                    
+                    if (diff === 0) {
+                        yMin = Math.max(0, minDataVol - 100);
+                        yMax = minDataVol + 100;
+                    } else {
+                        // Add 10% padding to top and bottom for a spacious, clean layout
+                        yMin = Math.max(0, minDataVol - (diff * 0.1));
+                        yMax = maxDataVol + (diff * 0.1);
+                    }
+                }
+
                 chartConfig = {
                     type: 'line',
                     data: {
@@ -2969,6 +3064,8 @@
                                 ticks: { color: '#94a3b8', font: { size: 9 }, maxTicksLimit: 12 }
                             },
                             y: {
+                                min: yMin,
+                                max: yMax,
                                 grid: { color: 'rgba(255, 255, 255, 0.05)' },
                                 ticks: { 
                                     color: '#94a3b8', 

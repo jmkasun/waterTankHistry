@@ -2509,11 +2509,106 @@
                 const volumes = historyRows.map(r => r.avg_volume !== null ? parseFloat(r.avg_volume) : null);
 
                 // Precompute point-specific styles and metadata for exact motor categorization
+                // 1. Identify all contiguous non-null segments
+                const segments = [];
+                let activeSeg = null;
+                for (let i = 0; i < historyRows.length; i++) {
+                    if (historyRows[i].avg_volume !== null) {
+                        if (!activeSeg) {
+                            activeSeg = { start: i, points: [] };
+                        }
+                        activeSeg.points.push({ index: i, value: parseFloat(historyRows[i].avg_volume), time: new Date(historyRows[i].hour_timestamp) });
+                    } else {
+                        if (activeSeg) {
+                            segments.push(activeSeg);
+                            activeSeg = null;
+                        }
+                    }
+                }
+                if (activeSeg) {
+                    segments.push(activeSeg);
+                }
+
+                // 2. Identify uptrend intervals within each non-null segment
+                const rawUptrends = [];
+                for (const seg of segments) {
+                    if (seg.points.length < 2) continue;
+                    
+                    let currentStartIdx = seg.points[0].index;
+                    let lastVal = seg.points[0].value;
+                    
+                    for (let j = 1; j < seg.points.length; j++) {
+                        const pt = seg.points[j];
+                        const val = pt.value;
+                        const idx = pt.index;
+                        
+                        // If there is a real drop of more than 15 Liters, we close the current potential uptrend and start a new one
+                        if (val < lastVal - 15) { 
+                            if (idx - 1 > currentStartIdx) {
+                                rawUptrends.push({ start: currentStartIdx, end: idx - 1 });
+                            }
+                            currentStartIdx = idx;
+                        }
+                        lastVal = val;
+                    }
+                    
+                    const lastIdxInSeg = seg.points[seg.points.length - 1].index;
+                    if (lastIdxInSeg > currentStartIdx) {
+                        rawUptrends.push({ start: currentStartIdx, end: lastIdxInSeg });
+                    }
+                }
+
+                // 3. Filter raw uptrends and compute overall filling rate
+                const filteredIntervals = [];
+                for (const interval of rawUptrends) {
+                    const startRow = historyRows[interval.start];
+                    const endRow = historyRows[interval.end];
+                    const volStart = parseFloat(startRow.avg_volume);
+                    const volEnd = parseFloat(endRow.avg_volume);
+                    const volDiff = volEnd - volStart;
+                    
+                    const timeStart = new Date(startRow.hour_timestamp);
+                    const timeEnd = new Date(endRow.hour_timestamp);
+                    const timeDiffMs = timeEnd - timeStart;
+                    
+                    if (volDiff > 20 && timeDiffMs > 0) {
+                        const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
+                        const overallRate = volDiff / timeDiffHours;
+                        
+                        // Ignore extremely slow ambient changes (e.g., sensor drift < 100 L/hr)
+                        if (overallRate >= 100) {
+                            const threshold = parseFloat(document.getElementById('pumpThresholdInput')?.value || '2500');
+                            let motor = 'Motor 1 (1-inch Pipe)';
+                            let color = '#eab308'; // Yellow
+                            let borderColor = '#b45309';
+                            
+                            if (overallRate >= threshold) {
+                                motor = 'Motor 2 (2-inch Pipe)';
+                                color = '#10b981'; // Emerald
+                                borderColor = '#047857';
+                            }
+                            
+                            filteredIntervals.push({
+                                start: interval.start,
+                                end: interval.end,
+                                overallRate: overallRate,
+                                motor: motor,
+                                color: color,
+                                borderColor: borderColor
+                            });
+                        }
+                    }
+                }
+
                 const pointBackgroundColors = [];
                 const pointBorderColors = [];
                 const pointRadii = [];
                 const pointHoverRadii = [];
                 const pointMotorLabels = [];
+
+                const findIntervalForIndex = (idx) => {
+                    return filteredIntervals.find(interval => idx >= interval.start && idx <= interval.end);
+                };
 
                 for (let i = 0; i < historyRows.length; i++) {
                     const row = historyRows[i];
@@ -2522,80 +2617,23 @@
                         pointBorderColors.push('#3b82f6');
                         pointRadii.push(0);
                         pointHoverRadii.push(0);
-                        pointMotorLabels.push({ motor: 'None', rate: 0 });
+                        pointMotorLabels.push({ motor: 'None', rate: 0, isUptrend: false });
                         continue;
                     }
 
-                    // Compute rate based on segment leading into point i (from i-1 to i)
-                    if (i > 0 && historyRows[i-1].avg_volume !== null) {
-                        const rowPrev = historyRows[i-1];
-                        const volDiff = parseFloat(row.avg_volume) - parseFloat(rowPrev.avg_volume);
-                        const timeDiffMs = new Date(row.hour_timestamp) - new Date(rowPrev.hour_timestamp);
-                        
-                        if (volDiff > 0 && timeDiffMs > 0) {
-                            const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
-                            const fillingRate = volDiff / timeDiffHours;
-                            const threshold = parseFloat(document.getElementById('pumpThresholdInput')?.value || '2500');
-                            
-                            if (fillingRate >= threshold) {
-                                pointBackgroundColors.push('#10b981'); // Emerald
-                                pointBorderColors.push('#047857');
-                                pointRadii.push(4.5);
-                                pointHoverRadii.push(7.5);
-                                pointMotorLabels.push({ motor: 'Motor 2 (2-inch Pipe)', rate: fillingRate });
-                            } else {
-                                pointBackgroundColors.push('#eab308'); // Yellow/Amber
-                                pointBorderColors.push('#b45309');
-                                pointRadii.push(4.5);
-                                pointHoverRadii.push(7.5);
-                                pointMotorLabels.push({ motor: 'Motor 1 (1-inch Pipe)', rate: fillingRate });
-                            }
-                        } else {
-                            pointBackgroundColors.push('#3b82f6'); // Default Blue
-                            pointBorderColors.push('#1d4ed8');
-                            pointRadii.push(3);
-                            pointHoverRadii.push(6);
-                            pointMotorLabels.push({ motor: 'None (Stable/Discharging)', rate: 0 });
-                        }
+                    const interval = findIntervalForIndex(i);
+                    if (interval) {
+                        pointBackgroundColors.push(interval.color);
+                        pointBorderColors.push(interval.borderColor);
+                        pointRadii.push(4.5);
+                        pointHoverRadii.push(7.5);
+                        pointMotorLabels.push({ motor: interval.motor, rate: interval.overallRate, isUptrend: true });
                     } else {
-                        // First point or preceding is null, look ahead to see if it starts rising
-                        if (i < historyRows.length - 1 && historyRows[i+1].avg_volume !== null) {
-                            const rowNext = historyRows[i+1];
-                            const volDiff = parseFloat(rowNext.avg_volume) - parseFloat(row.avg_volume);
-                            const timeDiffMs = new Date(rowNext.hour_timestamp) - new Date(row.hour_timestamp);
-                            
-                            if (volDiff > 0 && timeDiffMs > 0) {
-                                const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
-                                const fillingRate = volDiff / timeDiffHours;
-                                const threshold = parseFloat(document.getElementById('pumpThresholdInput')?.value || '2500');
-                                
-                                if (fillingRate >= threshold) {
-                                    pointBackgroundColors.push('#10b981');
-                                    pointBorderColors.push('#047857');
-                                    pointRadii.push(4.5);
-                                    pointHoverRadii.push(7.5);
-                                    pointMotorLabels.push({ motor: 'Motor 2 (2-inch Pipe)', rate: fillingRate });
-                                } else {
-                                    pointBackgroundColors.push('#eab308');
-                                    pointBorderColors.push('#b45309');
-                                    pointRadii.push(4.5);
-                                    pointHoverRadii.push(7.5);
-                                    pointMotorLabels.push({ motor: 'Motor 1 (1-inch Pipe)', rate: fillingRate });
-                                }
-                            } else {
-                                pointBackgroundColors.push('#3b82f6');
-                                pointBorderColors.push('#1d4ed8');
-                                pointRadii.push(3);
-                                pointHoverRadii.push(6);
-                                pointMotorLabels.push({ motor: 'None (Stable/Discharging)', rate: 0 });
-                            }
-                        } else {
-                            pointBackgroundColors.push('#3b82f6');
-                            pointBorderColors.push('#1d4ed8');
-                            pointRadii.push(3);
-                            pointHoverRadii.push(6);
-                            pointMotorLabels.push({ motor: 'None (Stable/Discharging)', rate: 0 });
-                        }
+                        pointBackgroundColors.push('#3b82f6'); // Default Blue
+                        pointBorderColors.push('#1d4ed8');
+                        pointRadii.push(3);
+                        pointHoverRadii.push(6);
+                        pointMotorLabels.push({ motor: 'None (Stable/Discharging)', rate: 0, isUptrend: false });
                     }
                 }
 
@@ -2625,26 +2663,13 @@
                                     const idx0 = p0.dataIndex;
                                     const idx1 = p1.dataIndex;
                                     
-                                    const row0 = historyRows[idx0];
-                                    const row1 = historyRows[idx1];
-                                    if (!row0 || !row1) return '#3b82f6';
-                                    if (row0.avg_volume === null || row1.avg_volume === null) return '#3b82f6';
+                                    const interval0 = findIntervalForIndex(idx0);
+                                    const interval1 = findIntervalForIndex(idx1);
                                     
-                                    const volDiff = parseFloat(row1.avg_volume) - parseFloat(row0.avg_volume);
-                                    if (volDiff <= 0) return '#3b82f6'; // down or stable is blue
-                                    
-                                    const timeDiffMs = new Date(row1.hour_timestamp) - new Date(row0.hour_timestamp);
-                                    if (timeDiffMs <= 0) return '#3b82f6';
-                                    
-                                    const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
-                                    const fillingRate = volDiff / timeDiffHours;
-                                    
-                                    const threshold = parseFloat(document.getElementById('pumpThresholdInput')?.value || '2500');
-                                    if (fillingRate >= threshold) {
-                                        return '#10b981'; // emerald-500: Motor 2 on
-                                    } else {
-                                        return '#eab308'; // yellow-500: Motor 1 on
+                                    if (interval0 && interval1 && interval0 === interval1) {
+                                        return interval0.color;
                                     }
+                                    return '#3b82f6';
                                 }
                             }
                         }]
@@ -2685,10 +2710,10 @@
                                         const idx = context.dataIndex;
                                         const meta = pointMotorLabels[idx];
                                         if (meta) {
-                                            if (meta.motor !== 'None' && !meta.motor.startsWith('None')) {
+                                            if (meta.isUptrend) {
                                                 return [
-                                                    `Pump Status: ${meta.motor}`,
-                                                    `Filling Rate: ${Math.round(meta.rate).toLocaleString()} L/hr`
+                                                    `Pump Status: Active (${meta.motor})`,
+                                                    `Overall Filling Rate: ${Math.round(meta.rate).toLocaleString()} L/hr`
                                                 ];
                                             } else {
                                                 return `Pump Status: Standby / Outflow Only`;

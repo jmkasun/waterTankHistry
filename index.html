@@ -147,9 +147,9 @@
             </button>
             <button onclick="switchMainTab('telegram')" id="btnMainTabTelegram" class="flex items-center gap-2 px-5 py-3 border-b-2 border-transparent hover:border-slate-800 text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition">
                 <svg class="w-4 h-4 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                 </svg>
-                Telegram SMS Alerts
+                FitSMS Gateway
             </button>
         </div>
 
@@ -510,19 +510,19 @@
             </div>
         </section>
 
-        <!-- Telegram SMS Alerts Tab Content -->
+        <!-- FitSMS Gateway Alerts Tab Content -->
         <section id="tabContentTelegram" class="w-full flex flex-col gap-6 hidden">
             <!-- Setup & Guide Header Card -->
             <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 md:p-8 flex flex-col gap-6 animate-fade-in">
                 <div>
                     <h3 class="text-base font-bold text-white mb-1 flex items-center gap-2">
                         <svg class="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                         </svg>
-                        Telegram Bot SMS Alerts Gateway
+                        FitSMS Gateway Alerts
                         <span class="text-[10px] px-2 py-0.5 rounded bg-pink-500/15 text-pink-400 border border-pink-500/20 uppercase font-semibold tracking-wider">Active proxy</span>
                     </h3>
-                    <p class="text-xs text-slate-400">Receive instant push notifications and status updates styled as SMS alerts on your phone via Telegram Bot API.</p>
+                    <p class="text-xs text-slate-400">Receive high-speed SMS alerts and notifications about critical water level changes directly on your phone using Sri Lanka's leading bulk SMS provider, FitSMS.lk.</p>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -530,31 +530,31 @@
                     <div class="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex gap-3 items-start">
                         <span class="flex items-center justify-center w-6 h-6 rounded-full bg-pink-500/10 text-pink-400 font-bold text-xs shrink-0 mt-0.5">1</span>
                         <div>
-                            <p class="font-bold text-slate-200 text-xs">Create a Telegram Bot</p>
-                            <p class="text-[11px] text-slate-400 mt-1">Search for <strong class="text-pink-400 select-all">@BotFather</strong> on Telegram, click Start, and send <code class="text-slate-300 font-mono">/newbot</code>. Copy the generated API <strong>Bot Token</strong>.</p>
+                            <p class="font-bold text-slate-200 text-xs">Verify Your API Token</p>
+                            <p class="text-[11px] text-slate-400 mt-1">Get your Sanctum API Token from your <strong class="text-pink-400 select-all">FITSMS.lk</strong> account dashboard. The default token has been pre-configured for you.</p>
                         </div>
                     </div>
                     <!-- Guide Item 2 -->
                     <div class="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex gap-3 items-start">
                         <span class="flex items-center justify-center w-6 h-6 rounded-full bg-pink-500/10 text-pink-400 font-bold text-xs shrink-0 mt-0.5">2</span>
                         <div>
-                            <p class="font-bold text-slate-200 text-xs">Get Your Chat ID</p>
-                            <p class="text-[11px] text-slate-400 mt-1">Start a chat with your new bot. Then, search for <strong class="text-pink-400 select-all">@userinfobot</strong> or <strong class="text-pink-400 select-all">@GetChatID_Bot</strong> to find your numerical <strong>Chat ID</strong> (e.g. <code>123456789</code>).</p>
+                            <p class="font-bold text-slate-200 text-xs">Select API Protocol</p>
+                            <p class="text-[11px] text-slate-400 mt-1">Choose between the modern, highly secure <strong>OAuth 2.0 V4 API</strong> or the lightweight <strong>HTTP API</strong>. Provide a valid recipient phone number (e.g. <code>94771234567</code>).</p>
                         </div>
                     </div>
                     <!-- Guide Item 3 -->
                     <div class="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex gap-3 items-start">
                         <span class="flex items-center justify-center w-6 h-6 rounded-full bg-pink-500/10 text-pink-400 font-bold text-xs shrink-0 mt-0.5">3</span>
                         <div>
-                            <p class="font-bold text-slate-200 text-xs">Configure Alerts</p>
-                            <p class="text-[11px] text-slate-400 mt-1">Provide both details below, enable automatic triggers, and you will receive high-priority alerts whenever thresholds are breached.</p>
+                            <p class="font-bold text-slate-200 text-xs">Define Trigger Thresholds</p>
+                            <p class="text-[11px] text-slate-400 mt-1">Enable auto-notifications. When your tank breaches the minimum or maximum thresholds, an SMS alert will instantly dispatch to keep your team informed.</p>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Telegram Connection settings -->
+                <!-- FitSMS Connection settings -->
                 <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
                     <div class="flex items-center gap-3">
                         <div class="p-2 bg-pink-500/10 rounded-lg border border-pink-500/30">
@@ -564,19 +564,53 @@
                         </div>
                         <div>
                             <h3 class="text-sm font-bold text-white tracking-tight">Credentials & Gateway Details</h3>
-                            <p class="text-[11px] text-slate-400">Required credentials for SMS alert routing</p>
+                            <p class="text-[11px] text-slate-400">Provide endpoint settings for routing outbound SMS messages</p>
                         </div>
                     </div>
 
                     <div class="space-y-4 text-xs">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                                    <span>API Mode Protocol</span>
+                                </label>
+                                <select id="smsApiMode" onchange="toggleEndpointFields()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white transition">
+                                    <option value="v4" selected>OAuth 2.0 V4 JSON API</option>
+                                    <option value="http">HTTP GET API</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                                    <span>Sender ID / Brand Name</span>
+                                </label>
+                                <input type="text" id="smsSenderId" placeholder="e.g. FitSMS" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition font-mono">
+                            </div>
+                        </div>
+
+                        <div id="divOauthEndpoint">
+                            <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between">
+                                <span>OAuth 2.0 API Endpoint</span>
+                                <span class="text-[10px] text-slate-500 font-normal">FITSMS API v4 URL</span>
+                            </label>
+                            <input type="text" id="smsOauthEndpoint" placeholder="https://app.fitsms.lk/api/v4/" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition font-mono">
+                        </div>
+
+                        <div id="divHttpEndpoint" class="hidden">
+                            <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between">
+                                <span>HTTP API Endpoint</span>
+                                <span class="text-[10px] text-slate-500 font-normal">HTTP Gateway URL</span>
+                            </label>
+                            <input type="text" id="smsHttpEndpoint" placeholder="https://app.fitsms.lk/api/http/" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition font-mono">
+                        </div>
+
                         <div>
                             <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between">
-                                <span>Telegram Bot Token</span>
-                                <span class="text-[10px] text-slate-500 font-normal">Obtained from @BotFather</span>
+                                <span>API Token / Secret Key</span>
+                                <span class="text-[10px] text-slate-500 font-normal">Sanctum Token</span>
                             </label>
                             <div class="relative font-mono">
-                                <input type="password" id="tgBotToken" placeholder="e.g. 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition">
-                                <button onclick="toggleTokenVisibility('tgBotToken', this)" class="absolute right-3 top-3 text-slate-500 hover:text-slate-300 transition">
+                                <input type="password" id="smsApiToken" placeholder="e.g. 544|dr3JYXmtfxE..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition">
+                                <button onclick="toggleTokenVisibility('smsApiToken', this)" class="absolute right-3 top-3 text-slate-500 hover:text-slate-300 transition">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -585,27 +619,29 @@
                             </div>
                         </div>
 
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between">
-                                <span>Telegram Chat ID</span>
-                                <span class="text-[10px] text-slate-500 font-normal">Group or User ID</span>
-                            </label>
-                            <input type="text" id="tgChatId" placeholder="e.g. 987654321 or -100123456789" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition font-mono">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between">
+                                    <span>Recipient Phone Number</span>
+                                    <span class="text-[10px] text-slate-500 font-normal">Int'l format</span>
+                                </label>
+                                <input type="text" id="smsRecipient" placeholder="e.g. 94771234567" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition font-mono">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between">
+                                    <span>Recipient Contact Label</span>
+                                    <span class="text-[10px] text-slate-500 font-normal">Label</span>
+                                </label>
+                                <input type="text" id="smsRecipientLabel" placeholder="e.g. Alert Mobile / Operator" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition">
+                            </div>
                         </div>
 
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between">
-                                <span>Recipient Label (Optional)</span>
-                                <span class="text-[10px] text-slate-500 font-normal">Contact description</span>
-                            </label>
-                            <input type="text" id="tgRecipientLabel" placeholder="e.g. Water Manager / My Mobile" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition">
-                        </div>
-
-                        <button onclick="saveTelegramSettings()" class="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 px-4 rounded-xl font-bold text-xs tracking-wide border border-slate-700 transition flex items-center justify-center gap-2">
+                        <button onclick="saveSmsSettings()" class="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 px-4 rounded-xl font-bold text-xs tracking-wide border border-slate-700 transition flex items-center justify-center gap-2">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                             </svg>
-                            Save Telegram Gateway Details
+                            Save FitSMS Gateway Settings
                         </button>
                     </div>
                 </div>
@@ -620,7 +656,7 @@
                         </div>
                         <div>
                             <h3 class="text-sm font-bold text-white tracking-tight">Auto-Alert Trigger Rules</h3>
-                            <p class="text-[11px] text-slate-400">Trigger Telegram alerts on critical level violations</p>
+                            <p class="text-[11px] text-slate-400">Dispatch FitSMS alerts on critical level bounds violations</p>
                         </div>
                     </div>
 
@@ -629,10 +665,10 @@
                             <div class="flex items-center justify-between">
                                 <div class="flex flex-col">
                                     <span class="font-bold text-slate-200 text-xs">Enable Auto Alert Broadcast</span>
-                                    <span class="text-[10px] text-slate-500">Transmits Telegram SMS when level exceeds alert bounds</span>
+                                    <span class="text-[10px] text-slate-500">Transmits FitSMS alerts when level breaches thresholds</span>
                                 </div>
                                 <label class="relative inline-flex items-center cursor-pointer select-none">
-                                    <input type="checkbox" id="tgEnableAutoAlerts" class="sr-only peer" onchange="toggleTgAutoAlerts()">
+                                    <input type="checkbox" id="smsEnableAutoAlerts" class="sr-only peer" onchange="toggleSmsAutoAlerts()">
                                     <div class="w-10 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-500"></div>
                                 </label>
                             </div>
@@ -641,22 +677,22 @@
                         <!-- Test SMS sender -->
                         <div class="space-y-2">
                             <label class="block text-xs font-semibold text-slate-300">Send Test SMS Alert</label>
-                            <textarea id="tgMessageText" rows="3" class="w-full bg-slate-950 border border-slate-800 focus:border-pink-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition" placeholder="Write custom text or use shortcuts below..."></textarea>
+                            <textarea id="smsMessageText" rows="3" class="w-full bg-slate-950 border border-slate-800 focus:border-pink-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition font-mono" placeholder="Write custom text or use shortcuts below..."></textarea>
                             
                             <!-- Template insertion tags -->
                             <div class="flex flex-wrap gap-1.5 pt-1 font-mono">
-                                <button type="button" onclick="insertTag('[Device]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Device]</button>
-                                <button type="button" onclick="insertTag('[Percent]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Percent]</button>
-                                <button type="button" onclick="insertTag('[Volume]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Volume]</button>
-                                <button type="button" onclick="insertTag('[Depth]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Depth]</button>
-                                <button type="button" onclick="insertTag('[Status]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Status]</button>
+                                <button type="button" onclick="insertTagSms('[Device]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Device]</button>
+                                <button type="button" onclick="insertTagSms('[Percent]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Percent]</button>
+                                <button type="button" onclick="insertTagSms('[Volume]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Volume]</button>
+                                <button type="button" onclick="insertTagSms('[Depth]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Depth]</button>
+                                <button type="button" onclick="insertTagSms('[Status]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Status]</button>
                             </div>
 
-                            <button id="btnSendTgTest" onclick="sendTelegramTest()" class="w-full bg-pink-600 hover:bg-pink-500 text-white py-3 px-4 rounded-xl font-bold text-xs tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-pink-500/10">
+                            <button id="btnSendSmsTest" onclick="sendSmsTest()" class="w-full bg-pink-600 hover:bg-pink-500 text-white py-3 px-4 rounded-xl font-bold text-xs tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-pink-500/10">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
                                 </svg>
-                                Send Telegram SMS Alert Now
+                                Send FitSMS Gateway Test Now
                             </button>
                         </div>
                     </div>
@@ -668,9 +704,9 @@
                 <div class="flex justify-between items-center">
                     <div>
                         <h3 class="text-sm font-bold text-white mb-0.5">Transmission Logs & Dispatch History</h3>
-                        <p class="text-xs text-slate-400">Tracking all outbound SMS dispatches made via Telegram Bot</p>
+                        <p class="text-xs text-slate-400">Tracking all outbound SMS dispatches made via FitSMS Gateway proxy</p>
                     </div>
-                    <button onclick="clearTelegramLogs()" class="text-[11px] text-rose-400 hover:text-rose-300 font-bold transition flex items-center gap-1">
+                    <button onclick="clearSmsLogs()" class="text-[11px] text-rose-400 hover:text-rose-300 font-bold transition flex items-center gap-1">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                         </svg>
@@ -684,14 +720,15 @@
                             <tr class="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-bold">
                                 <th class="p-3">Timestamp</th>
                                 <th class="p-3">Recipient</th>
+                                <th class="p-3">Protocol</th>
                                 <th class="p-3">Message Body</th>
                                 <th class="p-3">Status</th>
                             </tr>
                         </thead>
-                        <tbody id="tgLogsTableBody">
+                        <tbody id="smsLogsTableBody">
                             <!-- Populated dynamically via JS -->
                             <tr>
-                                <td colspan="4" class="p-8 text-center text-slate-500 italic">No transmission logs available. Send an alert to dispatch.</td>
+                                <td colspan="5" class="p-8 text-center text-slate-500 italic">No SMS transmission logs available. Send an alert to dispatch.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -3297,17 +3334,32 @@
             chartInstance = new Chart(ctx, chartConfig);
         }
 
-        // --- Telegram Bot SMS Alerts State & Helpers ---
-        let telegramConfig = {
-            botToken: "",
-            chatId: "",
+        // --- FitSMS Gateway Alerts State & Helpers ---
+        let smsConfig = {
+            apiMode: "v4",
+            senderId: "FitSMS",
+            oauthEndpoint: "https://app.fitsms.lk/api/v4/",
+            httpEndpoint: "https://app.fitsms.lk/api/http/",
+            apiToken: "544|dr3JYXmtfxEwes0ryc3MUY0k2U7zYAM0SkbCxEUTd58a01be",
+            recipient: "",
             recipientLabel: "",
             enableAutoAlerts: false
         };
-        let telegramLogs = [];
+        let smsLogs = [];
 
-        function insertTag(tag) {
-            const textarea = document.getElementById('tgMessageText');
+        function toggleEndpointFields() {
+            const mode = document.getElementById('smsApiMode').value;
+            if (mode === 'v4') {
+                document.getElementById('divOauthEndpoint').classList.remove('hidden');
+                document.getElementById('divHttpEndpoint').classList.add('hidden');
+            } else {
+                document.getElementById('divOauthEndpoint').classList.add('hidden');
+                document.getElementById('divHttpEndpoint').classList.remove('hidden');
+            }
+        }
+
+        function insertTagSms(tag) {
+            const textarea = document.getElementById('smsMessageText');
             if (!textarea) return;
             const start = textarea.selectionStart;
             const end = textarea.selectionEnd;
@@ -3319,7 +3371,7 @@
             textarea.selectionStart = textarea.selectionEnd = start + tag.length;
         }
 
-        function formatAlertMessage(template) {
+        function formatSmsAlertMessage(template) {
             updateConfigFromUI();
             const percent = parseFloat(document.getElementById('txtPercent').innerText) || 0;
             const liters = parseFloat(document.getElementById('txtVolume').innerText.replace(/,/g, '')) || 0;
@@ -3338,76 +3390,110 @@
         }
 
         function triggerTelegramAutoAlert(type, percent) {
-            if (!telegramConfig.enableAutoAlerts || !telegramConfig.botToken || !telegramConfig.chatId) return;
+            if (!smsConfig.enableAutoAlerts || !smsConfig.apiToken || !smsConfig.recipient) return;
 
             let messageTemplate = "";
             if (type === 'LOW') {
-                messageTemplate = "🚨 <b>HydroSync Alert: Low Water Level</b>\nDevice ID: [Device]\nTank level has fallen to <b>[Percent]</b> ([Volume]).\nDepth: [Depth]\nTime: [Timestamp]";
+                messageTemplate = "HydroSync Alert: Low Water Level. Device: [Device]. Level fell to [Percent] ([Volume]). Depth: [Depth]. Time: [Timestamp]";
             } else if (type === 'HIGH') {
-                messageTemplate = "🚨 <b>HydroSync Alert: High Water Level</b>\nDevice ID: [Device]\nTank level has reached <b>[Percent]</b> ([Volume]).\nDepth: [Depth]\nTime: [Timestamp]";
+                messageTemplate = "HydroSync Alert: High Water Level. Device: [Device]. Level reached [Percent] ([Volume]). Depth: [Depth]. Time: [Timestamp]";
             } else if (type === 'NORMAL') {
-                messageTemplate = "✅ <b>HydroSync Recovery: Water Level Safe</b>\nDevice ID: [Device]\nWater level has returned to safe range: <b>[Percent]</b> ([Volume]).\nTime: [Timestamp]";
+                messageTemplate = "HydroSync Recovery: Water Level Safe. Device: [Device]. Level is safe at [Percent] ([Volume]). Time: [Timestamp]";
             } else {
                 return;
             }
 
-            const formattedMessage = formatAlertMessage(messageTemplate);
-            sendTelegramMessageDirectly(formattedMessage, "System Auto-Alert");
+            const formattedMessage = formatSmsAlertMessage(messageTemplate);
+            sendSmsMessageDirectly(formattedMessage, "System Auto-Alert");
         }
 
-        function loadTelegramSettings() {
-            const savedToken = localStorage.getItem('hydrosync_tg_bot_token') || '';
-            const savedChatId = localStorage.getItem('hydrosync_tg_chat_id') || '';
-            const savedLabel = localStorage.getItem('hydrosync_tg_label') || 'My Phone';
-            const savedAuto = localStorage.getItem('hydrosync_tg_auto_alerts') === 'true';
+        function loadSmsSettings() {
+            const savedMode = localStorage.getItem('hydrosync_sms_mode') || 'v4';
+            const savedSenderId = localStorage.getItem('hydrosync_sms_sender_id') || 'FitSMS';
+            const savedOauthUrl = localStorage.getItem('hydrosync_sms_oauth_url') || 'https://app.fitsms.lk/api/v4/';
+            const savedHttpUrl = localStorage.getItem('hydrosync_sms_http_url') || 'https://app.fitsms.lk/api/http/';
+            const savedToken = localStorage.getItem('hydrosync_sms_token') || '544|dr3JYXmtfxEwes0ryc3MUY0k2U7zYAM0SkbCxEUTd58a01be';
+            const savedRecipient = localStorage.getItem('hydrosync_sms_recipient') || '';
+            const savedLabel = localStorage.getItem('hydrosync_sms_label') || 'My Phone';
+            const savedAuto = localStorage.getItem('hydrosync_sms_auto_alerts') === 'true';
 
-            telegramConfig.botToken = savedToken;
-            telegramConfig.chatId = savedChatId;
-            telegramConfig.recipientLabel = savedLabel;
-            telegramConfig.enableAutoAlerts = savedAuto;
+            smsConfig.apiMode = savedMode;
+            smsConfig.senderId = savedSenderId;
+            smsConfig.oauthEndpoint = savedOauthUrl;
+            smsConfig.httpEndpoint = savedHttpUrl;
+            smsConfig.apiToken = savedToken;
+            smsConfig.recipient = savedRecipient;
+            smsConfig.recipientLabel = savedLabel;
+            smsConfig.enableAutoAlerts = savedAuto;
 
-            const tokenEl = document.getElementById('tgBotToken');
-            const chatEl = document.getElementById('tgChatId');
-            const labelEl = document.getElementById('tgRecipientLabel');
-            const autoEl = document.getElementById('tgEnableAutoAlerts');
+            const modeEl = document.getElementById('smsApiMode');
+            const senderEl = document.getElementById('smsSenderId');
+            const oauthEl = document.getElementById('smsOauthEndpoint');
+            const httpEl = document.getElementById('smsHttpEndpoint');
+            const tokenEl = document.getElementById('smsApiToken');
+            const recipientEl = document.getElementById('smsRecipient');
+            const labelEl = document.getElementById('smsRecipientLabel');
+            const autoEl = document.getElementById('smsEnableAutoAlerts');
 
+            if (modeEl) modeEl.value = savedMode;
+            if (senderEl) senderEl.value = savedSenderId;
+            if (oauthEl) oauthEl.value = savedOauthUrl;
+            if (httpEl) httpEl.value = savedHttpUrl;
             if (tokenEl) tokenEl.value = savedToken;
-            if (chatEl) chatEl.value = savedChatId;
+            if (recipientEl) recipientEl.value = savedRecipient;
             if (labelEl) labelEl.value = savedLabel;
             if (autoEl) autoEl.checked = savedAuto;
 
             // Set up default text in test message box
-            const textEl = document.getElementById('tgMessageText');
+            const textEl = document.getElementById('smsMessageText');
             if (textEl) textEl.value = "HydroSync Status Update\nDevice ID: [Device]\nWater Level: [Percent]\nVolume: [Volume]\nStatus: [Status]\nTime: [Timestamp]";
 
-            loadTelegramLogs();
+            toggleEndpointFields();
+            loadSmsLogs();
         }
 
-        function saveTelegramSettings() {
-            const botToken = document.getElementById('tgBotToken').value.trim();
-            const chatId = document.getElementById('tgChatId').value.trim();
-            const label = document.getElementById('tgRecipientLabel').value.trim() || 'My Phone';
+        function saveSmsSettings() {
+            const mode = document.getElementById('smsApiMode').value;
+            const senderId = document.getElementById('smsSenderId').value.trim() || 'FitSMS';
+            const oauthUrl = document.getElementById('smsOauthEndpoint').value.trim() || 'https://app.fitsms.lk/api/v4/';
+            const httpUrl = document.getElementById('smsHttpEndpoint').value.trim() || 'https://app.fitsms.lk/api/http/';
+            const token = document.getElementById('smsApiToken').value.trim() || '544|dr3JYXmtfxEwes0ryc3MUY0k2U7zYAM0SkbCxEUTd58a01be';
+            const recipient = document.getElementById('smsRecipient').value.trim();
+            const label = document.getElementById('smsRecipientLabel').value.trim() || 'Alert Phone';
 
-            telegramConfig.botToken = botToken;
-            telegramConfig.chatId = chatId;
-            telegramConfig.recipientLabel = label;
+            if (!recipient) {
+                showToast("Recipient phone number is required.", "error");
+                return;
+            }
 
-            localStorage.setItem('hydrosync_tg_bot_token', botToken);
-            localStorage.setItem('hydrosync_tg_chat_id', chatId);
-            localStorage.setItem('hydrosync_tg_label', label);
+            smsConfig.apiMode = mode;
+            smsConfig.senderId = senderId;
+            smsConfig.oauthEndpoint = oauthUrl;
+            smsConfig.httpEndpoint = httpUrl;
+            smsConfig.apiToken = token;
+            smsConfig.recipient = recipient;
+            smsConfig.recipientLabel = label;
 
-            showToast("Telegram gateway credentials saved successfully!", "success");
+            localStorage.setItem('hydrosync_sms_mode', mode);
+            localStorage.setItem('hydrosync_sms_sender_id', senderId);
+            localStorage.setItem('hydrosync_sms_oauth_url', oauthUrl);
+            localStorage.setItem('hydrosync_sms_http_url', httpUrl);
+            localStorage.setItem('hydrosync_sms_token', token);
+            localStorage.setItem('hydrosync_sms_recipient', recipient);
+            localStorage.setItem('hydrosync_sms_label', label);
+
+            showToast("FitSMS Gateway settings saved successfully!", "success");
             
-            if (botToken && chatId) {
+            if (token && recipient) {
                 showToast("Ready! Try sending a test SMS below.", "info");
             }
         }
 
-        function toggleTgAutoAlerts() {
-            const enable = document.getElementById('tgEnableAutoAlerts').checked;
-            telegramConfig.enableAutoAlerts = enable;
-            localStorage.setItem('hydrosync_tg_auto_alerts', enable ? 'true' : 'false');
-            showToast(`Automatic Telegram SMS alerts ${enable ? 'ENABLED' : 'DISABLED'}.`, enable ? "success" : "info");
+        function toggleSmsAutoAlerts() {
+            const enable = document.getElementById('smsEnableAutoAlerts').checked;
+            smsConfig.enableAutoAlerts = enable;
+            localStorage.setItem('hydrosync_sms_auto_alerts', enable ? 'true' : 'false');
+            showToast(`Automatic FitSMS alerts ${enable ? 'ENABLED' : 'DISABLED'}.`, enable ? "success" : "info");
         }
 
         function toggleTokenVisibility(inputId, btn) {
@@ -3417,7 +3503,7 @@
                 input.type = 'text';
                 btn.innerHTML = `
                     <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 01-1.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                     </svg>
                 `;
             } else {
@@ -3431,26 +3517,26 @@
             }
         }
 
-        async function sendTelegramTest() {
-            const template = document.getElementById('tgMessageText').value.trim();
+        async function sendSmsTest() {
+            const template = document.getElementById('smsMessageText').value.trim();
             if (!template) {
                 showToast("Please enter a message to send.", "error");
                 return;
             }
 
-            if (!telegramConfig.botToken || !telegramConfig.chatId) {
-                showToast("Please configure and save Telegram Bot Token and Chat ID first.", "error");
+            if (!smsConfig.apiToken || !smsConfig.recipient) {
+                showToast("Please configure and save FitSMS API Token and Recipient first.", "error");
                 return;
             }
 
-            const formattedMessage = formatAlertMessage(template);
-            const btn = document.getElementById('btnSendTgTest');
+            const formattedMessage = formatSmsAlertMessage(template);
+            const btn = document.getElementById('btnSendSmsTest');
             if (btn) {
                 btn.disabled = true;
                 btn.innerHTML = `<span class="inline-block animate-spin mr-1">🌀</span> Dispatching SMS alert...`;
             }
 
-            const success = await sendTelegramMessageDirectly(formattedMessage, telegramConfig.recipientLabel || "Test Mobile");
+            const success = await sendSmsMessageDirectly(formattedMessage, smsConfig.recipientLabel || smsConfig.recipient);
             
             if (btn) {
                 btn.disabled = false;
@@ -3458,96 +3544,102 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
                     </svg>
-                    Send Telegram SMS Alert Now
+                    Send FitSMS Gateway Test Now
                 `;
             }
         }
 
-        async function sendTelegramMessageDirectly(messageText, recipient) {
+        async function sendSmsMessageDirectly(messageText, recipient) {
             try {
-                const response = await fetch('/api/send-telegram', {
+                const response = await fetch('/api/send-sms', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        bot_token: telegramConfig.botToken,
-                        chat_id: telegramConfig.chatId,
+                        api_mode: smsConfig.apiMode,
+                        endpoint_url: smsConfig.apiMode === 'v4' ? smsConfig.oauthEndpoint : smsConfig.httpEndpoint,
+                        api_token: smsConfig.apiToken,
+                        recipient: smsConfig.recipient,
+                        sender_id: smsConfig.senderId,
                         message: messageText
                     })
                 });
 
                 const result = await response.json();
                 const timestamp = new Date().toLocaleString();
+                const modeLabel = smsConfig.apiMode === 'v4' ? 'OAuth v4' : 'HTTP GET';
 
                 if (result.success) {
-                    showToast("Telegram SMS Alert dispatched successfully!", "success");
-                    logTelegramDispatch(timestamp, recipient, messageText, "Success", "");
+                    showToast("FitSMS Gateway Alert dispatched successfully!", "success");
+                    logSmsDispatch(timestamp, recipient, modeLabel, messageText, "Success", "");
                     return true;
                 } else {
                     showToast(`Dispatch failed: ${result.error}`, "error");
-                    logTelegramDispatch(timestamp, recipient, messageText, "Failed", result.error);
+                    logSmsDispatch(timestamp, recipient, modeLabel, messageText, "Failed", result.error);
                     return false;
                 }
             } catch (err) {
-                console.error('[Telegram dispatch error]:', err);
+                console.error('[FitSMS dispatch error]:', err);
                 showToast("Network error trying to dispatch SMS alert.", "error");
                 const timestamp = new Date().toLocaleString();
-                logTelegramDispatch(timestamp, recipient, messageText, "Failed", err.message || "Network Error");
+                const modeLabel = smsConfig.apiMode === 'v4' ? 'OAuth v4' : 'HTTP GET';
+                logSmsDispatch(timestamp, recipient, modeLabel, messageText, "Failed", err.message || "Network Error");
                 return false;
             }
         }
 
-        function logTelegramDispatch(timestamp, recipient, text, status, errorMsg) {
+        function logSmsDispatch(timestamp, recipient, protocol, text, status, errorMsg) {
             const logEntry = {
                 timestamp,
                 recipient,
-                text: text.replace(/<[^>]*>/g, ''), // strip HTML tags for log display
+                protocol,
+                text,
                 status,
                 error: errorMsg
             };
-            telegramLogs.unshift(logEntry);
-            if (telegramLogs.length > 50) telegramLogs.pop();
+            smsLogs.unshift(logEntry);
+            if (smsLogs.length > 50) smsLogs.pop();
             
-            localStorage.setItem('hydrosync_tg_logs', JSON.stringify(telegramLogs));
-            renderTelegramLogs();
+            localStorage.setItem('hydrosync_sms_logs', JSON.stringify(smsLogs));
+            renderSmsLogs();
         }
 
-        function loadTelegramLogs() {
-            const saved = localStorage.getItem('hydrosync_tg_logs');
+        function loadSmsLogs() {
+            const saved = localStorage.getItem('hydrosync_sms_logs');
             if (saved) {
                 try {
-                    telegramLogs = JSON.parse(saved);
+                    smsLogs = JSON.parse(saved);
                 } catch(e) {
-                    telegramLogs = [];
+                    smsLogs = [];
                 }
             } else {
-                telegramLogs = [];
+                smsLogs = [];
             }
-            renderTelegramLogs();
+            renderSmsLogs();
         }
 
-        function clearTelegramLogs() {
-            telegramLogs = [];
-            localStorage.removeItem('hydrosync_tg_logs');
-            renderTelegramLogs();
+        function clearSmsLogs() {
+            smsLogs = [];
+            localStorage.removeItem('hydrosync_sms_logs');
+            renderSmsLogs();
             showToast("Transmission history cleared.", "info");
         }
 
-        function renderTelegramLogs() {
-            const body = document.getElementById('tgLogsTableBody');
+        function renderSmsLogs() {
+            const body = document.getElementById('smsLogsTableBody');
             if (!body) return;
 
-            if (telegramLogs.length === 0) {
+            if (smsLogs.length === 0) {
                 body.innerHTML = `
                     <tr>
-                        <td colspan="4" class="p-8 text-center text-slate-500 italic">No transmission logs available. Send an alert to dispatch.</td>
+                        <td colspan="5" class="p-8 text-center text-slate-500 italic">No SMS transmission logs available. Send an alert to dispatch.</td>
                     </tr>
                 `;
                 return;
             }
 
-            body.innerHTML = telegramLogs.map(log => {
+            body.innerHTML = smsLogs.map(log => {
                 let statusBadge = "";
                 if (log.status === "Success") {
                     statusBadge = `<span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">SUCCESS</span>`;
@@ -3559,13 +3651,13 @@
                     <tr class="border-b border-slate-800/60 hover:bg-slate-900/10 transition">
                         <td class="p-3 text-slate-400 font-mono text-[11px] whitespace-nowrap">${log.timestamp}</td>
                         <td class="p-3 font-semibold text-slate-200">${log.recipient}</td>
+                        <td class="p-3 text-slate-400 font-mono text-[10px]">${log.protocol}</td>
                         <td class="p-3 text-slate-300 max-w-xs md:max-w-md truncate" title="${log.text}">${log.text}</td>
                         <td class="p-3">${statusBadge}</td>
                     </tr>
                 `;
             }).join('');
         }
-
         // Initialize App on load
         window.onload = function() {
             // First load saved configurations from local storage
@@ -3589,8 +3681,8 @@
             initAnalyticsDates();
             loadAnalyticsDevices();
 
-            // Initialize Telegram configurations
-            loadTelegramSettings();
+            // Initialize FitSMS Gateway configurations
+            loadSmsSettings();
 
             // Auto-trigger first analytics query after a slight delay
             setTimeout(fetchAnalyticsData, 1000);

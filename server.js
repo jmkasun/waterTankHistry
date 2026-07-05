@@ -340,8 +340,8 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // API: Send Telegram Message (Proxy)
-    if (urlPath === '/api/send-telegram' && req.method === 'POST') {
+    // API: Send SMS via FitSMS Gateway (Proxy)
+    if (urlPath === '/api/send-sms' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => {
             body += chunk.toString();
@@ -349,63 +349,135 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                const { bot_token, chat_id, message } = data;
+                const { api_mode, endpoint_url, api_token, recipient, sender_id, message } = data;
 
-                if (!bot_token || !chat_id || !message) {
-                    sendJSON(res, { success: false, error: 'Missing required fields: bot_token, chat_id, or message' }, 400);
+                if (!endpoint_url || !api_token || !recipient || !message) {
+                    sendJSON(res, { success: false, error: 'Missing required fields: endpoint_url, api_token, recipient, or message' }, 400);
                     return;
                 }
 
-                // Call Telegram Bot API
-                const url = `https://api.telegram.org/bot${bot_token}/sendMessage`;
-                const payload = JSON.stringify({
-                    chat_id: chat_id,
-                    text: message,
-                    parse_mode: 'HTML'
-                });
+                const mode = api_mode || 'v4';
+                let targetUrl = endpoint_url;
+                let payload = '';
+                let headers = {};
+                let method = 'POST';
 
-                const https = require('https');
-                const parsedUrl = new URL(url);
+                if (mode === 'v4') {
+                    // OAuth 2.0 / Bearer Token-based V4 API
+                    if (!targetUrl.endsWith('/')) {
+                        targetUrl += '/';
+                    }
+                    if (!targetUrl.includes('sms/send') && !targetUrl.includes('sms')) {
+                        targetUrl += 'sms/send';
+                    }
+
+                    headers = {
+                        'Authorization': `Bearer ${api_token}`,
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    };
+
+                    payload = JSON.stringify({
+                        recipient: recipient,
+                        to: recipient,
+                        sender_id: sender_id || '',
+                        from: sender_id || '',
+                        sender: sender_id || '',
+                        message: message,
+                        body: message
+                    });
+                    method = 'POST';
+                } else {
+                    // HTTP API Mode (using GET or POST form URL-encoded)
+                    // Let's default to GET with query parameters, which is standard for HTTP endpoints
+                    const urlObj = new URL(targetUrl);
+                    urlObj.searchParams.set('api_token', api_token);
+                    urlObj.searchParams.set('token', api_token);
+                    urlObj.searchParams.set('recipient', recipient);
+                    urlObj.searchParams.set('to', recipient);
+                    urlObj.searchParams.set('sender_id', sender_id || '');
+                    urlObj.searchParams.set('from', sender_id || '');
+                    urlObj.searchParams.set('sender', sender_id || '');
+                    urlObj.searchParams.set('message', message);
+                    urlObj.searchParams.set('body', message);
+                    
+                    targetUrl = urlObj.toString();
+                    method = 'GET';
+                    headers = {
+                        'Accept': 'application/json'
+                    };
+                }
+
+                const parsedUrl = new URL(targetUrl);
+                const httpModule = targetUrl.startsWith('https') ? require('https') : require('http');
 
                 const options = {
                     hostname: parsedUrl.hostname,
-                    path: parsedUrl.pathname,
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Content-Length': Buffer.byteLength(payload)
-                    }
+                    port: parsedUrl.port || (targetUrl.startsWith('https') ? 443 : 80),
+                    path: parsedUrl.pathname + parsedUrl.search,
+                    method: method,
+                    headers: headers
                 };
 
-                const telegramReq = https.request(options, (telegramRes) => {
+                if (method === 'POST' && payload) {
+                    options.headers['Content-Length'] = Buffer.byteLength(payload);
+                }
+
+                const smsReq = httpModule.request(options, (smsRes) => {
                     let responseData = '';
-                    telegramRes.on('data', (chunk) => {
+                    smsRes.on('data', (chunk) => {
                         responseData += chunk;
                     });
-                    telegramRes.on('end', () => {
+                    smsRes.on('end', () => {
                         try {
-                            const resJson = JSON.parse(responseData);
-                            if (resJson.ok) {
-                                sendJSON(res, { success: true, message: 'Telegram message sent successfully' });
+                            let isSuccess = false;
+                            let errorDetail = '';
+
+                            try {
+                                const resJson = JSON.parse(responseData);
+                                if (resJson.success || resJson.status === 'success' || resJson.ok || resJson.status === true || resJson.status === 'sent') {
+                                    isSuccess = true;
+                                } else if (resJson.error || resJson.message) {
+                                    errorDetail = resJson.error || resJson.message;
+                                } else {
+                                    if (resJson.message_id || resJson.id || resJson.data) {
+                                        isSuccess = true;
+                                    } else {
+                                        errorDetail = JSON.stringify(resJson);
+                                    }
+                                }
+                            } catch (e) {
+                                const textLower = responseData.toLowerCase();
+                                if (textLower.includes('success') || textLower.includes('ok') || textLower.includes('sent') || (smsRes.statusCode >= 200 && smsRes.statusCode < 300)) {
+                                    isSuccess = true;
+                                } else {
+                                    errorDetail = responseData || `HTTP Status ${smsRes.statusCode}`;
+                                }
+                            }
+
+                            if (isSuccess || (smsRes.statusCode >= 200 && smsRes.statusCode < 300)) {
+                                sendJSON(res, { success: true, message: 'SMS Alert dispatched successfully via FitSMS Gateway', rawResponse: responseData });
                             } else {
-                                sendJSON(res, { success: false, error: resJson.description || 'Telegram API returned an error' }, telegramRes.statusCode || 400);
+                                sendJSON(res, { success: false, error: errorDetail || 'FitSMS Gateway returned an error status', rawResponse: responseData }, smsRes.statusCode || 400);
                             }
                         } catch (e) {
-                            sendJSON(res, { success: false, error: 'Failed to parse Telegram API response' }, 500);
+                            sendJSON(res, { success: false, error: 'Failed to process FitSMS API response' }, 500);
                         }
                     });
                 });
 
-                telegramReq.on('error', (err) => {
-                    console.error('[Telegram API Error]:', err);
+                smsReq.on('error', (err) => {
+                    console.error('[FitSMS Gateway Proxy Error]:', err);
                     sendJSON(res, { success: false, error: err.message }, 500);
                 });
 
-                telegramReq.write(payload);
-                telegramReq.end();
+                if (method === 'POST' && payload) {
+                    smsReq.write(payload);
+                }
+                smsReq.end();
 
             } catch (err) {
-                console.error('[API Error] /api/send-telegram:', err);
+                console.error('[API Error] /api/send-sms:', err);
                 sendJSON(res, { success: false, error: err.message }, 500);
             }
         });

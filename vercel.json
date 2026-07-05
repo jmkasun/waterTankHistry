@@ -2,6 +2,10 @@
   "version": 2,
   "rewrites": [
     {
+      "source": "/waterlevel.bin",
+      "destination": "/Waterlevel.ino.bin"
+    },
+    {
       "source": "/api/:path*",
       "destination": "/api/server.js"
     }

@@ -62,8 +62,8 @@ mqttClient.on('message', async (topic, message) => {
         const cache = deviceCache[deviceId];
         const now = Date.now();
 
-        // Check if both level and volume are populated, and 15 seconds has passed since last DB entry to throttle
-        if (cache.level !== null && cache.volume !== null && (now - cache.last_insert_time >= 15000)) {
+        // Check if both level and volume are populated, and 5 seconds has passed since last DB entry to throttle
+        if (cache.level !== null && cache.volume !== null && (now - cache.last_insert_time >= 5000)) {
             cache.last_insert_time = now;
             
             const levelVal = cache.level;
@@ -308,7 +308,10 @@ const server = http.createServer(async (req, res) => {
     }
 
     // Static Web Server fallback for HTML/CSS/JS/TXT
-    const safePath = urlPath === '/' ? 'index.html' : urlPath.substring(1);
+    let safePath = urlPath === '/' ? 'index.html' : urlPath.substring(1);
+    if (safePath.toLowerCase() === 'waterlevel.bin') {
+        safePath = 'Waterlevel.ino.bin';
+    }
     const filePath = path.join(__dirname, safePath);
     
     fs.readFile(filePath, (err, data) => {
@@ -316,7 +319,7 @@ const server = http.createServer(async (req, res) => {
             res.writeHead(404, {'Content-Type': 'text/plain'});
             res.end('Not Found');
         } else {
-            let ext = path.extname(filePath);
+            let ext = path.extname(filePath).toLowerCase();
             let mime = 'text/plain';
             if (ext === '.html') mime = 'text/html';
             else if (ext === '.js') mime = 'application/javascript';
@@ -324,6 +327,7 @@ const server = http.createServer(async (req, res) => {
             else if (ext === '.svg') mime = 'image/svg+xml';
             else if (ext === '.json') mime = 'application/json';
             else if (ext === '.png') mime = 'image/png';
+            else if (ext === '.bin') mime = 'application/octet-stream';
             res.writeHead(200, {'Content-Type': mime});
             res.end(data);
         }

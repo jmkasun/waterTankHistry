@@ -638,6 +638,15 @@
                         <p class="text-[10px] text-slate-500 mt-1">Defines how many identical, parallel-connected tanks are in use. This scales the total volume and mass shown on the dashboard.</p>
                     </div>
 
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Telemetry Logging Interval (seconds)</label>
+                        <div class="relative">
+                            <input type="number" id="telemetryIntervalInput" min="5" step="1" placeholder="15" value="15" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                            <span class="absolute right-4 top-3 text-xs text-slate-500 font-medium">seconds</span>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-1">Configures how frequently (in seconds) the ESP32 publishes MQTT telemetry and performs HTTP Background Logging (e.g. 15 seconds).</p>
+                    </div>
+
                     <button onclick="updateSettings()" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 py-3.5 px-4 rounded-xl font-bold text-sm tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/10">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
@@ -857,7 +866,8 @@
             height: 200, // cm (Max Water Height)
             sensorHeight: 45, // cm (Offset from Max Water Height to sensor face)
             diameter: 228, // cm (Arpico 10,000L)
-            tanks: 1
+            tanks: 1,
+            interval: 15 // seconds (Default telemetry logging interval)
         };
 
         // MQTT client instance holder & Connection state
@@ -987,12 +997,16 @@
             const sh = shInput ? parseFloat(shInput.value) : 0;
             const d = parseFloat(document.getElementById('diameterInput').value);
             const t = parseInt(document.getElementById('tankCountInput').value);
+            const interInput = document.getElementById('telemetryIntervalInput');
+            const inter = interInput ? parseInt(interInput.value) : 15;
             if (!isNaN(h) && h > 0) config.height = h;
             if (!isNaN(sh) && sh >= 0) config.sensorHeight = sh;
             else config.sensorHeight = 0;
             if (!isNaN(d) && d > 0) config.diameter = d;
             if (!isNaN(t) && t > 0) config.tanks = t;
             else config.tanks = 1;
+            if (!isNaN(inter) && inter >= 5) config.interval = inter;
+            else config.interval = 15;
         }
 
         // Liters calculation: Pi * r^2 * h / 1000 multiplied by total tanks
@@ -1284,7 +1298,8 @@
                         `${prefix}/config/sensor_height`,
                         `${prefix}/config/diameter`,
                         `${prefix}/config/tanks`,
-                        `${prefix}/config/gsm_numbers`
+                        `${prefix}/config/gsm_numbers`,
+                        `${prefix}/config/interval`
                     ];
                     
                     client.subscribe(subTopics, (err) => {
@@ -1384,6 +1399,16 @@
                             config.tanks = val;
                             showToast(`Loaded Tank Count: ${val} tanks configured`, "info");
                             updateTelemetryUI();
+                            saveSettingsToLocalStorage();
+                        }
+                    } else if (topic === `${prefixVal}/config/interval`) {
+                        // Match received telemetry logging interval configured in ESP32 / broker
+                        const currentInputInterval = document.getElementById('telemetryIntervalInput') ? parseInt(document.getElementById('telemetryIntervalInput').value) : 15;
+                        if (currentInputInterval !== val) {
+                            const tiInput = document.getElementById('telemetryIntervalInput');
+                            if (tiInput) tiInput.value = val;
+                            config.interval = val;
+                            showToast(`ESP32 Calibration Loaded: Telemetry Logging Interval set to ${val} seconds`, "info");
                             saveSettingsToLocalStorage();
                         }
                     }
@@ -1519,8 +1544,8 @@
             saveSettingsToLocalStorage();
             
             // Highlight validation
-            if (config.height <= 0 || config.diameter <= 0 || config.tanks <= 0 || config.sensorHeight < 0) {
-                showToast("Values must be non-zero positive numbers.", "error");
+            if (config.height <= 0 || config.diameter <= 0 || config.tanks <= 0 || config.sensorHeight < 0 || config.interval < 5) {
+                showToast("Values must be non-zero positive numbers, and telemetry interval must be at least 5 seconds.", "error");
                 return;
             }
 
@@ -1532,10 +1557,11 @@
                 client.publish(`${prefix}/config/sensor_height`, config.sensorHeight.toString(), { qos: 1, retain: true });
                 client.publish(`${prefix}/config/diameter`, config.diameter.toString(), { qos: 1, retain: true });
                 client.publish(`${prefix}/config/tanks`, config.tanks.toString(), { qos: 1, retain: true });
+                client.publish(`${prefix}/config/interval`, config.interval.toString(), { qos: 1, retain: true });
                 
-                showToast(`Settings Transmitted! Configured max water height: ${config.height}cm, sensor offset: ${config.sensorHeight}cm, diameter: ${config.diameter}cm with ${config.tanks} tanks configuration.`, "success");
+                showToast(`Settings Transmitted! Configured max water height: ${config.height}cm, sensor offset: ${config.sensorHeight}cm, diameter: ${config.diameter}cm with ${config.tanks} tanks and interval: ${config.interval}s.`, "success");
             } else {
-                showToast(`Settings saved locally with ${config.tanks} tanks and sensor offset: ${config.sensorHeight}cm. Connect to MQTT to transmit to ESP32.`, "success");
+                showToast(`Settings saved locally with ${config.tanks} tanks, sensor offset: ${config.sensorHeight}cm, and interval: ${config.interval}s. Connect to MQTT to transmit to ESP32.`, "success");
             }
             // Reset telemetry state and clean UI indicators on dimension updates
             resetTelemetryState();
@@ -1552,6 +1578,7 @@
             const savedSensorHeight = localStorage.getItem('hydrosync_sensor_height');
             const savedDiameter = localStorage.getItem('hydrosync_diameter');
             const savedTanks = localStorage.getItem('hydrosync_tanks');
+            const savedInterval = localStorage.getItem('hydrosync_interval');
             const savedGsmNumbers = localStorage.getItem('hydrosync_gsm_numbers');
 
             if (savedBroker) document.getElementById('brokerInput').value = savedBroker;
@@ -1563,6 +1590,11 @@
             }
             if (savedDiameter) document.getElementById('diameterInput').value = savedDiameter;
             if (savedTanks) document.getElementById('tankCountInput').value = savedTanks;
+            if (savedInterval) {
+                const tiInput = document.getElementById('telemetryIntervalInput');
+                if (tiInput) tiInput.value = savedInterval;
+                config.interval = parseInt(savedInterval);
+            }
             
             if (savedGsmNumbers) {
                 try {
@@ -1582,6 +1614,7 @@
             const sensorHeight = document.getElementById('sensorHeightInput') ? document.getElementById('sensorHeightInput').value : "0";
             const diameter = document.getElementById('diameterInput').value;
             const tanks = document.getElementById('tankCountInput').value;
+            const interval = document.getElementById('telemetryIntervalInput') ? document.getElementById('telemetryIntervalInput').value : "15";
 
             localStorage.setItem('hydrosync_broker', broker);
             localStorage.setItem('hydrosync_prefix', prefix);
@@ -1589,6 +1622,7 @@
             localStorage.setItem('hydrosync_sensor_height', sensorHeight);
             localStorage.setItem('hydrosync_diameter', diameter);
             localStorage.setItem('hydrosync_tanks', tanks);
+            localStorage.setItem('hydrosync_interval', interval);
             localStorage.setItem('hydrosync_gsm_numbers', JSON.stringify(gsmNumbers));
         }
 

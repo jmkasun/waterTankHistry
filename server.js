@@ -1,5 +1,4 @@
 const http = require('http');
-const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
@@ -341,8 +340,8 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // API: Send SMS via Text.lk
-    if (urlPath === '/api/send-sms' && req.method === 'POST') {
+    // API: Send Telegram Message (Proxy)
+    if (urlPath === '/api/send-telegram' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => {
             body += chunk.toString();
@@ -350,65 +349,63 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                const { recipient, message, sender_id } = data;
+                const { bot_token, chat_id, message } = data;
 
-                if (!recipient || !message) {
-                    sendJSON(res, { success: false, error: 'Recipient and message are required' }, 400);
+                if (!bot_token || !chat_id || !message) {
+                    sendJSON(res, { success: false, error: 'Missing required fields: bot_token, chat_id, or message' }, 400);
                     return;
                 }
 
-                const token = process.env.TEXT_LK_API_TOKEN || "5812|zSz889GfK4tAKEJO3PaYaPOyw3kUW86LRgLbu7JSd908c821";
+                // Call Telegram Bot API
+                const url = `https://api.telegram.org/bot${bot_token}/sendMessage`;
                 const payload = JSON.stringify({
-                    recipient: recipient.trim(),
-                    sender_id: (sender_id || "Sandbox").trim(),
-                    message: message.trim()
+                    chat_id: chat_id,
+                    text: message,
+                    parse_mode: 'HTML'
                 });
 
+                const https = require('https');
+                const parsedUrl = new URL(url);
+
                 const options = {
-                    hostname: 'app.text.lk',
-                    port: 443,
-                    path: '/api/v3/sms/send',
+                    hostname: parsedUrl.hostname,
+                    path: parsedUrl.pathname,
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json',
-                        'Accept': 'application/json',
                         'Content-Length': Buffer.byteLength(payload)
                     }
                 };
 
-                const smsReq = https.request(options, (smsRes) => {
-                    let smsResponseBody = '';
-                    smsRes.on('data', (chunk) => {
-                        smsResponseBody += chunk;
+                const telegramReq = https.request(options, (telegramRes) => {
+                    let responseData = '';
+                    telegramRes.on('data', (chunk) => {
+                        responseData += chunk;
                     });
-                    smsRes.on('end', () => {
-                        console.log('[SMS Response]', smsResponseBody);
+                    telegramRes.on('end', () => {
                         try {
-                            const parsedResponse = JSON.parse(smsResponseBody);
-                            const isApiError = parsedResponse.status === 'error' || parsedResponse.success === false;
-                            if (smsRes.statusCode >= 200 && smsRes.statusCode < 300 && !isApiError) {
-                                sendJSON(res, { success: true, response: parsedResponse });
+                            const resJson = JSON.parse(responseData);
+                            if (resJson.ok) {
+                                sendJSON(res, { success: true, message: 'Telegram message sent successfully' });
                             } else {
-                                const errMsg = parsedResponse.message || parsedResponse.error || 'Failed to send SMS';
-                                sendJSON(res, { success: false, error: errMsg, response: parsedResponse }, (smsRes.statusCode >= 200 && smsRes.statusCode < 300 && isApiError) ? 400 : smsRes.statusCode);
+                                sendJSON(res, { success: false, error: resJson.description || 'Telegram API returned an error' }, telegramRes.statusCode || 400);
                             }
                         } catch (e) {
-                            sendJSON(res, { success: false, error: 'Failed to parse gateway response', responseText: smsResponseBody }, 502);
+                            sendJSON(res, { success: false, error: 'Failed to parse Telegram API response' }, 500);
                         }
                     });
                 });
 
-                smsReq.on('error', (err) => {
-                    console.error('[SMS Error]', err);
+                telegramReq.on('error', (err) => {
+                    console.error('[Telegram API Error]:', err);
                     sendJSON(res, { success: false, error: err.message }, 500);
                 });
 
-                smsReq.write(payload);
-                smsReq.end();
+                telegramReq.write(payload);
+                telegramReq.end();
 
             } catch (err) {
-                console.error('[API Error] /api/send-sms:', err);
+                console.error('[API Error] /api/send-telegram:', err);
                 sendJSON(res, { success: false, error: err.message }, 500);
             }
         });

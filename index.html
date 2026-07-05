@@ -145,6 +145,12 @@
                 </svg>
                 Historical Analytics
             </button>
+            <button onclick="switchMainTab('telegram')" id="btnMainTabTelegram" class="flex items-center gap-2 px-5 py-3 border-b-2 border-transparent hover:border-slate-800 text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition">
+                <svg class="w-4 h-4 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                </svg>
+                Telegram SMS Alerts
+            </button>
         </div>
 
         <!-- Visualization & Telemetry Full Width -->
@@ -300,100 +306,6 @@
                         </div>
                         <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Calculated Water Mass</span>
                         <span id="lblMass" class="text-2xl font-black text-white tracking-tight">0.0 kg</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- SMS Telemetry Alerts & Dispatch Bento Card -->
-            <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 md:p-8 flex flex-col gap-6">
-                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                        <h3 class="text-base font-bold text-white mb-1 flex items-center gap-2">
-                            <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-                            </svg>
-                            SMS Telemetry Alerts & Dispatch
-                            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 uppercase font-semibold tracking-wider">text.lk API</span>
-                        </h3>
-                        <p class="text-xs text-slate-400">Broadcast real-time cistern water level metrics via the Text.lk SMS gateway.</p>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- SMS Sender Input Column -->
-                    <div class="space-y-4 bg-slate-950/40 border border-slate-800/80 rounded-2xl p-5">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="space-y-2">
-                                <label for="smsRecipient" class="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">Recipient Phone</label>
-                                <div class="relative">
-                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-500 text-xs font-mono">+</span>
-                                    <input type="text" id="smsRecipient" placeholder="94771234567" class="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-xl pl-6 pr-2 py-2 text-xs text-white placeholder-slate-600 font-mono focus:outline-none transition">
-                                </div>
-                            </div>
-
-                            <div class="space-y-2">
-                                <label for="smsSenderId" class="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">Sender ID</label>
-                                <input type="text" id="smsSenderId" value="Sandbox" placeholder="Sandbox" class="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none transition">
-                            </div>
-                        </div>
-                        <p class="text-[10px] text-slate-500 -mt-2 leading-tight">
-                            Sri Lanka format: <span class="text-slate-300 font-semibold">94771234567</span>.
-                            <span id="smsWhitelistPreset" class="hidden">
-                                Or use <button type="button" onclick="useWhitelistSmsPreset()" class="text-cyan-400 hover:underline font-semibold cursor-pointer">whitelisted number</button>
-                            </span>
-                        </p>
-
-                        <!-- SMS Template Textarea -->
-                        <div class="space-y-2">
-                            <div class="flex items-center justify-between">
-                                <label for="smsTemplate" class="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">SMS Message Template</label>
-                                <button type="button" onclick="resetSmsTemplate()" class="text-[9px] text-cyan-400 hover:underline font-semibold cursor-pointer">Reset Default</button>
-                            </div>
-                            <textarea id="smsTemplate" rows="3" oninput="updateSmsPreview()" class="w-full bg-slate-950 border border-slate-800 focus:border-cyan-500 rounded-xl p-3 text-xs text-slate-200 focus:outline-none transition resize-none">Water Tank level is at {percent}% {volume} L. Last updated: {time}.</textarea>
-                            
-                            <!-- Dynamic Tags helpers -->
-                            <div class="flex flex-wrap items-center gap-1.5">
-                                <span class="text-[9px] text-slate-500">Insert tag:</span>
-                                <button type="button" onclick="insertSmsTag('{percent}')" class="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] text-cyan-400 font-mono font-bold transition">+ {percent}</button>
-                                <button type="button" onclick="insertSmsTag('{volume}')" class="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] text-cyan-400 font-mono font-bold transition">+ {volume}</button>
-                                <button type="button" onclick="insertSmsTag('{time}')" class="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[10px] text-cyan-400 font-mono font-bold transition">+ {time}</button>
-                            </div>
-                        </div>
-
-                        <button id="btnSendSms" onclick="dispatchTelemetrySms()" class="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10">
-                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                            </svg>
-                            <span>Send Water Level as SMS</span>
-                        </button>
-                    </div>
-
-                    <!-- Live Message Preview Column -->
-                    <div class="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-5 flex flex-col justify-between gap-4">
-                        <div class="space-y-2">
-                            <div class="flex items-center justify-between">
-                                <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Live SMS Preview</span>
-                                <span class="text-[10px] text-slate-500 font-mono" id="smsCharCount">0 characters</span>
-                            </div>
-                            <!-- Phone screen graphic styling for preview -->
-                            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 relative min-h-[100px] flex items-start gap-3">
-                                <div class="w-7 h-7 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-full flex items-center justify-center text-xs shrink-0 font-bold font-mono">
-                                    HS
-                                </div>
-                                <div class="space-y-1">
-                                    <div class="text-[10px] text-slate-400 font-semibold">HydroSync Monitor</div>
-                                    <p id="smsPreviewText" class="text-xs text-slate-200 leading-relaxed italic bg-slate-950 px-3 py-2 rounded-lg border border-slate-800/60">
-                                        Loading active water level metrics...
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="flex items-center gap-2 text-[10px] text-slate-500">
-                            <span class="p-1 bg-cyan-500/10 text-cyan-400 rounded-md border border-cyan-500/20">💡</span>
-                            <span>The message is dynamically updated in real-time as the telemetry sensor uploads new water levels.</span>
-                        </div>
-                    </div>
                 </div>
             </div>
         </section>
@@ -594,6 +506,195 @@
                             <span class="block text-[10px] text-slate-500 mt-0.5">ESP32 transmissions</span>
                         </div>
                     </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Telegram SMS Alerts Tab Content -->
+        <section id="tabContentTelegram" class="w-full flex flex-col gap-6 hidden">
+            <!-- Setup & Guide Header Card -->
+            <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 md:p-8 flex flex-col gap-6 animate-fade-in">
+                <div>
+                    <h3 class="text-base font-bold text-white mb-1 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                        </svg>
+                        Telegram Bot SMS Alerts Gateway
+                        <span class="text-[10px] px-2 py-0.5 rounded bg-pink-500/15 text-pink-400 border border-pink-500/20 uppercase font-semibold tracking-wider">Active proxy</span>
+                    </h3>
+                    <p class="text-xs text-slate-400">Receive instant push notifications and status updates styled as SMS alerts on your phone via Telegram Bot API.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Guide Item 1 -->
+                    <div class="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex gap-3 items-start">
+                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-pink-500/10 text-pink-400 font-bold text-xs shrink-0 mt-0.5">1</span>
+                        <div>
+                            <p class="font-bold text-slate-200 text-xs">Create a Telegram Bot</p>
+                            <p class="text-[11px] text-slate-400 mt-1">Search for <strong class="text-pink-400 select-all">@BotFather</strong> on Telegram, click Start, and send <code class="text-slate-300 font-mono">/newbot</code>. Copy the generated API <strong>Bot Token</strong>.</p>
+                        </div>
+                    </div>
+                    <!-- Guide Item 2 -->
+                    <div class="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex gap-3 items-start">
+                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-pink-500/10 text-pink-400 font-bold text-xs shrink-0 mt-0.5">2</span>
+                        <div>
+                            <p class="font-bold text-slate-200 text-xs">Get Your Chat ID</p>
+                            <p class="text-[11px] text-slate-400 mt-1">Start a chat with your new bot. Then, search for <strong class="text-pink-400 select-all">@userinfobot</strong> or <strong class="text-pink-400 select-all">@GetChatID_Bot</strong> to find your numerical <strong>Chat ID</strong> (e.g. <code>123456789</code>).</p>
+                        </div>
+                    </div>
+                    <!-- Guide Item 3 -->
+                    <div class="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex gap-3 items-start">
+                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-pink-500/10 text-pink-400 font-bold text-xs shrink-0 mt-0.5">3</span>
+                        <div>
+                            <p class="font-bold text-slate-200 text-xs">Configure Alerts</p>
+                            <p class="text-[11px] text-slate-400 mt-1">Provide both details below, enable automatic triggers, and you will receive high-priority alerts whenever thresholds are breached.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Telegram Connection settings -->
+                <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-pink-500/10 rounded-lg border border-pink-500/30">
+                            <svg class="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-bold text-white tracking-tight">Credentials & Gateway Details</h3>
+                            <p class="text-[11px] text-slate-400">Required credentials for SMS alert routing</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4 text-xs">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between">
+                                <span>Telegram Bot Token</span>
+                                <span class="text-[10px] text-slate-500 font-normal">Obtained from @BotFather</span>
+                            </label>
+                            <div class="relative font-mono">
+                                <input type="password" id="tgBotToken" placeholder="e.g. 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition">
+                                <button onclick="toggleTokenVisibility('tgBotToken', this)" class="absolute right-3 top-3 text-slate-500 hover:text-slate-300 transition">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between">
+                                <span>Telegram Chat ID</span>
+                                <span class="text-[10px] text-slate-500 font-normal">Group or User ID</span>
+                            </label>
+                            <input type="text" id="tgChatId" placeholder="e.g. 987654321 or -100123456789" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition font-mono">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between">
+                                <span>Recipient Label (Optional)</span>
+                                <span class="text-[10px] text-slate-500 font-normal">Contact description</span>
+                            </label>
+                            <input type="text" id="tgRecipientLabel" placeholder="e.g. Water Manager / My Mobile" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition">
+                        </div>
+
+                        <button onclick="saveTelegramSettings()" class="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 px-4 rounded-xl font-bold text-xs tracking-wide border border-slate-700 transition flex items-center justify-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            Save Telegram Gateway Details
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Automatic Notification & Test Card -->
+                <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/30">
+                            <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-bold text-white tracking-tight">Auto-Alert Trigger Rules</h3>
+                            <p class="text-[11px] text-slate-400">Trigger Telegram alerts on critical level violations</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4 text-xs">
+                        <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <div class="flex flex-col">
+                                    <span class="font-bold text-slate-200 text-xs">Enable Auto Alert Broadcast</span>
+                                    <span class="text-[10px] text-slate-500">Transmits Telegram SMS when level exceeds alert bounds</span>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer select-none">
+                                    <input type="checkbox" id="tgEnableAutoAlerts" class="sr-only peer" onchange="toggleTgAutoAlerts()">
+                                    <div class="w-10 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-500"></div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Test SMS sender -->
+                        <div class="space-y-2">
+                            <label class="block text-xs font-semibold text-slate-300">Send Test SMS Alert</label>
+                            <textarea id="tgMessageText" rows="3" class="w-full bg-slate-950 border border-slate-800 focus:border-pink-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition" placeholder="Write custom text or use shortcuts below..."></textarea>
+                            
+                            <!-- Template insertion tags -->
+                            <div class="flex flex-wrap gap-1.5 pt-1 font-mono">
+                                <button type="button" onclick="insertTag('[Device]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Device]</button>
+                                <button type="button" onclick="insertTag('[Percent]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Percent]</button>
+                                <button type="button" onclick="insertTag('[Volume]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Volume]</button>
+                                <button type="button" onclick="insertTag('[Depth]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Depth]</button>
+                                <button type="button" onclick="insertTag('[Status]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Status]</button>
+                            </div>
+
+                            <button id="btnSendTgTest" onclick="sendTelegramTest()" class="w-full bg-pink-600 hover:bg-pink-500 text-white py-3 px-4 rounded-xl font-bold text-xs tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-pink-500/10">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                                </svg>
+                                Send Telegram SMS Alert Now
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Transmission Log History -->
+            <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 md:p-8 flex flex-col gap-4">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h3 class="text-sm font-bold text-white mb-0.5">Transmission Logs & Dispatch History</h3>
+                        <p class="text-xs text-slate-400">Tracking all outbound SMS dispatches made via Telegram Bot</p>
+                    </div>
+                    <button onclick="clearTelegramLogs()" class="text-[11px] text-rose-400 hover:text-rose-300 font-bold transition flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                        Clear Logs
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto border border-slate-800/80 rounded-2xl bg-slate-950/40">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-bold">
+                                <th class="p-3">Timestamp</th>
+                                <th class="p-3">Recipient</th>
+                                <th class="p-3">Message Body</th>
+                                <th class="p-3">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tgLogsTableBody">
+                            <!-- Populated dynamically via JS -->
+                            <tr>
+                                <td colspan="4" class="p-8 text-center text-slate-500 italic">No transmission logs available. Send an alert to dispatch.</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </section>
@@ -1349,13 +1450,6 @@
                     el.className = "text-[11px] font-mono font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2.5 py-1 rounded-lg animate-pulse";
                 }
             }
-
-            // Update dynamically the Live SMS preview
-            try {
-                updateSmsPreview();
-            } catch (err) {
-                console.warn('SMS Preview update skipped:', err);
-            }
         }
 
         // Flash packet indicator
@@ -1957,15 +2051,18 @@
                 if (lastAlertState !== 'low') {
                     showToast(`⚠️ Alert: Water level is critically low at ${percent.toFixed(0)}%! (Below ${alertThresholds.min}% threshold)`, 'error');
                     lastAlertState = 'low';
+                    triggerTelegramAutoAlert('LOW', percent);
                 }
             } else if (percent > alertThresholds.max) {
                 if (lastAlertState !== 'high') {
                     showToast(`⚠️ Alert: Water level is critically high at ${percent.toFixed(0)}%! (Above ${alertThresholds.max}% threshold)`, 'error');
                     lastAlertState = 'high';
+                    triggerTelegramAutoAlert('HIGH', percent);
                 }
             } else {
                 if (lastAlertState !== 'normal' && lastAlertState !== 'unknown') {
                     showToast(`ℹ️ Notice: Water level has returned to safe range: ${percent.toFixed(0)}%.`, 'success');
+                    triggerTelegramAutoAlert('NORMAL', percent);
                 }
                 lastAlertState = 'normal';
             }
@@ -2156,16 +2253,6 @@
 
             // Automatically preserve state in local storage
             saveSettingsToLocalStorage();
-
-            // Toggle SMS Whitelist Preset button visibility
-            const presetSpan = document.getElementById('smsWhitelistPreset');
-            if (presetSpan) {
-                if (gsmNumbers && gsmNumbers.length > 0) {
-                    presetSpan.classList.remove('hidden');
-                } else {
-                    presetSpan.classList.add('hidden');
-                }
-            }
         }
 
         function addGsmNumber() {
@@ -2217,147 +2304,6 @@
                 showToast("Phone numbers whitelist synchronized with ESP32.", "success");
             } else {
                 showToast("Saved locally. Connect to MQTT to transmit to ESP32.", "info");
-            }
-        }
-
-        // --- SMS Gateway Integration Helpers ---
-        function updateSmsPreview() {
-            const level = document.getElementById('txtLevel')?.innerText || "0.0";
-            const volume = document.getElementById('txtVolume')?.innerText || "0";
-            const percent = document.getElementById('txtPercent')?.innerText || "0";
-            const prefix = document.getElementById('topicPrefix')?.value || "mytank123";
-            
-            // Format time as hh:mm AM/PM reliably
-            const now = new Date();
-            let hours = now.getHours();
-            const minutes = now.getMinutes().toString().padStart(2, '0');
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            hours = hours % 12;
-            hours = hours ? hours : 12;
-            const strTime = hours.toString().padStart(2, '0') + ':' + minutes + ' ' + ampm;
-
-            const templateEl = document.getElementById('smsTemplate');
-            const templateText = templateEl ? templateEl.value : "Water Tank level is at {percent}% {volume} L. Last updated: {time}.";
-            
-            // Compile template
-            const compiledMsg = templateText
-                .replace(/{percent}/g, percent)
-                .replace(/{volume}/g, volume)
-                .replace(/{time}/g, strTime);
-
-            const previewEl = document.getElementById('smsPreviewText');
-            const countEl = document.getElementById('smsCharCount');
-            if (previewEl) {
-                previewEl.innerText = compiledMsg;
-            }
-            if (countEl) {
-                countEl.innerText = `${compiledMsg.length} characters`;
-            }
-        }
-
-        function resetSmsTemplate() {
-            const templateEl = document.getElementById('smsTemplate');
-            if (templateEl) {
-                templateEl.value = "Water Tank level is at {percent}% {volume} L. Last updated: {time}.";
-                updateSmsPreview();
-                showToast("SMS template reset to default layout.", "info");
-            }
-        }
-
-        function insertSmsTag(tag) {
-            const templateEl = document.getElementById('smsTemplate');
-            if (templateEl) {
-                const startPos = templateEl.selectionStart;
-                const endPos = templateEl.selectionEnd;
-                const value = templateEl.value;
-                templateEl.value = value.substring(0, startPos) + tag + value.substring(endPos, value.length);
-                templateEl.focus();
-                // Put cursor right after the newly inserted tag
-                templateEl.selectionStart = startPos + tag.length;
-                templateEl.selectionEnd = startPos + tag.length;
-                updateSmsPreview();
-            }
-        }
-
-        function useWhitelistSmsPreset() {
-            if (gsmNumbers && gsmNumbers.length > 0) {
-                const recipientInput = document.getElementById('smsRecipient');
-                if (recipientInput) {
-                    let num = gsmNumbers[0];
-                    if (num.startsWith('+')) num = num.substring(1);
-                    recipientInput.value = num;
-                    showToast(`Loaded whitelisted number +${num} as recipient.`, "info");
-                }
-            }
-        }
-
-        async function dispatchTelemetrySms() {
-            const recipientInput = document.getElementById('smsRecipient');
-            const senderIdInput = document.getElementById('smsSenderId');
-            const previewEl = document.getElementById('smsPreviewText');
-            const btn = document.getElementById('btnSendSms');
-
-            if (!recipientInput || !btn) return;
-
-            let recipient = recipientInput.value.trim();
-            const sender_id = senderIdInput ? senderIdInput.value.trim() : "Sandbox";
-            const message = previewEl ? previewEl.innerText : "";
-
-            if (!recipient) {
-                showToast("Please enter a recipient phone number.", "error");
-                recipientInput.focus();
-                return;
-            }
-
-            // Standardize number (e.g. if starting with 0, convert to 94 or keep digits)
-            if (recipient.startsWith('0') && recipient.length === 10) {
-                recipient = '94' + recipient.substring(1);
-            }
-            // Strip any '+' characters or spaces
-            recipient = recipient.replace(/\+/g, '').replace(/\s+/g, '');
-
-            if (!/^[0-9]{9,15}$/.test(recipient)) {
-                showToast("Invalid phone number format. Must contain 9 to 15 digits.", "error");
-                return;
-            }
-
-            // Set loading state
-            const originalBtnHtml = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = `
-                <svg class="animate-spin -ml-1 mr-3 h-4 w-4 text-slate-950 inline" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span>Sending SMS...</span>
-            `;
-
-            try {
-                const response = await fetch('/api/send-sms', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        recipient: recipient,
-                        sender_id: sender_id || "Sandbox",
-                        message: message
-                    })
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    showToast(`SMS sent successfully to +${recipient}!`, "success");
-                } else {
-                    showToast(`Failed to send SMS: ${result.error || 'Server error'}`, "error");
-                }
-            } catch (err) {
-                console.error('[SMS Client Error]', err);
-                showToast("Failed to connect to server SMS API.", "error");
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = originalBtnHtml;
             }
         }
 
@@ -2755,32 +2701,44 @@
             document.getElementById('txtPeriodDataUsed').innerText = `${totalData.toLocaleString(undefined, {maximumFractionDigits:2})} KB`;
         }
 
-        let activeMainTab = 'monitor'; // 'monitor' or 'analytics'
+        let activeMainTab = 'monitor'; // 'monitor', 'analytics', or 'telegram'
 
         function switchMainTab(tab) {
             activeMainTab = tab;
             const tabMonitor = document.getElementById('tabContentMonitor');
             const tabAnalytics = document.getElementById('tabContentAnalytics');
+            const tabTelegram = document.getElementById('tabContentTelegram');
             const btnMonitor = document.getElementById('btnMainTabMonitor');
             const btnAnalytics = document.getElementById('btnMainTabAnalytics');
+            const btnTelegram = document.getElementById('btnMainTabTelegram');
 
+            // Hide all tab content
+            if (tabMonitor) tabMonitor.classList.add('hidden');
+            if (tabAnalytics) tabAnalytics.classList.add('hidden');
+            if (tabTelegram) tabTelegram.classList.add('hidden');
+
+            // Reset tab button states to inactive
+            [btnMonitor, btnAnalytics, btnTelegram].forEach(btn => {
+                if (btn) {
+                    btn.className = "flex items-center gap-2 px-5 py-3 border-b-2 border-transparent hover:border-slate-800 text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition";
+                }
+            });
+
+            // Activate chosen tab
             if (tab === 'monitor') {
                 if (tabMonitor) tabMonitor.classList.remove('hidden');
-                if (tabAnalytics) tabAnalytics.classList.add('hidden');
-                
                 if (btnMonitor) btnMonitor.className = "flex items-center gap-2 px-5 py-3 border-b-2 border-cyan-500 text-cyan-400 font-bold text-xs tracking-wider uppercase transition";
-                if (btnAnalytics) btnAnalytics.className = "flex items-center gap-2 px-5 py-3 border-b-2 border-transparent hover:border-slate-800 text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition";
-            } else {
-                if (tabMonitor) tabMonitor.classList.add('hidden');
+            } else if (tab === 'analytics') {
                 if (tabAnalytics) tabAnalytics.classList.remove('hidden');
-                
-                if (btnMonitor) btnMonitor.className = "flex items-center gap-2 px-5 py-3 border-b-2 border-transparent hover:border-slate-800 text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition";
                 if (btnAnalytics) btnAnalytics.className = "flex items-center gap-2 px-5 py-3 border-b-2 border-cyan-500 text-cyan-400 font-bold text-xs tracking-wider uppercase transition";
-
+                
                 // Re-render chart on switch to ensure width/canvas calculations are perfectly aligned in the active tab container
                 setTimeout(() => {
                     renderAnalyticsChart();
                 }, 50);
+            } else if (tab === 'telegram') {
+                if (tabTelegram) tabTelegram.classList.remove('hidden');
+                if (btnTelegram) btnTelegram.className = "flex items-center gap-2 px-5 py-3 border-b-2 border-pink-500 text-pink-400 font-bold text-xs tracking-wider uppercase transition";
             }
         }
 
@@ -3339,6 +3297,275 @@
             chartInstance = new Chart(ctx, chartConfig);
         }
 
+        // --- Telegram Bot SMS Alerts State & Helpers ---
+        let telegramConfig = {
+            botToken: "",
+            chatId: "",
+            recipientLabel: "",
+            enableAutoAlerts: false
+        };
+        let telegramLogs = [];
+
+        function insertTag(tag) {
+            const textarea = document.getElementById('tgMessageText');
+            if (!textarea) return;
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const text = textarea.value;
+            const before = text.substring(0, start);
+            const after = text.substring(end, text.length);
+            textarea.value = before + tag + after;
+            textarea.focus();
+            textarea.selectionStart = textarea.selectionEnd = start + tag.length;
+        }
+
+        function formatAlertMessage(template) {
+            updateConfigFromUI();
+            const percent = parseFloat(document.getElementById('txtPercent').innerText) || 0;
+            const liters = parseFloat(document.getElementById('txtVolume').innerText.replace(/,/g, '')) || 0;
+            const depth = parseFloat(document.getElementById('txtLevel').innerText) || 0;
+            const deviceId = document.getElementById('topicPrefix').value || "mytank123";
+            const status = lastAlertState.toUpperCase();
+            const timestamp = new Date().toLocaleString();
+
+            return template
+                .replace(/\[Device\]/g, deviceId)
+                .replace(/\[Percent\]/g, `${percent.toFixed(0)}%`)
+                .replace(/\[Volume\]/g, `${liters.toLocaleString()} Liters`)
+                .replace(/\[Depth\]/g, `${depth.toFixed(1)} cm`)
+                .replace(/\[Status\]/g, status)
+                .replace(/\[Timestamp\]/g, timestamp);
+        }
+
+        function triggerTelegramAutoAlert(type, percent) {
+            if (!telegramConfig.enableAutoAlerts || !telegramConfig.botToken || !telegramConfig.chatId) return;
+
+            let messageTemplate = "";
+            if (type === 'LOW') {
+                messageTemplate = "🚨 <b>HydroSync Alert: Low Water Level</b>\nDevice ID: [Device]\nTank level has fallen to <b>[Percent]</b> ([Volume]).\nDepth: [Depth]\nTime: [Timestamp]";
+            } else if (type === 'HIGH') {
+                messageTemplate = "🚨 <b>HydroSync Alert: High Water Level</b>\nDevice ID: [Device]\nTank level has reached <b>[Percent]</b> ([Volume]).\nDepth: [Depth]\nTime: [Timestamp]";
+            } else if (type === 'NORMAL') {
+                messageTemplate = "✅ <b>HydroSync Recovery: Water Level Safe</b>\nDevice ID: [Device]\nWater level has returned to safe range: <b>[Percent]</b> ([Volume]).\nTime: [Timestamp]";
+            } else {
+                return;
+            }
+
+            const formattedMessage = formatAlertMessage(messageTemplate);
+            sendTelegramMessageDirectly(formattedMessage, "System Auto-Alert");
+        }
+
+        function loadTelegramSettings() {
+            const savedToken = localStorage.getItem('hydrosync_tg_bot_token') || '';
+            const savedChatId = localStorage.getItem('hydrosync_tg_chat_id') || '';
+            const savedLabel = localStorage.getItem('hydrosync_tg_label') || 'My Phone';
+            const savedAuto = localStorage.getItem('hydrosync_tg_auto_alerts') === 'true';
+
+            telegramConfig.botToken = savedToken;
+            telegramConfig.chatId = savedChatId;
+            telegramConfig.recipientLabel = savedLabel;
+            telegramConfig.enableAutoAlerts = savedAuto;
+
+            const tokenEl = document.getElementById('tgBotToken');
+            const chatEl = document.getElementById('tgChatId');
+            const labelEl = document.getElementById('tgRecipientLabel');
+            const autoEl = document.getElementById('tgEnableAutoAlerts');
+
+            if (tokenEl) tokenEl.value = savedToken;
+            if (chatEl) chatEl.value = savedChatId;
+            if (labelEl) labelEl.value = savedLabel;
+            if (autoEl) autoEl.checked = savedAuto;
+
+            // Set up default text in test message box
+            const textEl = document.getElementById('tgMessageText');
+            if (textEl) textEl.value = "HydroSync Status Update\nDevice ID: [Device]\nWater Level: [Percent]\nVolume: [Volume]\nStatus: [Status]\nTime: [Timestamp]";
+
+            loadTelegramLogs();
+        }
+
+        function saveTelegramSettings() {
+            const botToken = document.getElementById('tgBotToken').value.trim();
+            const chatId = document.getElementById('tgChatId').value.trim();
+            const label = document.getElementById('tgRecipientLabel').value.trim() || 'My Phone';
+
+            telegramConfig.botToken = botToken;
+            telegramConfig.chatId = chatId;
+            telegramConfig.recipientLabel = label;
+
+            localStorage.setItem('hydrosync_tg_bot_token', botToken);
+            localStorage.setItem('hydrosync_tg_chat_id', chatId);
+            localStorage.setItem('hydrosync_tg_label', label);
+
+            showToast("Telegram gateway credentials saved successfully!", "success");
+            
+            if (botToken && chatId) {
+                showToast("Ready! Try sending a test SMS below.", "info");
+            }
+        }
+
+        function toggleTgAutoAlerts() {
+            const enable = document.getElementById('tgEnableAutoAlerts').checked;
+            telegramConfig.enableAutoAlerts = enable;
+            localStorage.setItem('hydrosync_tg_auto_alerts', enable ? 'true' : 'false');
+            showToast(`Automatic Telegram SMS alerts ${enable ? 'ENABLED' : 'DISABLED'}.`, enable ? "success" : "info");
+        }
+
+        function toggleTokenVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.innerHTML = `
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                    </svg>
+                `;
+            } else {
+                input.type = 'password';
+                btn.innerHTML = `
+                    <svg class="w-4 h-4 text-slate-500 hover:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                `;
+            }
+        }
+
+        async function sendTelegramTest() {
+            const template = document.getElementById('tgMessageText').value.trim();
+            if (!template) {
+                showToast("Please enter a message to send.", "error");
+                return;
+            }
+
+            if (!telegramConfig.botToken || !telegramConfig.chatId) {
+                showToast("Please configure and save Telegram Bot Token and Chat ID first.", "error");
+                return;
+            }
+
+            const formattedMessage = formatAlertMessage(template);
+            const btn = document.getElementById('btnSendTgTest');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="inline-block animate-spin mr-1">🌀</span> Dispatching SMS alert...`;
+            }
+
+            const success = await sendTelegramMessageDirectly(formattedMessage, telegramConfig.recipientLabel || "Test Mobile");
+            
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = `
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                    </svg>
+                    Send Telegram SMS Alert Now
+                `;
+            }
+        }
+
+        async function sendTelegramMessageDirectly(messageText, recipient) {
+            try {
+                const response = await fetch('/api/send-telegram', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        bot_token: telegramConfig.botToken,
+                        chat_id: telegramConfig.chatId,
+                        message: messageText
+                    })
+                });
+
+                const result = await response.json();
+                const timestamp = new Date().toLocaleString();
+
+                if (result.success) {
+                    showToast("Telegram SMS Alert dispatched successfully!", "success");
+                    logTelegramDispatch(timestamp, recipient, messageText, "Success", "");
+                    return true;
+                } else {
+                    showToast(`Dispatch failed: ${result.error}`, "error");
+                    logTelegramDispatch(timestamp, recipient, messageText, "Failed", result.error);
+                    return false;
+                }
+            } catch (err) {
+                console.error('[Telegram dispatch error]:', err);
+                showToast("Network error trying to dispatch SMS alert.", "error");
+                const timestamp = new Date().toLocaleString();
+                logTelegramDispatch(timestamp, recipient, messageText, "Failed", err.message || "Network Error");
+                return false;
+            }
+        }
+
+        function logTelegramDispatch(timestamp, recipient, text, status, errorMsg) {
+            const logEntry = {
+                timestamp,
+                recipient,
+                text: text.replace(/<[^>]*>/g, ''), // strip HTML tags for log display
+                status,
+                error: errorMsg
+            };
+            telegramLogs.unshift(logEntry);
+            if (telegramLogs.length > 50) telegramLogs.pop();
+            
+            localStorage.setItem('hydrosync_tg_logs', JSON.stringify(telegramLogs));
+            renderTelegramLogs();
+        }
+
+        function loadTelegramLogs() {
+            const saved = localStorage.getItem('hydrosync_tg_logs');
+            if (saved) {
+                try {
+                    telegramLogs = JSON.parse(saved);
+                } catch(e) {
+                    telegramLogs = [];
+                }
+            } else {
+                telegramLogs = [];
+            }
+            renderTelegramLogs();
+        }
+
+        function clearTelegramLogs() {
+            telegramLogs = [];
+            localStorage.removeItem('hydrosync_tg_logs');
+            renderTelegramLogs();
+            showToast("Transmission history cleared.", "info");
+        }
+
+        function renderTelegramLogs() {
+            const body = document.getElementById('tgLogsTableBody');
+            if (!body) return;
+
+            if (telegramLogs.length === 0) {
+                body.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="p-8 text-center text-slate-500 italic">No transmission logs available. Send an alert to dispatch.</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            body.innerHTML = telegramLogs.map(log => {
+                let statusBadge = "";
+                if (log.status === "Success") {
+                    statusBadge = `<span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">SUCCESS</span>`;
+                } else {
+                    statusBadge = `<span class="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-bold" title="${log.error || ''}">FAILED</span>`;
+                }
+
+                return `
+                    <tr class="border-b border-slate-800/60 hover:bg-slate-900/10 transition">
+                        <td class="p-3 text-slate-400 font-mono text-[11px] whitespace-nowrap">${log.timestamp}</td>
+                        <td class="p-3 font-semibold text-slate-200">${log.recipient}</td>
+                        <td class="p-3 text-slate-300 max-w-xs md:max-w-md truncate" title="${log.text}">${log.text}</td>
+                        <td class="p-3">${statusBadge}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
         // Initialize App on load
         window.onload = function() {
             // First load saved configurations from local storage
@@ -3361,6 +3588,9 @@
             // Initialize Analytics Dates & Devices list from PostgreSQL
             initAnalyticsDates();
             loadAnalyticsDevices();
+
+            // Initialize Telegram configurations
+            loadTelegramSettings();
 
             // Auto-trigger first analytics query after a slight delay
             setTimeout(fetchAnalyticsData, 1000);

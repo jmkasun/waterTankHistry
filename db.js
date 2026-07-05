@@ -28,8 +28,14 @@ async function initDb() {
         level NUMERIC(8, 2) NOT NULL,
         volume NUMERIC(10, 2) NOT NULL,
         data_usage BIGINT NOT NULL DEFAULT 0,
+        version VARCHAR(20) DEFAULT '1.5',
         timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+    
+    // Ensure existing table has the version column
+    await client.query(`
+      ALTER TABLE w_telemetry ADD COLUMN IF NOT EXISTS version VARCHAR(20) DEFAULT '1.5';
     `);
     
     // Create index to optimize historical queries

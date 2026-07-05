@@ -35,6 +35,9 @@
 // --- Storage Namespaces ---
 #define PREF_NAMESPACE "hydrosync-cfg"
 
+// --- Firmware Version ---
+#define FIRMWARE_VERSION "1.6"
+
 // --- Global Classes ---
 WebServer server(80);
 Preferences preferences;
@@ -486,6 +489,7 @@ void publishCurrentConfig() {
         String topicGsm = mqttPrefix + "/config/gsm_numbers";
         String topicInterval = mqttPrefix + "/config/interval";
         String topicIp = mqttPrefix + "/status/ip";
+        String topicVersion = mqttPrefix + "/status/version";
 
         String heightStr = String(tankHeight, 1);
         String sensorHeightStr = String(sensorHeight, 1);
@@ -501,6 +505,7 @@ void publishCurrentConfig() {
         mqttClient.publish(topicGsm.c_str(), gsmNumbersList.c_str(), true);
         mqttClient.publish(topicInterval.c_str(), intervalStr.c_str(), true);
         mqttClient.publish(topicIp.c_str(), ipStr.c_str(), true);
+        mqttClient.publish(topicVersion.c_str(), FIRMWARE_VERSION, true);
 
         // Accumulate configuration packet sizes with network overhead (~45 bytes per packet)
         totalBytesSent += (topicHeight.length() + heightStr.length() + 45);
@@ -510,6 +515,7 @@ void publishCurrentConfig() {
         totalBytesSent += (topicGsm.length() + gsmNumbersList.length() + 45);
         totalBytesSent += (topicInterval.length() + intervalStr.length() + 45);
         totalBytesSent += (topicIp.length() + ipStr.length() + 45);
+        totalBytesSent += (topicVersion.length() + strlen(FIRMWARE_VERSION) + 45);
 
         Serial.println("[MQTT] Published current specs, phone whitelist, telemetry interval, and local IP to broker.");
     }
@@ -901,7 +907,7 @@ void loop() {
                 
                 Serial.println("[HTTP] Sending telemetry POST to: " + endpoint);
                 
-                String jsonPayload = "{\"device_id\":\"" + mqttPrefix + "\",\"level\":" + String(depth, 1) + ",\"volume\":" + String(volume, 1) + ",\"data_usage\":" + String(totalBytesSent) + "}";
+                String jsonPayload = "{\"device_id\":\"" + mqttPrefix + "\",\"level\":" + String(depth, 1) + ",\"volume\":" + String(volume, 1) + ",\"data_usage\":" + String(totalBytesSent) + ",\"version\":\"" + String(FIRMWARE_VERSION) + "\"}";
                 int httpResponseCode = -1;
 
                 if (endpoint.startsWith("https://")) {

@@ -117,7 +117,7 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                const { device_id, level, volume, data_usage } = data;
+                const { device_id, level, volume, data_usage, version } = data;
 
                 if (!device_id || level === undefined || volume === undefined) {
                     sendJSON(res, { success: false, error: 'Missing required fields' }, 400);
@@ -127,6 +127,7 @@ const server = http.createServer(async (req, res) => {
                 const levelVal = parseFloat(level);
                 const volumeVal = parseFloat(volume);
                 const dataUsageVal = parseInt(data_usage, 10) || 0;
+                const versionVal = version ? version.toString().trim() : '1.5';
 
                 if (isNaN(levelVal) || isNaN(volumeVal)) {
                     sendJSON(res, { success: false, error: 'Invalid level or volume' }, 400);
@@ -134,11 +135,11 @@ const server = http.createServer(async (req, res) => {
                 }
 
                 await pool.query(
-                    `INSERT INTO w_telemetry (device_id, level, volume, data_usage) VALUES ($1, $2, $3, $4)`,
-                    [device_id, levelVal, volumeVal, dataUsageVal]
+                    `INSERT INTO w_telemetry (device_id, level, volume, data_usage, version) VALUES ($1, $2, $3, $4, $5)`,
+                    [device_id, levelVal, volumeVal, dataUsageVal, versionVal]
                 );
                 
-                console.log(`[HTTP API Log] Successfully saved telemetry for ${device_id}: Level=${levelVal}cm, Volume=${volumeVal}L, DataUsage=${dataUsageVal} Bytes`);
+                console.log(`[HTTP API Log] Successfully saved telemetry for ${device_id}: Level=${levelVal}cm, Volume=${volumeVal}L, DataUsage=${dataUsageVal} Bytes, Version=${versionVal}`);
                 sendJSON(res, { success: true, message: 'Telemetry logged successfully' });
             } catch (err) {
                 console.error('[API Error] /api/telemetry:', err);

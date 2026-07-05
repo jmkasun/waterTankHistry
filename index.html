@@ -377,6 +377,22 @@
                         </div>
                     </div>
 
+                    <!-- Motor Activity Legend (Visible only on Water Level History Tab) -->
+                    <div id="chartMotorLegend" class="hidden px-4 mb-3 flex flex-wrap gap-4 text-[10px] uppercase font-bold tracking-wider text-slate-400">
+                        <span class="flex items-center gap-1.5">
+                            <span class="w-3.5 h-1.5 rounded bg-[#3b82f6]"></span>
+                            Stable / Falling
+                        </span>
+                        <span class="flex items-center gap-1.5">
+                            <span class="w-3.5 h-1.5 rounded bg-[#eab308]"></span>
+                            Filling (Motor 1 - 1" Pipe)
+                        </span>
+                        <span class="flex items-center gap-1.5">
+                            <span class="w-3.5 h-1.5 rounded bg-[#10b981]"></span>
+                            Filling (Motor 2 - 2" Pipe)
+                        </span>
+                    </div>
+
                     <!-- Canvas container -->
                     <div class="relative w-full h-64 sm:h-80 px-2">
                         <canvas id="analyticsChart" class="w-full h-full"></canvas>
@@ -759,6 +775,12 @@
                 </div>
 
                 <div class="space-y-4 text-xs">
+                    <!-- Connected Device Firmware Version -->
+                    <div class="flex items-center justify-between bg-slate-950/40 p-3 rounded-xl border border-slate-800/80">
+                        <span class="font-bold text-slate-400 text-xs">Device Firmware Version</span>
+                        <span id="txtDeviceVersion" class="text-[11px] font-mono font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2.5 py-1 rounded-lg">Awaiting...</span>
+                    </div>
+
                     <!-- Remote MQTT HTTP OTA -->
                     <div class="bg-slate-950/40 p-3.5 rounded-xl border border-slate-800/80 space-y-3">
                         <div class="flex items-center justify-between">
@@ -932,6 +954,7 @@
         // Device presence & connection state tracking
         let lastDeviceMessageTime = 0;
         let deviceOnline = false;
+        let deviceVersion = "Awaiting...";
 
         // Display beautiful customized toast alerts
         function showToast(message, type = 'info') {
@@ -1151,6 +1174,18 @@
 
             // Tank display container size
             document.getElementById('waterContainer').style.height = `${percent}%`;
+
+            // Update Device Version in settings
+            const el = document.getElementById('txtDeviceVersion');
+            if (el) {
+                if (deviceVersion && deviceVersion !== "Awaiting...") {
+                    el.innerText = `v${deviceVersion}`;
+                    el.className = "text-[11px] font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg";
+                } else {
+                    el.innerText = "Awaiting...";
+                    el.className = "text-[11px] font-mono font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2.5 py-1 rounded-lg animate-pulse";
+                }
+            }
         }
 
         // Flash packet indicator
@@ -1349,6 +1384,7 @@
                         `${prefix}/status/level`,
                         `${prefix}/status/volume`,
                         `${prefix}/status/ip`,
+                        `${prefix}/status/version`,
                         `${prefix}/config/height`,
                         `${prefix}/config/sensor_height`,
                         `${prefix}/config/diameter`,
@@ -1394,6 +1430,11 @@
 
                     if (topic === `${prefixVal}/status/ip`) {
                         updateEspIp(rawStr);
+                        return;
+                    }
+
+                    if (topic === `${prefixVal}/status/version`) {
+                        updateDeviceVersion(rawStr);
                         return;
                     }
 
@@ -1526,6 +1567,17 @@
                 link.textContent = `http://${espLocalIp}/update`;
                 link.className = "text-cyan-400 hover:underline select-all font-bold font-mono text-[11px]";
             }
+        }
+
+        function updateDeviceVersion(ver) {
+            if (!ver || ver.trim() === "" || ver.includes("<")) return;
+            deviceVersion = ver.trim();
+            const el = document.getElementById('txtDeviceVersion');
+            if (el) {
+                el.innerText = `v${deviceVersion}`;
+                el.className = "text-[11px] font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-lg";
+            }
+            saveTelemetryToLocalStorage();
         }
 
         function copyOtaUrl() {
@@ -1744,6 +1796,14 @@
                 telemetry.volume = 0;
                 telemetry.hasVolume = false;
             }
+
+            const savedVersion = localStorage.getItem('hydrosync_last_version_' + prefix);
+            if (savedVersion) {
+                deviceVersion = savedVersion;
+            } else {
+                deviceVersion = "Awaiting...";
+            }
+            updateTelemetryUI();
         }
 
         function saveTelemetryToLocalStorage() {
@@ -1753,6 +1813,7 @@
             localStorage.setItem('hydrosync_last_has_depth_' + prefix, telemetry.hasDepth ? 'true' : 'false');
             localStorage.setItem('hydrosync_last_volume_' + prefix, telemetry.volume.toString());
             localStorage.setItem('hydrosync_last_has_volume_' + prefix, telemetry.hasVolume ? 'true' : 'false');
+            localStorage.setItem('hydrosync_last_version_' + prefix, deviceVersion);
         }
 
         // --- GSM Phone Numbers State Management ---
@@ -2245,10 +2306,25 @@
             if (showNoData) {
                 noDataMsg.classList.remove('hidden');
                 canvas.classList.add('opacity-0');
+                const legendEl = document.getElementById('chartMotorLegend');
+                if (legendEl) {
+                    legendEl.classList.remove('flex');
+                    legendEl.classList.add('hidden');
+                }
                 return;
             } else {
                 noDataMsg.classList.add('hidden');
                 canvas.classList.remove('opacity-0');
+                const legendEl = document.getElementById('chartMotorLegend');
+                if (legendEl) {
+                    if (currentChartTab === 'level') {
+                        legendEl.classList.remove('hidden');
+                        legendEl.classList.add('flex');
+                    } else {
+                        legendEl.classList.remove('flex');
+                        legendEl.classList.add('hidden');
+                    }
+                }
             }
 
             let chartConfig = {};
@@ -2432,6 +2508,97 @@
                 });
                 const volumes = historyRows.map(r => r.avg_volume !== null ? parseFloat(r.avg_volume) : null);
 
+                // Precompute point-specific styles and metadata for exact motor categorization
+                const pointBackgroundColors = [];
+                const pointBorderColors = [];
+                const pointRadii = [];
+                const pointHoverRadii = [];
+                const pointMotorLabels = [];
+
+                for (let i = 0; i < historyRows.length; i++) {
+                    const row = historyRows[i];
+                    if (row.avg_volume === null) {
+                        pointBackgroundColors.push('#3b82f6');
+                        pointBorderColors.push('#3b82f6');
+                        pointRadii.push(0);
+                        pointHoverRadii.push(0);
+                        pointMotorLabels.push({ motor: 'None', rate: 0 });
+                        continue;
+                    }
+
+                    // Compute rate based on segment leading into point i (from i-1 to i)
+                    if (i > 0 && historyRows[i-1].avg_volume !== null) {
+                        const rowPrev = historyRows[i-1];
+                        const volDiff = parseFloat(row.avg_volume) - parseFloat(rowPrev.avg_volume);
+                        const timeDiffMs = new Date(row.hour_timestamp) - new Date(rowPrev.hour_timestamp);
+                        
+                        if (volDiff > 0 && timeDiffMs > 0) {
+                            const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
+                            const fillingRate = volDiff / timeDiffHours;
+                            const threshold = parseFloat(document.getElementById('pumpThresholdInput')?.value || '2500');
+                            
+                            if (fillingRate >= threshold) {
+                                pointBackgroundColors.push('#10b981'); // Emerald
+                                pointBorderColors.push('#047857');
+                                pointRadii.push(4.5);
+                                pointHoverRadii.push(7.5);
+                                pointMotorLabels.push({ motor: 'Motor 2 (2-inch Pipe)', rate: fillingRate });
+                            } else {
+                                pointBackgroundColors.push('#eab308'); // Yellow/Amber
+                                pointBorderColors.push('#b45309');
+                                pointRadii.push(4.5);
+                                pointHoverRadii.push(7.5);
+                                pointMotorLabels.push({ motor: 'Motor 1 (1-inch Pipe)', rate: fillingRate });
+                            }
+                        } else {
+                            pointBackgroundColors.push('#3b82f6'); // Default Blue
+                            pointBorderColors.push('#1d4ed8');
+                            pointRadii.push(3);
+                            pointHoverRadii.push(6);
+                            pointMotorLabels.push({ motor: 'None (Stable/Discharging)', rate: 0 });
+                        }
+                    } else {
+                        // First point or preceding is null, look ahead to see if it starts rising
+                        if (i < historyRows.length - 1 && historyRows[i+1].avg_volume !== null) {
+                            const rowNext = historyRows[i+1];
+                            const volDiff = parseFloat(rowNext.avg_volume) - parseFloat(row.avg_volume);
+                            const timeDiffMs = new Date(rowNext.hour_timestamp) - new Date(row.hour_timestamp);
+                            
+                            if (volDiff > 0 && timeDiffMs > 0) {
+                                const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
+                                const fillingRate = volDiff / timeDiffHours;
+                                const threshold = parseFloat(document.getElementById('pumpThresholdInput')?.value || '2500');
+                                
+                                if (fillingRate >= threshold) {
+                                    pointBackgroundColors.push('#10b981');
+                                    pointBorderColors.push('#047857');
+                                    pointRadii.push(4.5);
+                                    pointHoverRadii.push(7.5);
+                                    pointMotorLabels.push({ motor: 'Motor 2 (2-inch Pipe)', rate: fillingRate });
+                                } else {
+                                    pointBackgroundColors.push('#eab308');
+                                    pointBorderColors.push('#b45309');
+                                    pointRadii.push(4.5);
+                                    pointHoverRadii.push(7.5);
+                                    pointMotorLabels.push({ motor: 'Motor 1 (1-inch Pipe)', rate: fillingRate });
+                                }
+                            } else {
+                                pointBackgroundColors.push('#3b82f6');
+                                pointBorderColors.push('#1d4ed8');
+                                pointRadii.push(3);
+                                pointHoverRadii.push(6);
+                                pointMotorLabels.push({ motor: 'None (Stable/Discharging)', rate: 0 });
+                            }
+                        } else {
+                            pointBackgroundColors.push('#3b82f6');
+                            pointBorderColors.push('#1d4ed8');
+                            pointRadii.push(3);
+                            pointHoverRadii.push(6);
+                            pointMotorLabels.push({ motor: 'None (Stable/Discharging)', rate: 0 });
+                        }
+                    }
+                }
+
                 chartConfig = {
                     type: 'line',
                     data: {
@@ -2440,16 +2607,46 @@
                             label: 'Water Volume (Liters)',
                             data: volumes,
                             borderColor: '#3b82f6',
-                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            backgroundColor: 'rgba(59, 130, 246, 0.03)',
                             fill: true,
                             tension: 0.35,
-                            borderWidth: 3,
-                            pointRadius: (ctx) => {
-                                const val = ctx.dataset.data[ctx.dataIndex];
-                                return val === null ? 0 : 3;
-                            },
-                            pointHoverRadius: 6,
-                            spanGaps: true
+                            borderWidth: 3.5,
+                            pointBackgroundColor: pointBackgroundColors,
+                            pointBorderColor: pointBorderColors,
+                            pointRadius: pointRadii,
+                            pointHoverRadius: pointHoverRadii,
+                            spanGaps: true,
+                            segment: {
+                                borderColor: (ctx) => {
+                                    const p0 = ctx.p0;
+                                    const p1 = ctx.p1;
+                                    if (!p0 || !p1) return '#3b82f6';
+                                    
+                                    const idx0 = p0.dataIndex;
+                                    const idx1 = p1.dataIndex;
+                                    
+                                    const row0 = historyRows[idx0];
+                                    const row1 = historyRows[idx1];
+                                    if (!row0 || !row1) return '#3b82f6';
+                                    if (row0.avg_volume === null || row1.avg_volume === null) return '#3b82f6';
+                                    
+                                    const volDiff = parseFloat(row1.avg_volume) - parseFloat(row0.avg_volume);
+                                    if (volDiff <= 0) return '#3b82f6'; // down or stable is blue
+                                    
+                                    const timeDiffMs = new Date(row1.hour_timestamp) - new Date(row0.hour_timestamp);
+                                    if (timeDiffMs <= 0) return '#3b82f6';
+                                    
+                                    const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
+                                    const fillingRate = volDiff / timeDiffHours;
+                                    
+                                    const threshold = parseFloat(document.getElementById('pumpThresholdInput')?.value || '2500');
+                                    if (fillingRate >= threshold) {
+                                        return '#10b981'; // emerald-500: Motor 2 on
+                                    } else {
+                                        return '#eab308'; // yellow-500: Motor 1 on
+                                    }
+                                }
+                            }
                         }]
                     },
                     options: {
@@ -2472,6 +2669,35 @@
                         },
                         plugins: {
                             legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed.y !== null) {
+                                            label += context.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 1 }) + ' L';
+                                        }
+                                        return label;
+                                    },
+                                    afterLabel: function(context) {
+                                        const idx = context.dataIndex;
+                                        const meta = pointMotorLabels[idx];
+                                        if (meta) {
+                                            if (meta.motor !== 'None' && !meta.motor.startsWith('None')) {
+                                                return [
+                                                    `Pump Status: ${meta.motor}`,
+                                                    `Filling Rate: ${Math.round(meta.rate).toLocaleString()} L/hr`
+                                                ];
+                                            } else {
+                                                return `Pump Status: Standby / Outflow Only`;
+                                            }
+                                        }
+                                        return '';
+                                    }
+                                }
+                            },
                             zoom: {
                                 zoom: {
                                     wheel: {

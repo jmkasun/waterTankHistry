@@ -35,20 +35,28 @@ mqttClient.on('message', async (topic, message) => {
         if (topicParts.length !== 3 || topicParts[1] !== 'status') return;
 
         const deviceId = topicParts[0];
-        const metric = topicParts[2]; // level, volume, or data_usage
+        const metric = topicParts[2]; // level, volume, data_usage, version, or ip
         const valStr = message.toString().trim();
-        const value = parseFloat(valStr);
-
-        if (isNaN(value)) return;
 
         if (!deviceCache[deviceId]) {
             deviceCache[deviceId] = {
                 level: null,
                 volume: null,
                 data_usage: 0,
+                version: '1.6',
                 last_insert_time: 0
             };
         }
+
+        // Handle version status messages as strings (can contain '+', letters, or numbers)
+        if (metric === 'version') {
+            deviceCache[deviceId].version = valStr;
+            console.log(`[MQTT Server Listener] Device ${deviceId} reported Firmware Version: ${valStr}`);
+            return;
+        }
+
+        const value = parseFloat(valStr);
+        if (isNaN(value)) return;
 
         // Update cache
         if (metric === 'level') {
@@ -69,12 +77,13 @@ mqttClient.on('message', async (topic, message) => {
             const levelVal = cache.level;
             const volumeVal = cache.volume;
             const dataUsageVal = cache.data_usage || 0;
+            const versionVal = cache.version || '1.6';
 
             await pool.query(
-                `INSERT INTO w_telemetry (device_id, level, volume, data_usage) VALUES ($1, $2, $3, $4)`,
-                [deviceId, levelVal, volumeVal, dataUsageVal]
+                `INSERT INTO w_telemetry (device_id, level, volume, data_usage, version) VALUES ($1, $2, $3, $4, $5)`,
+                [deviceId, levelVal, volumeVal, dataUsageVal, versionVal]
             );
-            console.log(`[DB Log] Successfully saved telemetry for ${deviceId}: Level=${levelVal}cm, Volume=${volumeVal}L, DataUsage=${dataUsageVal} Bytes`);
+            console.log(`[DB Log] Successfully saved telemetry for ${deviceId}: Level=${levelVal}cm, Volume=${volumeVal}L, DataUsage=${dataUsageVal} Bytes, Version=${versionVal}`);
         }
     } catch (err) {
         console.error('[MQTT Server Listener] Error processing packet:', err);
@@ -127,7 +136,7 @@ const server = http.createServer(async (req, res) => {
                 const levelVal = parseFloat(level);
                 const volumeVal = parseFloat(volume);
                 const dataUsageVal = parseInt(data_usage, 10) || 0;
-                const versionVal = version ? version.toString().trim() : '1.5';
+                const versionVal = version ? version.toString().trim() : '1.6';
 
                 if (isNaN(levelVal) || isNaN(volumeVal)) {
                     sendJSON(res, { success: false, error: 'Invalid level or volume' }, 400);

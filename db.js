@@ -28,14 +28,19 @@ async function initDb() {
         level NUMERIC(8, 2) NOT NULL,
         volume NUMERIC(10, 2) NOT NULL,
         data_usage BIGINT NOT NULL DEFAULT 0,
-        version VARCHAR(20) DEFAULT '1.5',
+        version VARCHAR(20) DEFAULT '1.6',
         timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
     `);
     
     // Ensure existing table has the version column
     await client.query(`
-      ALTER TABLE w_telemetry ADD COLUMN IF NOT EXISTS version VARCHAR(20) DEFAULT '1.5';
+      ALTER TABLE w_telemetry ADD COLUMN IF NOT EXISTS version VARCHAR(20) DEFAULT '1.6';
+    `);
+
+    // Migrate any older 1.5 or empty version records to 1.6 as the new active standard
+    await client.query(`
+      UPDATE w_telemetry SET version = '1.6' WHERE version = '1.5' OR version IS NULL;
     `);
     
     // Create index to optimize historical queries

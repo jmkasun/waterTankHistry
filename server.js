@@ -134,18 +134,226 @@ const server = http.createServer(async (req, res) => {
                     return;
                 }
 
+                // Log the telemetry point in w_telemetry
                 await pool.query(
                     `INSERT INTO w_telemetry (device_id, level, volume, data_usage, version) VALUES ($1, $2, $3, $4, $5)`,
                     [device_id, levelVal, volumeVal, dataUsageVal, versionVal]
                 );
                 
+                // Get or create device configuration
+                let configRes = await pool.query(
+                    `SELECT tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url
+                     FROM w_device_config WHERE device_id = $1`,
+                    [device_id]
+                );
+                
+                let deviceConfig = null;
+                if (configRes.rows.length === 0) {
+                    // Create default entry
+                    await pool.query(
+                        `INSERT INTO w_device_config (device_id) VALUES ($1) ON CONFLICT (device_id) DO NOTHING`,
+                        [device_id]
+                    );
+                    deviceConfig = {
+                        tank_height: 200.0,
+                        sensor_height: 45.0,
+                        tank_diameter: 228.0,
+                        num_tanks: 1,
+                        telemetry_interval: 15,
+                        gsm_numbers: '',
+                        ota_url: ''
+                    };
+                } else {
+                    deviceConfig = configRes.rows[0];
+                }
+                
+                // If there is a pending OTA update, clear it after reading to ensure it only triggers once
+                if (deviceConfig.ota_url && deviceConfig.ota_url.trim().length > 0) {
+                    await pool.query(
+                        `UPDATE w_device_config SET ota_url = '' WHERE device_id = $1`,
+                        [device_id]
+                    );
+                }
+
                 console.log(`[HTTP API Log] Successfully saved telemetry for ${device_id}: Level=${levelVal}cm, Volume=${volumeVal}L, DataUsage=${dataUsageVal} Bytes, Version=${versionVal}`);
-                sendJSON(res, { success: true, message: 'Telemetry logged successfully' });
+                
+                // Send JSON back to ESP32 with latest configurations & pending OTA URLs
+                sendJSON(res, { 
+                    success: true, 
+                    message: 'Telemetry logged successfully',
+                    config: {
+                        tank_height: parseFloat(deviceConfig.tank_height),
+                        sensor_height: parseFloat(deviceConfig.sensor_height),
+                        tank_diameter: parseFloat(deviceConfig.tank_diameter),
+                        num_tanks: parseInt(deviceConfig.num_tanks, 10),
+                        telemetry_interval: parseInt(deviceConfig.telemetry_interval, 10),
+                        gsm_numbers: deviceConfig.gsm_numbers || '',
+                        ota_url: deviceConfig.ota_url || ''
+                    }
+                });
             } catch (err) {
                 console.error('[API Error] /api/telemetry:', err);
                 sendJSON(res, { success: false, error: err.message }, 500);
             }
         });
+        return;
+    }
+
+    // API: Fetch configuration for a specific device directly from DB
+    if (urlPath === '/api/device/config' && req.method === 'GET') {
+        try {
+            const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
+            const result = await pool.query(
+                `SELECT tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url
+                 FROM w_device_config 
+                 WHERE device_id = $1`,
+                [deviceId]
+            );
+            
+            if (result.rows.length > 0) {
+                const config = result.rows[0];
+                sendJSON(res, { 
+                    success: true, 
+                    config: {
+                        tank_height: parseFloat(config.tank_height),
+                        sensor_height: parseFloat(config.sensor_height),
+                        tank_diameter: parseFloat(config.tank_diameter),
+                        num_tanks: parseInt(config.num_tanks, 10),
+                        telemetry_interval: parseInt(config.telemetry_interval, 10),
+                        gsm_numbers: config.gsm_numbers || '',
+                        ota_url: config.ota_url || ''
+                    }
+                });
+            } else {
+                // Return default values if config is not created yet
+                sendJSON(res, { 
+                    success: true, 
+                    config: {
+                        tank_height: 200.0,
+                        sensor_height: 45.0,
+                        tank_diameter: 228.0,
+                        num_tanks: 1,
+                        telemetry_interval: 15,
+                        gsm_numbers: '',
+                        ota_url: ''
+                    }
+                });
+            }
+        } catch (err) {
+            console.error('[API Error] GET /api/device/config:', err);
+            sendJSON(res, { success: false, error: err.message }, 500);
+        }
+        return;
+    }
+
+    // API: Save configuration for a specific device (OTA, height, diameter, interval, etc.)
+    if (urlPath === '/api/device/config' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', async () => {
+            try {
+                const data = JSON.parse(body);
+                const { device_id, tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url } = data;
+
+                if (!device_id) {
+                    sendJSON(res, { success: false, error: 'device_id is required' }, 400);
+                    return;
+                }
+
+                // Construct dynamic update query based on provided fields
+                const fields = [];
+                const values = [];
+                let paramIndex = 1;
+
+                if (tank_height !== undefined) {
+                    fields.push(`tank_height = $${paramIndex++}`);
+                    values.push(parseFloat(tank_height));
+                }
+                if (sensor_height !== undefined) {
+                    fields.push(`sensor_height = $${paramIndex++}`);
+                    values.push(parseFloat(sensor_height));
+                }
+                if (tank_diameter !== undefined) {
+                    fields.push(`tank_diameter = $${paramIndex++}`);
+                    values.push(parseFloat(tank_diameter));
+                }
+                if (num_tanks !== undefined) {
+                    fields.push(`num_tanks = $${paramIndex++}`);
+                    values.push(parseInt(num_tanks, 10));
+                }
+                if (telemetry_interval !== undefined) {
+                    fields.push(`telemetry_interval = $${paramIndex++}`);
+                    values.push(parseInt(telemetry_interval, 10));
+                }
+                if (gsm_numbers !== undefined) {
+                    fields.push(`gsm_numbers = $${paramIndex++}`);
+                    values.push(gsm_numbers.toString().trim());
+                }
+                if (ota_url !== undefined) {
+                    fields.push(`ota_url = $${paramIndex++}`);
+                    values.push(ota_url.toString().trim());
+                }
+
+                if (fields.length === 0) {
+                    sendJSON(res, { success: false, error: 'No fields to update' }, 400);
+                    return;
+                }
+
+                values.push(device_id);
+                const queryStr = `
+                    INSERT INTO w_device_config (device_id, ${fields.map(f => f.split(' = ')[0]).join(', ')})
+                    VALUES ($${paramIndex}, ${fields.map((_, i) => `$${i + 1}`).join(', ')})
+                    ON CONFLICT (device_id) 
+                    DO UPDATE SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP
+                `;
+
+                // Run query
+                await pool.query(queryStr, values);
+
+                console.log(`[HTTP API Log] Successfully updated configuration for device ${device_id}:`, data);
+                sendJSON(res, { success: true, message: 'Device configuration saved successfully.' });
+            } catch (err) {
+                console.error('[API Error] POST /api/device/config:', err);
+                sendJSON(res, { success: false, error: err.message }, 500);
+            }
+        });
+        return;
+    }
+
+    // API: Fetch latest/current telemetry for a specific device directly from DB
+    if (urlPath === '/api/telemetry' && req.method === 'GET') {
+        try {
+            const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
+            const result = await pool.query(
+                `SELECT id, device_id, level, volume, data_usage, version, timestamp AT TIME ZONE 'UTC' as timestamp 
+                 FROM w_telemetry 
+                 WHERE device_id = $1 
+                 ORDER BY timestamp DESC LIMIT 1`,
+                [deviceId]
+            );
+            
+            if (result.rows.length > 0) {
+                sendJSON(res, { success: true, telemetry: result.rows[0] });
+            } else {
+                // Fallback default response if database has no records yet
+                sendJSON(res, { 
+                    success: true, 
+                    telemetry: {
+                        device_id: deviceId,
+                        level: 0.0,
+                        volume: 0.0,
+                        data_usage: 0,
+                        version: '1.6',
+                        timestamp: new Date().toISOString()
+                    }
+                });
+            }
+        } catch (err) {
+            console.error('[API Error] GET /api/telemetry:', err);
+            sendJSON(res, { success: false, error: err.message }, 500);
+        }
         return;
     }
 

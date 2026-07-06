@@ -84,12 +84,6 @@
 
             <!-- Connection Badges & Controller -->
             <div class="flex flex-wrap items-center gap-3">
-                <!-- RX Packet Blinker -->
-                <div id="rxIndicator" class="hidden items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-wider transition-all">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                    Live Rx Packet
-                </div>
-
                 <div id="statusBadge" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-xs font-semibold">
                     <span id="statusIndicator" class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
                     <span id="statusText">MQTT Connecting...</span>
@@ -306,6 +300,94 @@
                         </div>
                         <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Calculated Water Mass</span>
                         <span id="lblMass" class="text-2xl font-black text-white tracking-tight">0.0 kg</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Virtual ESP32 Hardware Console & DB Direct Controller -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
+                <!-- Mode Controller Card -->
+                <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between gap-4 relative overflow-hidden group hover:border-slate-700 transition duration-300">
+                    <div class="absolute -top-10 -right-10 w-32 h-32 bg-cyan-500/5 rounded-full blur-2xl pointer-events-none group-hover:bg-cyan-500/10 transition duration-500"></div>
+                    <div>
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/30 text-cyan-400">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-white tracking-tight">Telemetry Mode</h3>
+                                <p class="text-[11px] text-slate-400">Direct HTTP REST Sync (Pure Server-Side Architecture)</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800/80 space-y-3.5 text-xs">
+                            <div class="flex items-center justify-between">
+                                <span class="font-semibold text-slate-300">Live Telemetry Connection</span>
+                                <span class="px-2.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/20 text-[10px] font-bold uppercase tracking-wider">Direct DB Active</span>
+                            </div>
+                            
+                            <div class="text-[10px] text-slate-400 leading-relaxed animate-fade-in">
+                                <span class="text-cyan-400 font-bold">ℹ️ Pure HTTP/REST Integration</span>: MQTT and its third-party brokers have been completely removed. Both the ESP32 hardware and this dashboard sync via unified API endpoints directly into the PostgreSQL database. This delivers 24/7 logging, robust connectivity, and works flawlessly in all restricted network environments.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 text-[10px] text-slate-500 font-semibold uppercase tracking-wider mt-2 border-t border-slate-800/60 pt-3">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500/80 inline-block animate-pulse"></span>
+                        <span>Unified Database Sync is Vercel & Sandbox Friendly</span>
+                    </div>
+                </div>
+
+                <!-- Virtual ESP32 Hardware Emulator Card -->
+                <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4 relative overflow-hidden group hover:border-slate-700 transition duration-300">
+                    <div class="absolute -top-10 -right-10 w-32 h-32 bg-pink-500/5 rounded-full blur-2xl pointer-events-none group-hover:bg-pink-500/10 transition duration-500"></div>
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-pink-500/10 rounded-lg border border-pink-500/30 text-pink-400">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-white tracking-tight">Virtual ESP32 Emulator</h3>
+                                <p class="text-[11px] text-slate-400">Simulate physical hardware level signals</p>
+                            </div>
+                        </div>
+
+                        <!-- TX blinking LED -->
+                        <div id="simTxLed" class="flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-[9px] text-slate-500 font-mono font-bold transition duration-300">
+                            <span class="w-1.5 h-1.5 rounded-full bg-slate-700 transition duration-300"></span>
+                            TX-POST
+                        </div>
+                    </div>
+
+                    <div class="space-y-3.5 text-xs">
+                        <div class="flex items-center justify-between">
+                            <label for="simLevelRange" class="font-semibold text-slate-300 flex justify-between w-full">
+                                <span>Simulated Level Depth</span>
+                                <span id="simLevelDisplay" class="text-pink-400 font-bold">120 cm (60%)</span>
+                            </label>
+                        </div>
+                        <input type="range" id="simLevelRange" min="0" max="200" value="120" oninput="updateSimRangeDisplay()" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-pink-500">
+
+                        <div class="grid grid-cols-2 gap-2 pt-1">
+                            <button onclick="sendSimulatedPost()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white py-2.5 px-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-slate-950/20" title="Immediately inserts this exact water level into Postgres DB">
+                                <span>🚀</span>
+                                Instant POST
+                            </button>
+
+                            <button onclick="toggleSimLoop()" id="btnSimLoop" class="bg-pink-600 hover:bg-pink-500 text-white py-2.5 px-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-pink-600/15" title="Continuously writes current level to DB every 5 seconds">
+                                <span id="simLoopSpinner" class="hidden animate-spin">🌀</span>
+                                <span id="simLoopBtnText">Auto Telemetry: OFF</span>
+                            </button>
+                        </div>
+                        
+                        <p id="simStatusMsg" class="text-[10px] text-slate-500 leading-normal italic text-center">
+                            Enable Auto Telemetry to constantly update the database in the background.
+                        </p>
+                    </div>
                 </div>
             </div>
         </section>
@@ -1049,44 +1131,32 @@
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- MQTT Broker Details -->
+                  <!-- Device Settings & Hardware Identifier Card -->
             <div class="bg-slate-900/30 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
                 <div class="flex items-center gap-3">
                     <div class="p-2 bg-blue-500/10 rounded-lg border border-blue-500/30">
                         <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
                         </svg>
                     </div>
                     <div>
-                        <h3 class="text-sm font-bold text-white tracking-tight">MQTT Broker Details</h3>
-                        <p class="text-[11px] text-slate-400">Configure connection endpoints</p>
+                        <h3 class="text-sm font-bold text-white tracking-tight">Device Identification</h3>
+                        <p class="text-[11px] text-slate-400">Match active hardware identifier</p>
                     </div>
                 </div>
 
                 <div class="space-y-3 text-xs">
                     <div class="flex flex-col gap-1.5">
-                        <label class="font-semibold text-slate-400">WebSocket Endpoint URL</label>
-                        <input id="brokerInput" type="text" value="wss://broker.hivemq.com:8884/mqtt" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 font-mono focus:outline-none focus:border-cyan-500">
+                        <label class="font-semibold text-slate-400">Active Device ID</label>
+                        <input id="topicPrefix" type="text" value="mytank123" onchange="onDeviceIdChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 font-mono focus:outline-none focus:border-cyan-500">
+                        <p class="text-[10px] text-slate-500">This must match the <code>DEVICE_ID</code> constant compiled inside the ESP32 hardware firmware.</p>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-3">
-                        <div class="flex flex-col gap-1.5">
-                            <label class="font-semibold text-slate-400">Device Path Topic</label>
-                            <input id="topicPrefix" type="text" value="mytank123" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 font-mono focus:outline-none focus:border-cyan-500">
-                        </div>
-                        <div class="flex flex-col gap-1.5">
-                            <label class="font-semibold text-slate-400">Client ID</label>
-                            <input id="clientIdInput" type="text" value="hydrosync-dashboard" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-400 font-mono" disabled>
-                        </div>
-                    </div>
-
-                    <button onclick="reconnectMQTT(true)" class="w-full border border-slate-805 hover:border-slate-700 bg-slate-955 hover:bg-slate-900 text-white font-medium py-2 rounded-lg transition text-xs mt-2">
-                        Re-connect / Apply Broker Settings
-                    </button>
+                    <!-- Hidden inputs to prevent JS failures -->
+                    <input id="brokerInput" type="hidden" value="wss://broker.hivemq.com:8884/mqtt">
+                    <input id="clientIdInput" type="hidden" value="hydrosync-dashboard">
                 </div>
-            </div>
+            </div>        </div>
 
             <!-- Water Consumption Calculation Card -->
             <div class="bg-slate-900/30 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
@@ -1628,216 +1698,45 @@
             }
         }
 
-        // MQTT Connection
+        // MQTT Connection - Removed in favor of pure HTTP sync
         function reconnectMQTT(isManual = false) {
-            if (isManual) {
-                saveSettingsToLocalStorage();
-                loadTelemetryFromLocalStorage();
-            }
+            return;
+        }
 
-            if (client) {
-                client.end();
-            }
-            if (connectionTimeout) {
-                clearTimeout(connectionTimeout);
-            }
-
-            // Reset device online status on reconnect if no last sync time exists
-            if (lastDeviceMessageTime === 0) {
-                deviceOnline = false;
-            }
-            updateDeviceStatusUI();
-
-            const brokerUrl = document.getElementById('brokerInput').value;
-            const prefix = document.getElementById('topicPrefix').value;
-            const statusBadge = document.getElementById('statusBadge');
-            const statusText = document.getElementById('statusText');
-            const statusIndicator = document.getElementById('statusIndicator');
-            const sandboxAlert = document.getElementById('sandboxAlert');
-
-            statusBadge.className = "flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-xs font-semibold";
-            statusText.innerText = "Connecting to Broker...";
-            statusIndicator.className = "w-2 h-2 rounded-full bg-yellow-400 animate-pulse";
-
+        async function fetchDeviceConfigFromServer() {
             try {
-                // Connect to HiveMQ public broker with more resilient handshake configuration
-                client = mqtt.connect(brokerUrl, {
-                    clientId: 'hydrosync-dashboard-' + Math.random().toString(16).substr(2, 6),
-                    keepalive: 60,
-                    reconnectPeriod: 3000,
-                    connectTimeout: 15000 
-                });
-
-                client.on('connect', () => {
-                    if (connectionTimeout) clearTimeout(connectionTimeout);
-                    sandboxAlert.classList.add('hidden'); // Hide warning on connection success
-                    statusBadge.className = "flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold";
-                    statusText.innerText = "MQTT Active";
-                    statusIndicator.className = "w-2 h-2 rounded-full bg-emerald-400";
-                    showToast("Successfully connected to HiveMQ Broker!", "success");
-
-                    // Clear any historically retained Wi-Fi credentials from the public broker to prevent conflicts
-                    client.publish(`${prefix}/config/wifi_ssid`, "", { qos: 1, retain: true });
-                    client.publish(`${prefix}/config/wifi_pass`, "", { qos: 1, retain: true });
-
-                    // Subscribe to incoming ESP32 data feeds and stored calibrations
-                    const subTopics = [
-                        `${prefix}/status/level`,
-                        `${prefix}/status/volume`,
-                        `${prefix}/status/ip`,
-                        `${prefix}/status/version`,
-                        `${prefix}/config/height`,
-                        `${prefix}/config/sensor_height`,
-                        `${prefix}/config/diameter`,
-                        `${prefix}/config/tanks`,
-                        `${prefix}/config/gsm_numbers`,
-                        `${prefix}/config/interval`
-                    ];
+                const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
+                const response = await fetch(`/api/device/config?device_id=${encodeURIComponent(deviceId)}`);
+                const result = await response.json();
+                if (result.success && result.config) {
+                    const c = result.config;
+                    document.getElementById('heightInput').value = c.tank_height;
+                    const shInput = document.getElementById('sensorHeightInput');
+                    if (shInput) shInput.value = c.sensor_height;
+                    document.getElementById('diameterInput').value = c.tank_diameter;
+                    document.getElementById('tankCountInput').value = c.num_tanks;
+                    const tiInput = document.getElementById('telemetryIntervalInput');
+                    if (tiInput) tiInput.value = c.telemetry_interval;
                     
-                    client.subscribe(subTopics, (err) => {
-                        if (!err) {
-                            console.log(`Subscribed to: ${subTopics.join(', ')}`);
-                        }
-                    });
-                });
-
-                client.on('message', (topic, message, packet) => {
-                    const prefixVal = document.getElementById('topicPrefix').value;
-                    const rawStr = message.toString().trim();
-
-                    // Only process messages targeting our assigned device prefix
-                    if (!topic.startsWith(prefixVal + '/')) return;
-
-                    // Differentiate between historical retained messages and fresh active packets
-                    const isRetained = (packet && packet.retain) === true;
-                    if (!isRetained) {
-                        lastDeviceMessageTime = Date.now();
-                        saveTelemetryToLocalStorage();
-                        updateDeviceStatusUI();
-                        triggerRxFlash();
+                    // Update gsm numbers
+                    if (c.gsm_numbers && c.gsm_numbers.trim().length > 0) {
+                        gsmNumbers = c.gsm_numbers.split(',').map(n => n.trim()).filter(n => n !== "");
+                    } else {
+                        gsmNumbers = [];
                     }
-
-                    // Process non-numeric config/gsm_numbers & status/ip topics first
-                    if (topic === `${prefixVal}/config/gsm_numbers`) {
-                        if (rawStr === "" || rawStr === "none" || rawStr === "[]") {
-                            gsmNumbers = [];
-                        } else {
-                            gsmNumbers = rawStr.split(',').map(n => n.trim()).filter(n => n !== "");
-                        }
-                        renderGsmNumbers();
-                        showToast(`Loaded saved phone numbers list from ESP32.`, "info");
-                        return;
-                    }
-
-                    if (topic === `${prefixVal}/status/ip`) {
-                        updateEspIp(rawStr);
-                        return;
-                    }
-
-                    if (topic === `${prefixVal}/status/version`) {
-                        updateDeviceVersion(rawStr);
-                        return;
-                    }
-
-                    const val = parseFloat(rawStr);
-
-                    if (isNaN(val)) return;
-
+                    renderGsmNumbers();
+                    
+                    // Update binary url input if it exists
+                    const binInput = document.getElementById('otaBinUrl');
+                    if (binInput) binInput.value = c.ota_url || '';
+                    
                     updateConfigFromUI();
-
-                    if (topic === `${prefixVal}/status/level`) {
-                        // Level is the depth in cm sent by ESP32 (actual water level depth)
-                        telemetry.depth = val;
-                        telemetry.hasDepth = true;
-                        updateTelemetryUI();
-                        saveTelemetryToLocalStorage();
-                    } else if (topic === `${prefixVal}/status/volume`) {
-                        // Volume is calculated in Liters sent directly by ESP32
-                        telemetry.volume = val;
-                        telemetry.hasVolume = true;
-                        updateTelemetryUI();
-                        saveTelemetryToLocalStorage();
-                    } else if (topic === `${prefixVal}/config/height`) {
-                        // Match received height configured in ESP32 / broker
-                        const currentInputHeight = parseFloat(document.getElementById('heightInput').value);
-                        if (currentInputHeight !== val) {
-                            document.getElementById('heightInput').value = val;
-                            config.height = val;
-                            showToast(`ESP32 Calibration Loaded: Height set to ${val} cm`, "info");
-                            updateTelemetryUI();
-                            saveSettingsToLocalStorage();
-                        }
-                    } else if (topic === `${prefixVal}/config/sensor_height`) {
-                        // Match received sensor_height configured in ESP32 / broker
-                        const currentInputSensorHeight = document.getElementById('sensorHeightInput') ? parseFloat(document.getElementById('sensorHeightInput').value) : 0;
-                        if (currentInputSensorHeight !== val) {
-                            const shInput = document.getElementById('sensorHeightInput');
-                            if (shInput) shInput.value = val;
-                            config.sensorHeight = val;
-                            showToast(`ESP32 Calibration Loaded: Sensor Offset set to ${val} cm`, "info");
-                            updateTelemetryUI();
-                            saveSettingsToLocalStorage();
-                        }
-                    } else if (topic === `${prefixVal}/config/diameter`) {
-                        // Match received diameter configured in ESP32 / broker
-                        const currentInputDiameter = parseFloat(document.getElementById('diameterInput').value);
-                        if (currentInputDiameter !== val) {
-                            document.getElementById('diameterInput').value = val;
-                            config.diameter = val;
-                            showToast(`ESP32 Calibration Loaded: Diameter set to ${val} cm`, "info");
-                            updateTelemetryUI();
-                            saveSettingsToLocalStorage();
-                        }
-                    } else if (topic === `${prefixVal}/config/tanks`) {
-                        // Match received tank count configured in broker
-                        const currentInputTanks = parseInt(document.getElementById('tankCountInput').value);
-                        if (currentInputTanks !== val) {
-                            document.getElementById('tankCountInput').value = val;
-                            config.tanks = val;
-                            showToast(`Loaded Tank Count: ${val} tanks configured`, "info");
-                            updateTelemetryUI();
-                            saveSettingsToLocalStorage();
-                        }
-                    } else if (topic === `${prefixVal}/config/interval`) {
-                        // Match received telemetry logging interval configured in ESP32 / broker
-                        const currentInputInterval = document.getElementById('telemetryIntervalInput') ? parseInt(document.getElementById('telemetryIntervalInput').value) : 15;
-                        if (currentInputInterval !== val) {
-                            const tiInput = document.getElementById('telemetryIntervalInput');
-                            if (tiInput) tiInput.value = val;
-                            config.interval = val;
-                            showToast(`ESP32 Calibration Loaded: Telemetry Logging Interval set to ${val} seconds`, "info");
-                            saveSettingsToLocalStorage();
-                        }
-                    }
-                });
-
-                client.on('error', (err) => {
-                    console.warn("MQTT connection error caught:", err);
-                    if (statusText.innerText !== "MQTT Active") {
-                        statusBadge.className = "flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-xs font-semibold";
-                        statusText.innerText = "Connecting/Retrying...";
-                        statusIndicator.className = "w-2 h-2 rounded-full bg-yellow-400 animate-pulse";
-                    }
-                });
-
-                client.on('offline', () => {
-                    if (statusText.innerText !== "MQTT Active" && statusText.innerText !== "Connecting/Retrying...") {
-                        statusBadge.className = "flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-xs font-semibold";
-                        statusText.innerText = "Broker Offline";
-                        statusIndicator.className = "w-2 h-2 rounded-full bg-yellow-400 animate-pulse";
-                    }
-                });
-
-                // Check connection state after 15 seconds (more lenient for cold start & slow websockets)
-                connectionTimeout = setTimeout(() => {
-                    if (!client.connected) {
-                        handleConnectionFailure("Sandbox Security Restriction");
-                    }
-                }, 15000);
-
-            } catch (ex) {
-                console.warn("Exception caught gracefully:", ex.message);
-                handleConnectionFailure(ex.message);
+                    updateTelemetryUI();
+                    
+                    console.log(`[API Log] Device configurations loaded from server for ${deviceId}`);
+                }
+            } catch (err) {
+                console.error('[API Error] Fetching device config:', err);
             }
         }
 
@@ -1896,10 +1795,10 @@
             });
         }
 
-        function triggerRemoteOta() {
+        async function triggerRemoteOta() {
             const urlInput = document.getElementById('otaBinUrl');
             const btn = document.getElementById('otaTriggerBtn');
-            const prefix = document.getElementById('topicPrefix').value;
+            const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
 
             if (!urlInput || !urlInput.value || urlInput.value.trim() === "") {
                 showToast("Please enter a valid binary HTTP/HTTPS URL.", "error");
@@ -1912,24 +1811,30 @@
                 return;
             }
 
-            if (!client || !client.connected) {
-                showToast("Please connect to MQTT Broker first to transmit OTA command.", "error");
-                return;
-            }
-
             if (btn) {
                 btn.disabled = true;
                 btn.className = "w-full bg-slate-800 text-slate-500 font-semibold py-2 px-3 rounded-lg text-xs flex items-center justify-center gap-1.5 cursor-not-allowed";
-                btn.innerHTML = `<span class="inline-block animate-spin">🌀</span> Broadcasting OTA Command...`;
+                btn.innerHTML = `<span class="inline-block animate-spin">🌀</span> Scheduling OTA on Server...`;
             }
 
             try {
-                // Publish remote URL update command to ESP32
-                client.publish(`${prefix}/cmd/ota`, url, { qos: 1, retain: false });
-                showToast(`OTA firmware URL published! The ESP32 device will now download and reboot.`, "success");
+                const response = await fetch('/api/device/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device_id: deviceId,
+                        ota_url: url
+                    })
+                });
+                const res = await response.json();
+                if (res.success) {
+                    showToast(`OTA Firmware Update successfully scheduled! The ESP32 device will fetch the URL and perform the flashing on its next HTTP check.`, "success");
+                } else {
+                    showToast(`Failed to schedule OTA: ${res.error}`, "error");
+                }
             } catch (err) {
                 console.error(err);
-                showToast("Failed to publish OTA command.", "error");
+                showToast("Failed to schedule OTA update due to network error.", "error");
             } finally {
                 setTimeout(() => {
                     if (btn) {
@@ -1942,12 +1847,11 @@
                             Trigger OTA Firmware Update
                         `;
                     }
-                }, 5000);
+                }, 3000);
             }
         }
 
-        // Setting updater (Sends messages to ESP32 configuration channels)
-        function updateSettings() {
+        async function updateSettings() {
             updateConfigFromUI();
             saveSettingsToLocalStorage();
             
@@ -1957,20 +1861,46 @@
                 return;
             }
 
-            const prefix = document.getElementById('topicPrefix').value;
+            const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
+            const payload = {
+                device_id: deviceId,
+                tank_height: config.height,
+                sensor_height: config.sensorHeight,
+                tank_diameter: config.diameter,
+                num_tanks: config.tanks,
+                telemetry_interval: config.interval,
+                gsm_numbers: gsmNumbers.length > 0 ? gsmNumbers.join(',') : "none"
+            };
 
-            if (client && client.connected) {
-                // Publish settings configured on topics that the ESP32 is listening to
-                client.publish(`${prefix}/config/height`, config.height.toString(), { qos: 1, retain: true });
-                client.publish(`${prefix}/config/sensor_height`, config.sensorHeight.toString(), { qos: 1, retain: true });
-                client.publish(`${prefix}/config/diameter`, config.diameter.toString(), { qos: 1, retain: true });
-                client.publish(`${prefix}/config/tanks`, config.tanks.toString(), { qos: 1, retain: true });
-                client.publish(`${prefix}/config/interval`, config.interval.toString(), { qos: 1, retain: true });
-                
-                showToast(`Settings Transmitted! Configured max water height: ${config.height}cm, sensor offset: ${config.sensorHeight}cm, diameter: ${config.diameter}cm with ${config.tanks} tanks and interval: ${config.interval}s.`, "success");
-            } else {
-                showToast(`Settings saved locally with ${config.tanks} tanks, sensor offset: ${config.sensorHeight}cm, and interval: ${config.interval}s. Connect to MQTT to transmit to ESP32.`, "success");
+            const btn = document.querySelector('button[onclick="updateSettings()"]');
+            const originalHTML = btn ? btn.innerHTML : "Save Calibration Settings";
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="inline-block animate-spin mr-1">🌀</span> Saving configurations...`;
             }
+
+            try {
+                const response = await fetch('/api/device/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const res = await response.json();
+                if (res.success) {
+                    showToast(`Configurations successfully saved to database for ${deviceId}! ESP32 will pick them up on its next telemetry sync.`, "success");
+                } else {
+                    showToast(`Error saving configuration: ${res.error}`, "error");
+                }
+            } catch (err) {
+                console.error('[API Error] Saving device config:', err);
+                showToast("Network error trying to save device configuration.", "error");
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                }
+            }
+
             // Reset telemetry state and clean UI indicators on dimension updates
             resetTelemetryState();
             updateTelemetryUI(0, 0);
@@ -2333,14 +2263,26 @@
             showToast(`Deleted ${removedNum} local reference.`, "info");
         }
 
-        function transmitGsmNumbers() {
-            const prefix = document.getElementById('topicPrefix').value;
-            if (client && client.connected) {
-                const payload = gsmNumbers.length > 0 ? gsmNumbers.join(',') : "none";
-                client.publish(`${prefix}/config/gsm_numbers`, payload, { qos: 1, retain: true });
-                showToast("Phone numbers whitelist synchronized with ESP32.", "success");
-            } else {
-                showToast("Saved locally. Connect to MQTT to transmit to ESP32.", "info");
+        async function transmitGsmNumbers() {
+            const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
+            try {
+                const response = await fetch('/api/device/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device_id: deviceId,
+                        gsm_numbers: gsmNumbers.length > 0 ? gsmNumbers.join(',') : "none"
+                    })
+                });
+                const res = await response.json();
+                if (res.success) {
+                    showToast("Phone numbers whitelist synchronized directly with the database.", "success");
+                } else {
+                    showToast(`Failed to sync phone numbers: ${res.error}`, "error");
+                }
+            } catch (err) {
+                console.error('[API Error] Syncing phone numbers:', err);
+                showToast("Network error trying to sync phone numbers whitelist.", "error");
             }
         }
 
@@ -3658,6 +3600,230 @@
                 `;
             }).join('');
         }
+
+        // Telemetry mode and Simulation states
+        let syncMode = 'mqtt'; // 'mqtt' or 'direct'
+        let directPollInterval = null;
+        let simLoopInterval = null;
+        let isSimLoopActive = false;
+
+        function setSyncMode(mode) {
+            syncMode = mode;
+            localStorage.setItem('hydrosync_sync_mode', mode);
+
+            const btnMqtt = document.getElementById('btnModeMqtt');
+            const btnDirect = document.getElementById('btnModeDirect');
+            const directInfo = document.getElementById('directPollInfo');
+            const mqttInfo = document.getElementById('mqttPollInfo');
+            const statusBadge = document.getElementById('statusBadge');
+            const statusText = document.getElementById('statusText');
+            const statusIndicator = document.getElementById('statusIndicator');
+
+            if (mode === 'direct') {
+                // Update buttons
+                if (btnMqtt) btnMqtt.className = "px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all text-slate-400 hover:text-white";
+                if (btnDirect) btnDirect.className = "px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all bg-cyan-500 text-slate-950 shadow-md";
+                
+                if (directInfo) directInfo.classList.remove('hidden');
+                if (mqttInfo) mqttInfo.classList.add('hidden');
+
+                // Terminate MQTT Connection
+                if (client) {
+                    try { client.end(); } catch(e) {}
+                    client = null;
+                }
+                if (connectionTimeout) clearTimeout(connectionTimeout);
+
+                if (statusBadge) {
+                    statusBadge.className = "flex items-center gap-2 px-3 py-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-xs font-semibold";
+                }
+                if (statusText) {
+                    statusText.innerText = "Direct DB Mode";
+                }
+                if (statusIndicator) {
+                    statusIndicator.className = "w-2 h-2 rounded-full bg-cyan-400 animate-pulse";
+                }
+
+                // Start DB polling
+                if (directPollInterval) clearInterval(directPollInterval);
+                pollDirectDbTelemetry();
+                directPollInterval = setInterval(pollDirectDbTelemetry, 3000);
+            } else {
+                // Update buttons
+                if (btnMqtt) btnMqtt.className = "px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all bg-cyan-500 text-slate-950 shadow-md";
+                if (btnDirect) btnDirect.className = "px-3 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all text-slate-400 hover:text-white";
+                
+                if (directInfo) directInfo.classList.add('hidden');
+                if (mqttInfo) mqttInfo.classList.remove('hidden');
+
+                if (directPollInterval) {
+                    clearInterval(directPollInterval);
+                    directPollInterval = null;
+                }
+
+                reconnectMQTT();
+            }
+        }
+
+        async function pollDirectDbTelemetry() {
+            try {
+                const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
+                const response = await fetch(`/api/telemetry?device_id=${encodeURIComponent(deviceId)}`);
+                const result = await response.json();
+                if (result.success && result.telemetry) {
+                    const data = result.telemetry;
+                    
+                    // Update telemetry state
+                    telemetry.depth = parseFloat(data.level);
+                    telemetry.volume = parseFloat(data.volume);
+                    telemetry.hasDepth = true;
+                    telemetry.hasVolume = true;
+                    
+                    // Parse database timestamp
+                    if (data.timestamp) {
+                        const parsedTime = Date.parse(data.timestamp);
+                        if (!isNaN(parsedTime)) {
+                            lastDeviceMessageTime = parsedTime;
+                        }
+                    }
+                    
+                    if (data.version) {
+                        deviceVersion = data.version;
+                    }
+                    
+                    updateTelemetryUI();
+                    updateDeviceStatusUI();
+                    triggerRxFlash();
+                }
+            } catch (err) {
+                console.error('[DB telemetry polling error]:', err);
+            }
+        }
+
+        function updateSimRangeDisplay() {
+            const rangeInput = document.getElementById('simLevelRange');
+            const display = document.getElementById('simLevelDisplay');
+            if (!rangeInput || !display) return;
+
+            const val = parseFloat(rangeInput.value);
+            updateConfigFromUI();
+            const percent = (val / config.height) * 100;
+            display.innerText = `${val.toFixed(1)} cm (${percent.toFixed(0)}%)`;
+        }
+
+        async function sendSimulatedPost() {
+            const rangeInput = document.getElementById('simLevelRange');
+            if (!rangeInput) return;
+
+            const depthVal = parseFloat(rangeInput.value);
+            updateConfigFromUI();
+            
+            // Calculate corresponding volume
+            const singleMaxVol = (Math.PI * Math.pow(config.diameter / 2, 2) * depthVal) / 1000;
+            const volumeVal = singleMaxVol * config.tanks;
+            const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
+            
+            // Pulse Sim TX Led
+            const txLed = document.getElementById('simTxLed');
+            if (txLed) {
+                txLed.className = "flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-[9px] text-emerald-400 font-mono font-bold transition duration-300";
+                txLed.querySelector('span').className = "w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping";
+            }
+
+            try {
+                const response = await fetch('/api/telemetry', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device_id: deviceId,
+                        level: depthVal.toFixed(1),
+                        volume: volumeVal.toFixed(1),
+                        data_usage: Math.floor(Math.random() * 100) + 20, // simulate telemetry payload size
+                        version: '1.6-SIM'
+                    })
+                });
+
+                const res = await response.json();
+                if (res.success) {
+                    showToast(`Simulated telemetry posted: Depth=${depthVal.toFixed(1)}cm`, 'success');
+                    
+                    // If in direct mode, refresh the screen immediately
+                    if (syncMode === 'direct') {
+                        pollDirectDbTelemetry();
+                    }
+                } else {
+                    showToast(`Simulation post failed: ${res.error}`, 'error');
+                }
+            } catch (err) {
+                console.error('[Simulator POST failure]:', err);
+                showToast("Simulator network failure", "error");
+            } finally {
+                // Reset Sim TX Led
+                setTimeout(() => {
+                    if (txLed) {
+                        txLed.className = "flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-[9px] text-slate-500 font-mono font-bold transition duration-300";
+                        txLed.querySelector('span').className = "w-1.5 h-1.5 rounded-full bg-slate-700 transition duration-300";
+                    }
+                }, 1000);
+            }
+        }
+
+        function toggleSimLoop() {
+            const btn = document.getElementById('btnSimLoop');
+            const spinner = document.getElementById('simLoopSpinner');
+            const btnText = document.getElementById('simLoopBtnText');
+            const msg = document.getElementById('simStatusMsg');
+
+            if (isSimLoopActive) {
+                // Stop loop
+                clearInterval(simLoopInterval);
+                simLoopInterval = null;
+                isSimLoopActive = false;
+
+                if (btn) btn.className = "bg-pink-600 hover:bg-pink-500 text-white py-2.5 px-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-pink-600/15";
+                if (spinner) spinner.classList.add('hidden');
+                if (btnText) btnText.innerText = "Auto Telemetry: OFF";
+                if (msg) msg.innerText = "Enable Auto Telemetry to constantly update the database in the background.";
+                showToast("Automated telemetry simulation stopped.", "info");
+            } else {
+                // Start loop
+                isSimLoopActive = true;
+                
+                // Set initial post
+                sendSimulatedPost();
+                
+                // Periodic POST every 5 seconds
+                simLoopInterval = setInterval(() => {
+                    // Let's add minor random variations to simulate realistic sensor oscillations
+                    const rangeInput = document.getElementById('simLevelRange');
+                    if (rangeInput) {
+                        let currentVal = parseFloat(rangeInput.value);
+                        // Oscillate slightly (-1 to +1 cm)
+                        let variation = (Math.random() - 0.5) * 2;
+                        let newVal = Math.max(0, Math.min(config.height, currentVal + variation));
+                        rangeInput.value = newVal.toFixed(1);
+                        updateSimRangeDisplay();
+                    }
+                    sendSimulatedPost();
+                }, 5000);
+
+                if (btn) btn.className = "bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 px-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/15 animate-pulse";
+                if (spinner) spinner.classList.remove('hidden');
+                if (btnText) btnText.innerText = "Auto Telemetry: ACTIVE";
+                if (msg) msg.innerText = "Background loop is posting live updates every 5 seconds...";
+                showToast("Automated telemetry simulation active!", "success");
+            }
+        }
+
+        function onDeviceIdChange() {
+            const newId = document.getElementById('topicPrefix').value || 'mytank123';
+            showToast(`Switched active Device ID to: ${newId}`, "info");
+            saveSettingsToLocalStorage();
+            loadTelemetryFromLocalStorage();
+            fetchDeviceConfigFromServer();
+            fetchAnalyticsData();
+        }
+
         // Initialize App on load
         window.onload = function() {
             // First load saved configurations from local storage
@@ -3670,9 +3836,20 @@
             // Render initial state
             updateTelemetryUI();
             renderGsmNumbers();
-            
-            // Immediately start connecting to live MQTT Broker
-            reconnectMQTT();
+
+            // Set up simulator range max from config height on load
+            const rangeInput = document.getElementById('simLevelRange');
+            if (rangeInput) {
+                rangeInput.max = config.height;
+                rangeInput.value = (config.height * 0.6).toFixed(0); // 60% default
+                updateSimRangeDisplay();
+            }
+
+            // Restore saved sync mode - force direct DB polling
+            setSyncMode('direct');
+
+            // Load device configuration directly from database server
+            fetchDeviceConfigFromServer();
 
             // Start physical device online/offline heartbeat check every 2.5 seconds
             setInterval(updateDeviceStatusUI, 2500);

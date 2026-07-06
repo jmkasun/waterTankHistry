@@ -43,8 +43,23 @@ async function initDb() {
       CREATE INDEX IF NOT EXISTS idx_w_telemetry_device_timestamp 
       ON w_telemetry (device_id, timestamp DESC);
     `);
+
+    // Create the w_device_config table to manage stateless, MQTT-less configurations & OTA updates
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS w_device_config (
+        device_id VARCHAR(100) PRIMARY KEY,
+        tank_height NUMERIC(8, 2) NOT NULL DEFAULT 200.0,
+        sensor_height NUMERIC(8, 2) NOT NULL DEFAULT 45.0,
+        tank_diameter NUMERIC(8, 2) NOT NULL DEFAULT 228.0,
+        num_tanks INT NOT NULL DEFAULT 1,
+        telemetry_interval INT NOT NULL DEFAULT 15,
+        gsm_numbers TEXT DEFAULT '',
+        ota_url TEXT DEFAULT '',
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
     
-    console.log('[DB] PostgreSQL w_telemetry table initialized successfully.');
+    console.log('[DB] PostgreSQL w_telemetry and w_device_config tables initialized successfully.');
   } catch (err) {
     console.error('[DB] Error initializing database:', err);
   } finally {

@@ -321,6 +321,42 @@ const server = http.createServer(async (req, res) => {
                 // Run query
                 await pool.query(queryStr, values);
 
+                // Instantly sync settings and OTA command with the physical device via MQTT
+                if (mqttClient && mqttClient.connected) {
+                    const publishConfig = (topicSuffix, payload) => {
+                        const fullTopic = `${device_id}${topicSuffix}`;
+                        mqttClient.publish(fullTopic, payload.toString(), { qos: 1, retain: true }, (err) => {
+                            if (err) {
+                                console.error(`[MQTT Sync Error] Failed to publish config to ${fullTopic}:`, err);
+                            } else {
+                                console.log(`[MQTT Sync Success] Published config to ${fullTopic}: ${payload}`);
+                            }
+                        });
+                    };
+
+                    if (tank_height !== undefined) publishConfig('/config/height', tank_height);
+                    if (sensor_height !== undefined) publishConfig('/config/sensor_height', sensor_height);
+                    if (tank_diameter !== undefined) publishConfig('/config/diameter', tank_diameter);
+                    if (num_tanks !== undefined) publishConfig('/config/tanks', num_tanks);
+                    if (telemetry_interval !== undefined) publishConfig('/config/interval', telemetry_interval);
+                    if (gsm_numbers !== undefined) publishConfig('/config/gsm_numbers', gsm_numbers.toString().trim());
+
+                    // Publish OTA trigger immediately to initiate Over-the-Air firmware flasher
+                    if (ota_url !== undefined && ota_url.toString().trim().length > 0) {
+                        const otaTopic = `${device_id}/cmd/ota`;
+                        const otaPayload = ota_url.toString().trim();
+                        mqttClient.publish(otaTopic, otaPayload, { qos: 1, retain: false }, (err) => {
+                            if (err) {
+                                console.error(`[MQTT Sync Error] Failed to publish OTA to ${otaTopic}:`, err);
+                            } else {
+                                console.log(`[MQTT Sync Success] Published OTA command to ${otaTopic}: ${otaPayload}`);
+                            }
+                        });
+                    }
+                } else {
+                    console.warn(`[MQTT Warning] Client not connected. Cannot push instant configurations to device ${device_id} over MQTT.`);
+                }
+
                 console.log(`[HTTP API Log] Successfully updated configuration for device ${device_id}:`, data);
                 sendJSON(res, { success: true, message: 'Device configuration saved successfully.' });
             } catch (err) {
@@ -706,25 +742,32 @@ const server = http.createServer(async (req, res) => {
     if (safePath.toLowerCase() === 'waterlevel.ino.bin' || safePath.toLowerCase() === 'waterlevel.bin') {
         safePath = 'waterlevel.bin';
     }
-    const filePath = path.join(__dirname, safePath);
+    let filePath = path.join(__dirname, safePath);
     
-    fs.readFile(filePath, (err, data) => {
-        if (err) {
-            res.writeHead(404, {'Content-Type': 'text/plain'});
-            res.end('Not Found');
-        } else {
-            let ext = path.extname(filePath).toLowerCase();
-            let mime = 'text/plain';
-            if (ext === '.html') mime = 'text/html';
-            else if (ext === '.js') mime = 'application/javascript';
-            else if (ext === '.css') mime = 'text/css';
-            else if (ext === '.svg') mime = 'image/svg+xml';
-            else if (ext === '.json') mime = 'application/json';
-            else if (ext === '.png') mime = 'image/png';
-            else if (ext === '.bin') mime = 'application/octet-stream';
-            res.writeHead(200, {'Content-Type': mime});
-            res.end(data);
+    fs.access(filePath, fs.constants.F_OK, (accessErr) => {
+        if (accessErr) {
+            // Fallback to public folder
+            filePath = path.join(__dirname, 'public', safePath);
         }
+        
+        fs.readFile(filePath, (err, data) => {
+            if (err) {
+                res.writeHead(404, {'Content-Type': 'text/plain'});
+                res.end('Not Found');
+            } else {
+                let ext = path.extname(filePath).toLowerCase();
+                let mime = 'text/plain';
+                if (ext === '.html') mime = 'text/html';
+                else if (ext === '.js') mime = 'application/javascript';
+                else if (ext === '.css') mime = 'text/css';
+                else if (ext === '.svg') mime = 'image/svg+xml';
+                else if (ext === '.json') mime = 'application/json';
+                else if (ext === '.png') mime = 'image/png';
+                else if (ext === '.bin') mime = 'application/octet-stream';
+                res.writeHead(200, {'Content-Type': mime});
+                res.end(data);
+            }
+        });
     });
 
 });

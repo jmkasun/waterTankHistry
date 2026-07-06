@@ -363,7 +363,7 @@
                         <div class="flex items-center gap-2 bg-slate-950/60 border border-slate-800 rounded-xl px-2.5 py-1.5">
                             <label class="text-[10px] uppercase tracking-wider font-semibold text-slate-500 px-1">Device Prefix:</label>
                             <select id="analyticsDeviceSelect" class="bg-transparent text-xs text-slate-200 focus:outline-none border-none cursor-pointer">
-                                <option class="bg-slate-950 text-slate-200" value="mgwatertank">mgwatertank</option>
+                                <option class="bg-slate-950 text-slate-200" value="mytank123">mytank123</option>
                             </select>
                         </div>
                     </div>
@@ -822,7 +822,7 @@
                     <div class="flex items-center gap-2">
                         <input type="radio" name="clearScope" id="clearScopeDevice" value="device" checked class="text-cyan-500 focus:ring-0 cursor-pointer">
                         <label for="clearScopeDevice" class="text-xs text-slate-300 cursor-pointer">
-                            Clear ONLY device: <span id="clearModalDeviceLabel" class="font-bold text-cyan-400">mgwatertank</span>
+                            Clear ONLY device: <span id="clearModalDeviceLabel" class="font-bold text-cyan-400">mytank123</span>
                         </label>
                     </div>
                     <div class="flex items-center gap-2">
@@ -1098,7 +1098,7 @@
                 <div class="space-y-3 text-xs">
                     <div class="flex flex-col gap-1.5">
                         <label class="font-semibold text-slate-400">Active Device ID</label>
-                        <input id="topicPrefix" type="text" value="mgwatertank" onchange="onDeviceIdChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 font-mono focus:outline-none focus:border-cyan-500">
+                        <input id="topicPrefix" type="text" value="mytank123" onchange="onDeviceIdChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 font-mono focus:outline-none focus:border-cyan-500">
                         <p class="text-[10px] text-slate-500">This must match the <code>DEVICE_ID</code> constant compiled inside the ESP32 hardware firmware.</p>
                     </div>
 
@@ -1655,7 +1655,7 @@
 
         async function fetchDeviceConfigFromServer() {
             try {
-                const deviceId = document.getElementById('topicPrefix').value || 'mgwatertank';
+                const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
                 const response = await fetch(`/api/device/config?device_id=${encodeURIComponent(deviceId)}`);
                 const result = await response.json();
                 if (result.success && result.config) {
@@ -1748,7 +1748,7 @@
         async function triggerRemoteOta() {
             const urlInput = document.getElementById('otaBinUrl');
             const btn = document.getElementById('otaTriggerBtn');
-            const deviceId = document.getElementById('topicPrefix').value || 'mgwatertank';
+            const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
 
             if (!urlInput || !urlInput.value || urlInput.value.trim() === "") {
                 showToast("Please enter a valid binary HTTP/HTTPS URL.", "error");
@@ -1811,7 +1811,7 @@
                 return;
             }
 
-            const deviceId = document.getElementById('topicPrefix').value || 'mgwatertank';
+            const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
             const payload = {
                 device_id: deviceId,
                 tank_height: config.height,
@@ -2028,7 +2028,7 @@
             }
 
             const select = document.getElementById('analyticsDeviceSelect');
-            const deviceId = select ? select.value : 'mgwatertank';
+            const deviceId = select ? select.value : 'mytank123';
             const startDate = document.getElementById('historyStartDate')?.value || 'start';
             const endDate = document.getElementById('historyEndDate')?.value || 'end';
 
@@ -2089,7 +2089,7 @@
 
         // --- Local Storage Telemetry & Heartbeat Persistence Helpers ---
         function loadTelemetryFromLocalStorage() {
-            const prefix = document.getElementById('topicPrefix').value || "mgwatertank";
+            const prefix = document.getElementById('topicPrefix').value || "mytank123";
             const savedLastMessageTime = localStorage.getItem('hydrosync_last_device_message_time_' + prefix);
             if (savedLastMessageTime) {
                 lastDeviceMessageTime = parseInt(savedLastMessageTime);
@@ -2127,7 +2127,7 @@
         }
 
         function saveTelemetryToLocalStorage() {
-            const prefix = document.getElementById('topicPrefix').value || "mgwatertank";
+            const prefix = document.getElementById('topicPrefix').value || "mytank123";
             localStorage.setItem('hydrosync_last_device_message_time_' + prefix, lastDeviceMessageTime.toString());
             localStorage.setItem('hydrosync_last_depth_' + prefix, telemetry.depth.toString());
             localStorage.setItem('hydrosync_last_has_depth_' + prefix, telemetry.hasDepth ? 'true' : 'false');
@@ -2214,7 +2214,7 @@
         }
 
         async function transmitGsmNumbers() {
-            const deviceId = document.getElementById('topicPrefix').value || 'mgwatertank';
+            const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
             try {
                 const response = await fetch('/api/device/config', {
                     method: 'POST',
@@ -2371,7 +2371,7 @@
                     });
 
                     // Match main config's prefix first
-                    const activePrefix = document.getElementById('topicPrefix').value || "mgwatertank";
+                    const activePrefix = document.getElementById('topicPrefix').value || "mytank123";
                     if (result.devices.includes(activePrefix)) {
                         select.value = activePrefix;
                     } else if (result.devices.includes(currentVal)) {
@@ -2390,7 +2390,7 @@
         // Clear historical telemetry data up to now
         function clearHistoricalData() {
             const select = document.getElementById('analyticsDeviceSelect');
-            const deviceId = select ? select.value : 'mgwatertank';
+            const deviceId = select ? select.value : 'mytank123';
             
             // Set up modal elements
             const deviceLabel = document.getElementById('clearModalDeviceLabel');
@@ -2437,7 +2437,7 @@
 
         async function submitClearHistory() {
             const select = document.getElementById('analyticsDeviceSelect');
-            const deviceId = select ? select.value : 'mgwatertank';
+            const deviceId = select ? select.value : 'mytank123';
             
             const confirmInput = document.getElementById('clearConfirmInput');
             const confirmVal = confirmInput ? confirmInput.value.trim().toUpperCase() : '';
@@ -2510,7 +2510,7 @@
         // Fetch daily usage statistics and water level history for the given time period
         async function fetchAnalyticsData() {
             const select = document.getElementById('analyticsDeviceSelect');
-            const deviceId = select ? select.value : 'mgwatertank';
+            const deviceId = select ? select.value : 'mytank123';
             
             let startISO, endISO;
             const preset = document.getElementById('selPreset') ? document.getElementById('selPreset').value : '14d';
@@ -3268,7 +3268,7 @@
             const percent = parseFloat(document.getElementById('txtPercent').innerText) || 0;
             const liters = parseFloat(document.getElementById('txtVolume').innerText.replace(/,/g, '')) || 0;
             const depth = parseFloat(document.getElementById('txtLevel').innerText) || 0;
-            const deviceId = document.getElementById('topicPrefix').value || "mgwatertank";
+            const deviceId = document.getElementById('topicPrefix').value || "mytank123";
             const status = lastAlertState.toUpperCase();
             const timestamp = new Date().toLocaleString();
 
@@ -3617,7 +3617,7 @@
 
         async function pollDirectDbTelemetry() {
             try {
-                const deviceId = document.getElementById('topicPrefix').value || 'mgwatertank';
+                const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
                 const response = await fetch(`/api/telemetry?device_id=${encodeURIComponent(deviceId)}`);
                 const result = await response.json();
                 if (result.success && result.telemetry) {
@@ -3651,7 +3651,7 @@
         }
 
         function onDeviceIdChange() {
-            const newId = document.getElementById('topicPrefix').value || 'mgwatertank';
+            const newId = document.getElementById('topicPrefix').value || 'mytank123';
             showToast(`Switched active Device ID to: ${newId}`, "info");
             saveSettingsToLocalStorage();
             loadTelemetryFromLocalStorage();

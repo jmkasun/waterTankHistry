@@ -59,7 +59,7 @@ float sensorHeight = 45.0;   // Sensor offset height from Max Water Height to ph
 float tankDiameter = 228.0;  // Inner tank diameter (cm) - Arpico 10,000L
 int numTanks = 1;            // Number of parallel connected tanks
 int telemetryInterval = 15;  // Telemetry logging interval in seconds (default to 15 seconds)
-String mqttPrefix = "mgwatertank";
+String mqttPrefix = "mytank123";
 String apiServerUrl = "";    // Web App Server HTTP URL (for 24/7 background logging)
 
 // --- GSM Missed Call & SMS Alert Parameters ---
@@ -194,7 +194,7 @@ const char* HTML_PORTAL_PAGE = R"rawliteral(
             </div>
             <div class="form-group">
                 <label>Topic Path Prefix</label>
-                <input type="text" name="prefix" value="%PREFIX%" placeholder="mgwatertank">
+                <input type="text" name="prefix" value="%PREFIX%" placeholder="mytank123">
             </div>
             <div class="form-group">
                 <label>Number of Tanks Connected</label>
@@ -231,7 +231,7 @@ void handleRoot() {
         currentSsid = "Xiaomi_FC28";
         currentPass = "19990814";
     }
-    String currentPrefix = preferences.getString("prefix", "mgwatertank");
+    String currentPrefix = preferences.getString("prefix", "mytank123");
     int currentTanks = preferences.getInt("tanks", 1);
     int currentInterval = preferences.getInt("interval", 15);
     String currentGsm = preferences.getString("gsm_nums", "");
@@ -700,7 +700,7 @@ void setup() {
     tankDiameter = preferences.getFloat("diameter", 228.0);
     numTanks = preferences.getInt("tanks", 1);
     telemetryInterval = preferences.getInt("interval", 15);
-    mqttPrefix = preferences.getString("prefix", "mgwatertank");
+    mqttPrefix = preferences.getString("prefix", "mytank123");
     gsmNumbersList = preferences.getString("gsm_nums", "");
     apiServerUrl = preferences.getString("api_url", "");
     preferences.end();

@@ -36,7 +36,7 @@
 #define PREF_NAMESPACE "hydrosync-cfg"
 
 // --- Firmware Version ---
-#define FIRMWARE_VERSION "1.6"
+#define FIRMWARE_VERSION "1.62"
 
 // --- Global Classes ---
 WebServer server(80);

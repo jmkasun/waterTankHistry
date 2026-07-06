@@ -304,8 +304,8 @@
                 </div>
             </div>
 
-            <!-- Virtual ESP32 Hardware Console & DB Direct Controller -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
+            <!-- DB Direct Controller & Connection Mode -->
+            <div class="grid grid-cols-1 gap-6 mt-2">
                 <!-- Mode Controller Card -->
                 <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col justify-between gap-4 relative overflow-hidden group hover:border-slate-700 transition duration-300">
                     <div class="absolute -top-10 -right-10 w-32 h-32 bg-cyan-500/5 rounded-full blur-2xl pointer-events-none group-hover:bg-cyan-500/10 transition duration-500"></div>
@@ -339,56 +339,6 @@
                         <span>Unified Database Sync is Vercel & Sandbox Friendly</span>
                     </div>
                 </div>
-
-                <!-- Virtual ESP32 Hardware Emulator Card -->
-                <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4 relative overflow-hidden group hover:border-slate-700 transition duration-300">
-                    <div class="absolute -top-10 -right-10 w-32 h-32 bg-pink-500/5 rounded-full blur-2xl pointer-events-none group-hover:bg-pink-500/10 transition duration-500"></div>
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-3">
-                            <div class="p-2 bg-pink-500/10 rounded-lg border border-pink-500/30 text-pink-400">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <h3 class="text-sm font-bold text-white tracking-tight">Virtual ESP32 Emulator</h3>
-                                <p class="text-[11px] text-slate-400">Simulate physical hardware level signals</p>
-                            </div>
-                        </div>
-
-                        <!-- TX blinking LED -->
-                        <div id="simTxLed" class="flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-[9px] text-slate-500 font-mono font-bold transition duration-300">
-                            <span class="w-1.5 h-1.5 rounded-full bg-slate-700 transition duration-300"></span>
-                            TX-POST
-                        </div>
-                    </div>
-
-                    <div class="space-y-3.5 text-xs">
-                        <div class="flex items-center justify-between">
-                            <label for="simLevelRange" class="font-semibold text-slate-300 flex justify-between w-full">
-                                <span>Simulated Level Depth</span>
-                                <span id="simLevelDisplay" class="text-pink-400 font-bold">120 cm (60%)</span>
-                            </label>
-                        </div>
-                        <input type="range" id="simLevelRange" min="0" max="200" value="120" oninput="updateSimRangeDisplay()" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-pink-500">
-
-                        <div class="grid grid-cols-2 gap-2 pt-1">
-                            <button onclick="sendSimulatedPost()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white py-2.5 px-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-slate-950/20" title="Immediately inserts this exact water level into Postgres DB">
-                                <span>🚀</span>
-                                Instant POST
-                            </button>
-
-                            <button onclick="toggleSimLoop()" id="btnSimLoop" class="bg-pink-600 hover:bg-pink-500 text-white py-2.5 px-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-pink-600/15" title="Continuously writes current level to DB every 5 seconds">
-                                <span id="simLoopSpinner" class="hidden animate-spin">🌀</span>
-                                <span id="simLoopBtnText">Auto Telemetry: OFF</span>
-                            </button>
-                        </div>
-                        
-                        <p id="simStatusMsg" class="text-[10px] text-slate-500 leading-normal italic text-center">
-                            Enable Auto Telemetry to constantly update the database in the background.
-                        </p>
-                    </div>
-                </div>
             </div>
         </section>
 
@@ -413,7 +363,7 @@
                         <div class="flex items-center gap-2 bg-slate-950/60 border border-slate-800 rounded-xl px-2.5 py-1.5">
                             <label class="text-[10px] uppercase tracking-wider font-semibold text-slate-500 px-1">Device Prefix:</label>
                             <select id="analyticsDeviceSelect" class="bg-transparent text-xs text-slate-200 focus:outline-none border-none cursor-pointer">
-                                <option class="bg-slate-950 text-slate-200" value="mytank123">mytank123</option>
+                                <option class="bg-slate-950 text-slate-200" value="mgwatertank">mgwatertank</option>
                             </select>
                         </div>
                     </div>
@@ -872,7 +822,7 @@
                     <div class="flex items-center gap-2">
                         <input type="radio" name="clearScope" id="clearScopeDevice" value="device" checked class="text-cyan-500 focus:ring-0 cursor-pointer">
                         <label for="clearScopeDevice" class="text-xs text-slate-300 cursor-pointer">
-                            Clear ONLY device: <span id="clearModalDeviceLabel" class="font-bold text-cyan-400">mytank123</span>
+                            Clear ONLY device: <span id="clearModalDeviceLabel" class="font-bold text-cyan-400">mgwatertank</span>
                         </label>
                     </div>
                     <div class="flex items-center gap-2">
@@ -1148,7 +1098,7 @@
                 <div class="space-y-3 text-xs">
                     <div class="flex flex-col gap-1.5">
                         <label class="font-semibold text-slate-400">Active Device ID</label>
-                        <input id="topicPrefix" type="text" value="mytank123" onchange="onDeviceIdChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 font-mono focus:outline-none focus:border-cyan-500">
+                        <input id="topicPrefix" type="text" value="mgwatertank" onchange="onDeviceIdChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 font-mono focus:outline-none focus:border-cyan-500">
                         <p class="text-[10px] text-slate-500">This must match the <code>DEVICE_ID</code> constant compiled inside the ESP32 hardware firmware.</p>
                     </div>
 
@@ -1705,7 +1655,7 @@
 
         async function fetchDeviceConfigFromServer() {
             try {
-                const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
+                const deviceId = document.getElementById('topicPrefix').value || 'mgwatertank';
                 const response = await fetch(`/api/device/config?device_id=${encodeURIComponent(deviceId)}`);
                 const result = await response.json();
                 if (result.success && result.config) {
@@ -1798,7 +1748,7 @@
         async function triggerRemoteOta() {
             const urlInput = document.getElementById('otaBinUrl');
             const btn = document.getElementById('otaTriggerBtn');
-            const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
+            const deviceId = document.getElementById('topicPrefix').value || 'mgwatertank';
 
             if (!urlInput || !urlInput.value || urlInput.value.trim() === "") {
                 showToast("Please enter a valid binary HTTP/HTTPS URL.", "error");
@@ -1861,7 +1811,7 @@
                 return;
             }
 
-            const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
+            const deviceId = document.getElementById('topicPrefix').value || 'mgwatertank';
             const payload = {
                 device_id: deviceId,
                 tank_height: config.height,
@@ -2078,7 +2028,7 @@
             }
 
             const select = document.getElementById('analyticsDeviceSelect');
-            const deviceId = select ? select.value : 'mytank123';
+            const deviceId = select ? select.value : 'mgwatertank';
             const startDate = document.getElementById('historyStartDate')?.value || 'start';
             const endDate = document.getElementById('historyEndDate')?.value || 'end';
 
@@ -2139,7 +2089,7 @@
 
         // --- Local Storage Telemetry & Heartbeat Persistence Helpers ---
         function loadTelemetryFromLocalStorage() {
-            const prefix = document.getElementById('topicPrefix').value || "mytank123";
+            const prefix = document.getElementById('topicPrefix').value || "mgwatertank";
             const savedLastMessageTime = localStorage.getItem('hydrosync_last_device_message_time_' + prefix);
             if (savedLastMessageTime) {
                 lastDeviceMessageTime = parseInt(savedLastMessageTime);
@@ -2177,7 +2127,7 @@
         }
 
         function saveTelemetryToLocalStorage() {
-            const prefix = document.getElementById('topicPrefix').value || "mytank123";
+            const prefix = document.getElementById('topicPrefix').value || "mgwatertank";
             localStorage.setItem('hydrosync_last_device_message_time_' + prefix, lastDeviceMessageTime.toString());
             localStorage.setItem('hydrosync_last_depth_' + prefix, telemetry.depth.toString());
             localStorage.setItem('hydrosync_last_has_depth_' + prefix, telemetry.hasDepth ? 'true' : 'false');
@@ -2264,7 +2214,7 @@
         }
 
         async function transmitGsmNumbers() {
-            const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
+            const deviceId = document.getElementById('topicPrefix').value || 'mgwatertank';
             try {
                 const response = await fetch('/api/device/config', {
                     method: 'POST',
@@ -2421,7 +2371,7 @@
                     });
 
                     // Match main config's prefix first
-                    const activePrefix = document.getElementById('topicPrefix').value || "mytank123";
+                    const activePrefix = document.getElementById('topicPrefix').value || "mgwatertank";
                     if (result.devices.includes(activePrefix)) {
                         select.value = activePrefix;
                     } else if (result.devices.includes(currentVal)) {
@@ -2440,7 +2390,7 @@
         // Clear historical telemetry data up to now
         function clearHistoricalData() {
             const select = document.getElementById('analyticsDeviceSelect');
-            const deviceId = select ? select.value : 'mytank123';
+            const deviceId = select ? select.value : 'mgwatertank';
             
             // Set up modal elements
             const deviceLabel = document.getElementById('clearModalDeviceLabel');
@@ -2487,7 +2437,7 @@
 
         async function submitClearHistory() {
             const select = document.getElementById('analyticsDeviceSelect');
-            const deviceId = select ? select.value : 'mytank123';
+            const deviceId = select ? select.value : 'mgwatertank';
             
             const confirmInput = document.getElementById('clearConfirmInput');
             const confirmVal = confirmInput ? confirmInput.value.trim().toUpperCase() : '';
@@ -2560,7 +2510,7 @@
         // Fetch daily usage statistics and water level history for the given time period
         async function fetchAnalyticsData() {
             const select = document.getElementById('analyticsDeviceSelect');
-            const deviceId = select ? select.value : 'mytank123';
+            const deviceId = select ? select.value : 'mgwatertank';
             
             let startISO, endISO;
             const preset = document.getElementById('selPreset') ? document.getElementById('selPreset').value : '14d';
@@ -3318,7 +3268,7 @@
             const percent = parseFloat(document.getElementById('txtPercent').innerText) || 0;
             const liters = parseFloat(document.getElementById('txtVolume').innerText.replace(/,/g, '')) || 0;
             const depth = parseFloat(document.getElementById('txtLevel').innerText) || 0;
-            const deviceId = document.getElementById('topicPrefix').value || "mytank123";
+            const deviceId = document.getElementById('topicPrefix').value || "mgwatertank";
             const status = lastAlertState.toUpperCase();
             const timestamp = new Date().toLocaleString();
 
@@ -3667,7 +3617,7 @@
 
         async function pollDirectDbTelemetry() {
             try {
-                const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
+                const deviceId = document.getElementById('topicPrefix').value || 'mgwatertank';
                 const response = await fetch(`/api/telemetry?device_id=${encodeURIComponent(deviceId)}`);
                 const result = await response.json();
                 if (result.success && result.telemetry) {
@@ -3700,123 +3650,8 @@
             }
         }
 
-        function updateSimRangeDisplay() {
-            const rangeInput = document.getElementById('simLevelRange');
-            const display = document.getElementById('simLevelDisplay');
-            if (!rangeInput || !display) return;
-
-            const val = parseFloat(rangeInput.value);
-            updateConfigFromUI();
-            const percent = (val / config.height) * 100;
-            display.innerText = `${val.toFixed(1)} cm (${percent.toFixed(0)}%)`;
-        }
-
-        async function sendSimulatedPost() {
-            const rangeInput = document.getElementById('simLevelRange');
-            if (!rangeInput) return;
-
-            const depthVal = parseFloat(rangeInput.value);
-            updateConfigFromUI();
-            
-            // Calculate corresponding volume
-            const singleMaxVol = (Math.PI * Math.pow(config.diameter / 2, 2) * depthVal) / 1000;
-            const volumeVal = singleMaxVol * config.tanks;
-            const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
-            
-            // Pulse Sim TX Led
-            const txLed = document.getElementById('simTxLed');
-            if (txLed) {
-                txLed.className = "flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-[9px] text-emerald-400 font-mono font-bold transition duration-300";
-                txLed.querySelector('span').className = "w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping";
-            }
-
-            try {
-                const response = await fetch('/api/telemetry', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        device_id: deviceId,
-                        level: depthVal.toFixed(1),
-                        volume: volumeVal.toFixed(1),
-                        data_usage: Math.floor(Math.random() * 100) + 20, // simulate telemetry payload size
-                        version: '1.6-SIM'
-                    })
-                });
-
-                const res = await response.json();
-                if (res.success) {
-                    showToast(`Simulated telemetry posted: Depth=${depthVal.toFixed(1)}cm`, 'success');
-                    
-                    // If in direct mode, refresh the screen immediately
-                    if (syncMode === 'direct') {
-                        pollDirectDbTelemetry();
-                    }
-                } else {
-                    showToast(`Simulation post failed: ${res.error}`, 'error');
-                }
-            } catch (err) {
-                console.error('[Simulator POST failure]:', err);
-                showToast("Simulator network failure", "error");
-            } finally {
-                // Reset Sim TX Led
-                setTimeout(() => {
-                    if (txLed) {
-                        txLed.className = "flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-[9px] text-slate-500 font-mono font-bold transition duration-300";
-                        txLed.querySelector('span').className = "w-1.5 h-1.5 rounded-full bg-slate-700 transition duration-300";
-                    }
-                }, 1000);
-            }
-        }
-
-        function toggleSimLoop() {
-            const btn = document.getElementById('btnSimLoop');
-            const spinner = document.getElementById('simLoopSpinner');
-            const btnText = document.getElementById('simLoopBtnText');
-            const msg = document.getElementById('simStatusMsg');
-
-            if (isSimLoopActive) {
-                // Stop loop
-                clearInterval(simLoopInterval);
-                simLoopInterval = null;
-                isSimLoopActive = false;
-
-                if (btn) btn.className = "bg-pink-600 hover:bg-pink-500 text-white py-2.5 px-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-pink-600/15";
-                if (spinner) spinner.classList.add('hidden');
-                if (btnText) btnText.innerText = "Auto Telemetry: OFF";
-                if (msg) msg.innerText = "Enable Auto Telemetry to constantly update the database in the background.";
-                showToast("Automated telemetry simulation stopped.", "info");
-            } else {
-                // Start loop
-                isSimLoopActive = true;
-                
-                // Set initial post
-                sendSimulatedPost();
-                
-                // Periodic POST every 5 seconds
-                simLoopInterval = setInterval(() => {
-                    // Let's add minor random variations to simulate realistic sensor oscillations
-                    const rangeInput = document.getElementById('simLevelRange');
-                    if (rangeInput) {
-                        let currentVal = parseFloat(rangeInput.value);
-                        // Oscillate slightly (-1 to +1 cm)
-                        let variation = (Math.random() - 0.5) * 2;
-                        let newVal = Math.max(0, Math.min(config.height, currentVal + variation));
-                        rangeInput.value = newVal.toFixed(1);
-                        updateSimRangeDisplay();
-                    }
-                    sendSimulatedPost();
-                }, 5000);
-
-                if (btn) btn.className = "bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 px-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/15 animate-pulse";
-                if (spinner) spinner.classList.remove('hidden');
-                if (btnText) btnText.innerText = "Auto Telemetry: ACTIVE";
-                if (msg) msg.innerText = "Background loop is posting live updates every 5 seconds...";
-                showToast("Automated telemetry simulation active!", "success");
-            }
-        }
-
         function onDeviceIdChange() {
-            const newId = document.getElementById('topicPrefix').value || 'mytank123';
+            const newId = document.getElementById('topicPrefix').value || 'mgwatertank';
             showToast(`Switched active Device ID to: ${newId}`, "info");
             saveSettingsToLocalStorage();
             loadTelemetryFromLocalStorage();
@@ -3836,14 +3671,6 @@
             // Render initial state
             updateTelemetryUI();
             renderGsmNumbers();
-
-            // Set up simulator range max from config height on load
-            const rangeInput = document.getElementById('simLevelRange');
-            if (rangeInput) {
-                rangeInput.max = config.height;
-                rangeInput.value = (config.height * 0.6).toFixed(0); // 60% default
-                updateSimRangeDisplay();
-            }
 
             // Restore saved sync mode - force direct DB polling
             setSyncMode('direct');

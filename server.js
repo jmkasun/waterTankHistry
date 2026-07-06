@@ -202,7 +202,7 @@ const server = http.createServer(async (req, res) => {
     // API: Fetch configuration for a specific device directly from DB
     if (urlPath === '/api/device/config' && req.method === 'GET') {
         try {
-            const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
+            const deviceId = reqUrl.searchParams.get('device_id') || 'mgwatertank';
             const result = await pool.query(
                 `SELECT tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url
                  FROM w_device_config 
@@ -325,7 +325,7 @@ const server = http.createServer(async (req, res) => {
     // API: Fetch latest/current telemetry for a specific device directly from DB
     if (urlPath === '/api/telemetry' && req.method === 'GET') {
         try {
-            const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
+            const deviceId = reqUrl.searchParams.get('device_id') || 'mgwatertank';
             const result = await pool.query(
                 `SELECT id, device_id, level, volume, data_usage, version, timestamp AT TIME ZONE 'UTC' as timestamp 
                  FROM w_telemetry 
@@ -366,7 +366,7 @@ const server = http.createServer(async (req, res) => {
             const devices = result.rows.map(row => row.device_id);
             // Default list if database is empty
             if (devices.length === 0) {
-                devices.push('mytank123');
+                devices.push('mgwatertank');
             }
             sendJSON(res, { success: true, devices });
         } catch (err) {
@@ -379,7 +379,7 @@ const server = http.createServer(async (req, res) => {
     // API: Fetch historical level/volume data
     if (urlPath === '/api/history' && req.method === 'GET') {
         try {
-            const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
+            const deviceId = reqUrl.searchParams.get('device_id') || 'mgwatertank';
             const endDate = reqUrl.searchParams.get('end_date') || new Date().toISOString();
             // Default start date is 7 days ago
             const startDate = reqUrl.searchParams.get('start_date') || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -435,7 +435,7 @@ const server = http.createServer(async (req, res) => {
     // API: Fetch daily water consumption and data usage
     if (urlPath === '/api/usage' && req.method === 'GET') {
         try {
-            const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
+            const deviceId = reqUrl.searchParams.get('device_id') || 'mgwatertank';
             const endDate = reqUrl.searchParams.get('end_date') || new Date().toISOString();
             // Default start date is 30 days ago
             const startDate = reqUrl.searchParams.get('start_date') || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();

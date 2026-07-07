@@ -61,13 +61,25 @@ async function initDb() {
         gsm_numbers TEXT DEFAULT '',
         ota_url TEXT DEFAULT '',
         api_url TEXT DEFAULT '',
+        motor1_rate NUMERIC(8, 2) NOT NULL DEFAULT 1000.0,
+        motor2_rate NUMERIC(8, 2) NOT NULL DEFAULT 5000.0,
+        pump_threshold NUMERIC(8, 2) NOT NULL DEFAULT 2500.0,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
     `);
 
-    // Ensure w_device_config has api_url column
+    // Ensure w_device_config has api_url and consumption calculation columns
     await client.query(`
       ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS api_url TEXT DEFAULT '';
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS motor1_rate NUMERIC(8, 2) NOT NULL DEFAULT 1000.0;
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS motor2_rate NUMERIC(8, 2) NOT NULL DEFAULT 5000.0;
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS pump_threshold NUMERIC(8, 2) NOT NULL DEFAULT 2500.0;
     `);
     
     console.log('[DB] PostgreSQL w_telemetry and w_device_config tables initialized successfully.');

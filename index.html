@@ -943,6 +943,17 @@
                         <p class="text-[10px] text-slate-500 mt-1">Configures how frequently (in seconds) the ESP32 publishes MQTT telemetry and performs HTTP Background Logging (e.g. 15 seconds).</p>
                     </div>
 
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Background Logging Server HTTP URL (api_url)</label>
+                        <div class="relative">
+                            <input type="text" id="apiUrlInput" placeholder="https://your-app.vercel.app" class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-20 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                            <button onclick="document.getElementById('apiUrlInput').value = window.location.origin" type="button" class="absolute right-3 top-2.5 px-2 py-1 text-[9px] uppercase font-bold text-cyan-400 hover:text-white bg-slate-900 hover:bg-slate-800 rounded border border-slate-800/80 transition" title="Use current domain">
+                                Current
+                            </button>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-1">Configures the HTTP POST URL on the ESP32. Set this to keep your database updating 24/7 in the background, even when this browser dashboard is closed.</p>
+                    </div>
+
                     <button onclick="updateSettings()" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 py-3.5 px-4 rounded-xl font-bold text-sm tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/10">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
@@ -1680,6 +1691,12 @@
                     const binInput = document.getElementById('otaBinUrl');
                     if (binInput) binInput.value = c.ota_url || '';
                     
+                    // Update background log url input
+                    const apiInput = document.getElementById('apiUrlInput');
+                    if (apiInput) {
+                        apiInput.value = c.api_url || window.location.origin;
+                    }
+                    
                     updateConfigFromUI();
                     updateTelemetryUI();
                     
@@ -1812,6 +1829,7 @@
             }
 
             const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
+            const api_url = document.getElementById('apiUrlInput') ? document.getElementById('apiUrlInput').value.trim() : '';
             const payload = {
                 device_id: deviceId,
                 tank_height: config.height,
@@ -1819,7 +1837,8 @@
                 tank_diameter: config.diameter,
                 num_tanks: config.tanks,
                 telemetry_interval: config.interval,
-                gsm_numbers: gsmNumbers.length > 0 ? gsmNumbers.join(',') : "none"
+                gsm_numbers: gsmNumbers.length > 0 ? gsmNumbers.join(',') : "none",
+                api_url: api_url
             };
 
             const btn = document.querySelector('button[onclick="updateSettings()"]');
@@ -1880,6 +1899,7 @@
             const savedTanks = localStorage.getItem('hydrosync_tanks');
             const savedInterval = localStorage.getItem('hydrosync_interval');
             const savedGsmNumbers = localStorage.getItem('hydrosync_gsm_numbers');
+            const savedApiUrl = localStorage.getItem('hydrosync_api_url');
 
             const savedCalcMethod = localStorage.getItem('hydrosync_calc_method');
             const savedMotor1Rate = localStorage.getItem('hydrosync_motor1_rate');
@@ -1902,6 +1922,14 @@
                 const tiInput = document.getElementById('telemetryIntervalInput');
                 if (tiInput) tiInput.value = savedInterval;
                 config.interval = parseInt(savedInterval);
+            }
+
+            if (savedApiUrl) {
+                const apiInput = document.getElementById('apiUrlInput');
+                if (apiInput) apiInput.value = savedApiUrl;
+            } else {
+                const apiInput = document.getElementById('apiUrlInput');
+                if (apiInput) apiInput.value = window.location.origin;
             }
 
             if (savedCalcMethod) document.getElementById('calcMethodSelect').value = savedCalcMethod;
@@ -1938,6 +1966,7 @@
             const diameter = document.getElementById('diameterInput').value;
             const tanks = document.getElementById('tankCountInput').value;
             const interval = document.getElementById('telemetryIntervalInput') ? document.getElementById('telemetryIntervalInput').value : "15";
+            const api_url = document.getElementById('apiUrlInput') ? document.getElementById('apiUrlInput').value : '';
 
             const calcMethod = document.getElementById('calcMethodSelect').value;
             const motor1Rate = document.getElementById('motor1RateInput').value;
@@ -1951,6 +1980,7 @@
             localStorage.setItem('hydrosync_diameter', diameter);
             localStorage.setItem('hydrosync_tanks', tanks);
             localStorage.setItem('hydrosync_interval', interval);
+            localStorage.setItem('hydrosync_api_url', api_url);
             localStorage.setItem('hydrosync_gsm_numbers', JSON.stringify(gsmNumbers));
 
             localStorage.setItem('hydrosync_calc_method', calcMethod);
@@ -3209,12 +3239,22 @@
                                 ticks: { 
                                     color: '#94a3b8', 
                                     font: { size: 10 },
-                                    padding: 1,
+                                    padding: 4,
                                     callback: function(value) {
+                                        let formattedVal = value;
                                         if (value >= 1000) {
-                                            return (value / 1000).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + 'k';
+                                            formattedVal = (value / 1000).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + 'k';
+                                        } else {
+                                            formattedVal = value.toLocaleString(undefined, { maximumFractionDigits: 1 });
                                         }
-                                        return value;
+                                        
+                                        let pctStr = '';
+                                        if (typeof totalMaxVol === 'number' && totalMaxVol > 0) {
+                                            const pct = (value / totalMaxVol) * 100;
+                                            pctStr = Math.round(pct) + '%';
+                                        }
+                                        
+                                        return pctStr ? [formattedVal, pctStr] : [formattedVal];
                                     }
                                 }
                             }

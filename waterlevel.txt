@@ -36,7 +36,7 @@
 #define PREF_NAMESPACE "hydrosync-cfg"
 
 // --- Firmware Version ---
-#define FIRMWARE_VERSION "1.6"
+#define FIRMWARE_VERSION "1.65"
 
 // --- Global Classes ---
 WebServer server(80);
@@ -446,6 +446,11 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         preferences.putString("gsm_nums", payloadStr);
         Serial.printf("[NVS] Whitelisted GSM phone numbers list saved: %s\n", payloadStr.c_str());
     }
+    else if (topicStr.endsWith("/config/api_url")) {
+        apiServerUrl = payloadStr;
+        preferences.putString("api_url", payloadStr);
+        Serial.printf("[NVS] Web App Server HTTP URL saved: %s\n", payloadStr.c_str());
+    }
     else if (topicStr.endsWith("/cmd/ota")) {
         Serial.println("[OTA] OTA Trigger command received via MQTT!");
         if (payloadStr.startsWith("http://") || payloadStr.startsWith("https://")) {
@@ -466,6 +471,7 @@ void subscribeToConfig() {
     String subTopicTanks = mqttPrefix + "/config/tanks";
     String subTopicGsm = mqttPrefix + "/config/gsm_numbers";
     String subTopicInterval = mqttPrefix + "/config/interval";
+    String subTopicApiUrl = mqttPrefix + "/config/api_url";
     String subTopicOta = mqttPrefix + "/cmd/ota";
 
     mqttClient.subscribe(subTopicHeight.c_str());
@@ -474,6 +480,7 @@ void subscribeToConfig() {
     mqttClient.subscribe(subTopicTanks.c_str());
     mqttClient.subscribe(subTopicGsm.c_str());
     mqttClient.subscribe(subTopicInterval.c_str());
+    mqttClient.subscribe(subTopicApiUrl.c_str());
     mqttClient.subscribe(subTopicOta.c_str());
 
     Serial.println("[MQTT] Calibration topics and OTA commands successfully subscribed.");
@@ -488,6 +495,7 @@ void publishCurrentConfig() {
         String topicTanks = mqttPrefix + "/config/tanks";
         String topicGsm = mqttPrefix + "/config/gsm_numbers";
         String topicInterval = mqttPrefix + "/config/interval";
+        String topicApiUrl = mqttPrefix + "/config/api_url";
         String topicIp = mqttPrefix + "/status/ip";
         String topicVersion = mqttPrefix + "/status/version";
 
@@ -504,6 +512,7 @@ void publishCurrentConfig() {
         mqttClient.publish(topicTanks.c_str(), tanksStr.c_str(), true);
         mqttClient.publish(topicGsm.c_str(), gsmNumbersList.c_str(), true);
         mqttClient.publish(topicInterval.c_str(), intervalStr.c_str(), true);
+        mqttClient.publish(topicApiUrl.c_str(), apiServerUrl.c_str(), true);
         mqttClient.publish(topicIp.c_str(), ipStr.c_str(), true);
         mqttClient.publish(topicVersion.c_str(), FIRMWARE_VERSION, true);
 
@@ -514,10 +523,11 @@ void publishCurrentConfig() {
         totalBytesSent += (topicTanks.length() + tanksStr.length() + 45);
         totalBytesSent += (topicGsm.length() + gsmNumbersList.length() + 45);
         totalBytesSent += (topicInterval.length() + intervalStr.length() + 45);
+        totalBytesSent += (topicApiUrl.length() + apiServerUrl.length() + 45);
         totalBytesSent += (topicIp.length() + ipStr.length() + 45);
         totalBytesSent += (topicVersion.length() + strlen(FIRMWARE_VERSION) + 45);
 
-        Serial.println("[MQTT] Published current specs, phone whitelist, telemetry interval, and local IP to broker.");
+        Serial.println("[MQTT] Published current specs, phone whitelist, telemetry interval, API URL, and local IP to broker.");
     }
 }
 

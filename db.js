@@ -60,8 +60,14 @@ async function initDb() {
         telemetry_interval INT NOT NULL DEFAULT 15,
         gsm_numbers TEXT DEFAULT '',
         ota_url TEXT DEFAULT '',
+        api_url TEXT DEFAULT '',
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    // Ensure w_device_config has api_url column
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS api_url TEXT DEFAULT '';
     `);
     
     console.log('[DB] PostgreSQL w_telemetry and w_device_config tables initialized successfully.');

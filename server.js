@@ -101,6 +101,60 @@ function sendJSON(res, data, statusCode = 200) {
     res.end(JSON.stringify(data));
 }
 
+// Robust MQTT publish helper that supports persistent background client as well as fallback to short-lived connection
+async function publishMqttMessage(topic, payload, retain = false) {
+    return new Promise((resolve) => {
+        if (mqttClient && mqttClient.connected) {
+            mqttClient.publish(topic, payload.toString(), { qos: 1, retain: retain }, (err) => {
+                if (err) {
+                    console.error(`[MQTT Publish Error] Failed to publish to ${topic}:`, err);
+                } else {
+                    console.log(`[MQTT Publish Success] Published to ${topic}: ${payload}`);
+                }
+                resolve();
+            });
+        } else {
+            console.log(`[MQTT Server] Background client not connected. Initializing transient connection for ${topic}...`);
+            const transientClient = mqtt.connect(mqttBroker, {
+                clientId: 'hydrosync-transient-' + Math.random().toString(16).substr(2, 6),
+                connectTimeout: 5000
+            });
+
+            let completed = false;
+            const finish = () => {
+                if (!completed) {
+                    completed = true;
+                    try { transientClient.end(); } catch (e) {}
+                    resolve();
+                }
+            };
+
+            transientClient.on('connect', () => {
+                transientClient.publish(topic, payload.toString(), { qos: 1, retain: retain }, (err) => {
+                    if (err) {
+                        console.error(`[MQTT Transient Publish Error] Failed to publish to ${topic}:`, err);
+                    } else {
+                        console.log(`[MQTT Transient Publish Success] Published to ${topic}: ${payload}`);
+                    }
+                    finish();
+                });
+            });
+
+            transientClient.on('error', (err) => {
+                console.error(`[MQTT Transient Connection Error] for ${topic}:`, err);
+                finish();
+            });
+
+            setTimeout(() => {
+                if (!completed) {
+                    console.error(`[MQTT Transient Timeout] for ${topic}`);
+                    finish();
+                }
+            }, 5000);
+        }
+    });
+}
+
 // HTTP Server
 const server = http.createServer(async (req, res) => {
     // Enable CORS for preflight options
@@ -175,14 +229,6 @@ const server = http.createServer(async (req, res) => {
                 } else {
                     deviceConfig = configRes.rows[0];
                 }
-                
-                // If there is a pending OTA update, clear it after reading to ensure it only triggers once
-                if (deviceConfig.ota_url && deviceConfig.ota_url.trim().length > 0) {
-                    await pool.query(
-                        `UPDATE w_device_config SET ota_url = '' WHERE device_id = $1`,
-                        [device_id]
-                    );
-                }
 
                 console.log(`[HTTP API Log] Successfully saved telemetry for ${device_id}: Level=${levelVal}cm, Volume=${volumeVal}L, DataUsage=${dataUsageVal} Bytes, Version=${versionVal}`);
                 
@@ -213,7 +259,7 @@ const server = http.createServer(async (req, res) => {
         try {
             const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
             const result = await pool.query(
-                `SELECT tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url
+                `SELECT tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url, api_url
                  FROM w_device_config 
                  WHERE device_id = $1`,
                 [deviceId]
@@ -230,7 +276,8 @@ const server = http.createServer(async (req, res) => {
                         num_tanks: parseInt(config.num_tanks, 10),
                         telemetry_interval: parseInt(config.telemetry_interval, 10),
                         gsm_numbers: config.gsm_numbers || '',
-                        ota_url: config.ota_url || ''
+                        ota_url: config.ota_url || '',
+                        api_url: config.api_url || ''
                     }
                 });
             } else {
@@ -244,7 +291,8 @@ const server = http.createServer(async (req, res) => {
                         num_tanks: 1,
                         telemetry_interval: 15,
                         gsm_numbers: '',
-                        ota_url: ''
+                        ota_url: '',
+                        api_url: ''
                     }
                 });
             }
@@ -264,7 +312,7 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                const { device_id, tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url } = data;
+                const { device_id, tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url, api_url } = data;
 
                 if (!device_id) {
                     sendJSON(res, { success: false, error: 'device_id is required' }, 400);
@@ -304,6 +352,10 @@ const server = http.createServer(async (req, res) => {
                     fields.push(`ota_url = $${paramIndex++}`);
                     values.push(ota_url.toString().trim());
                 }
+                if (api_url !== undefined) {
+                    fields.push(`api_url = $${paramIndex++}`);
+                    values.push(api_url.toString().trim());
+                }
 
                 if (fields.length === 0) {
                     sendJSON(res, { success: false, error: 'No fields to update' }, 400);
@@ -322,39 +374,22 @@ const server = http.createServer(async (req, res) => {
                 await pool.query(queryStr, values);
 
                 // Instantly sync settings and OTA command with the physical device via MQTT
-                if (mqttClient && mqttClient.connected) {
-                    const publishConfig = (topicSuffix, payload) => {
-                        const fullTopic = `${device_id}${topicSuffix}`;
-                        mqttClient.publish(fullTopic, payload.toString(), { qos: 1, retain: true }, (err) => {
-                            if (err) {
-                                console.error(`[MQTT Sync Error] Failed to publish config to ${fullTopic}:`, err);
-                            } else {
-                                console.log(`[MQTT Sync Success] Published config to ${fullTopic}: ${payload}`);
-                            }
-                        });
-                    };
+                const syncPromises = [];
+                if (tank_height !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/height`, tank_height, true));
+                if (sensor_height !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/sensor_height`, sensor_height, true));
+                if (tank_diameter !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/diameter`, tank_diameter, true));
+                if (num_tanks !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/tanks`, num_tanks, true));
+                if (telemetry_interval !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/interval`, telemetry_interval, true));
+                if (gsm_numbers !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/gsm_numbers`, gsm_numbers.toString().trim(), true));
+                if (api_url !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/api_url`, api_url.toString().trim(), true));
 
-                    if (tank_height !== undefined) publishConfig('/config/height', tank_height);
-                    if (sensor_height !== undefined) publishConfig('/config/sensor_height', sensor_height);
-                    if (tank_diameter !== undefined) publishConfig('/config/diameter', tank_diameter);
-                    if (num_tanks !== undefined) publishConfig('/config/tanks', num_tanks);
-                    if (telemetry_interval !== undefined) publishConfig('/config/interval', telemetry_interval);
-                    if (gsm_numbers !== undefined) publishConfig('/config/gsm_numbers', gsm_numbers.toString().trim());
+                // Publish OTA trigger immediately to initiate Over-the-Air firmware flasher
+                if (ota_url !== undefined && ota_url.toString().trim().length > 0) {
+                    syncPromises.push(publishMqttMessage(`${device_id}/cmd/ota`, ota_url.toString().trim(), false));
+                }
 
-                    // Publish OTA trigger immediately to initiate Over-the-Air firmware flasher
-                    if (ota_url !== undefined && ota_url.toString().trim().length > 0) {
-                        const otaTopic = `${device_id}/cmd/ota`;
-                        const otaPayload = ota_url.toString().trim();
-                        mqttClient.publish(otaTopic, otaPayload, { qos: 1, retain: false }, (err) => {
-                            if (err) {
-                                console.error(`[MQTT Sync Error] Failed to publish OTA to ${otaTopic}:`, err);
-                            } else {
-                                console.log(`[MQTT Sync Success] Published OTA command to ${otaTopic}: ${otaPayload}`);
-                            }
-                        });
-                    }
-                } else {
-                    console.warn(`[MQTT Warning] Client not connected. Cannot push instant configurations to device ${device_id} over MQTT.`);
+                if (syncPromises.length > 0) {
+                    await Promise.all(syncPromises);
                 }
 
                 console.log(`[HTTP API Log] Successfully updated configuration for device ${device_id}:`, data);
@@ -764,7 +799,11 @@ const server = http.createServer(async (req, res) => {
                 else if (ext === '.json') mime = 'application/json';
                 else if (ext === '.png') mime = 'image/png';
                 else if (ext === '.bin') mime = 'application/octet-stream';
-                res.writeHead(200, {'Content-Type': mime});
+                
+                res.writeHead(200, {
+                    'Content-Type': mime,
+                    'Content-Length': data.length
+                });
                 res.end(data);
             }
         });

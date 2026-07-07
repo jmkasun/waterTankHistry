@@ -84,6 +84,10 @@ mqttClient.on('message', async (topic, message) => {
                 [deviceId, levelVal, volumeVal, dataUsageVal, versionVal]
             );
             console.log(`[DB Log] Successfully saved telemetry for ${deviceId}: Level=${levelVal}cm, Volume=${volumeVal}L, DataUsage=${dataUsageVal} Bytes, Version=${versionVal}`);
+            
+            // Clear cache after successful insertion to require both new readings in next transmission cycle
+            cache.level = null;
+            cache.volume = null;
         }
     } catch (err) {
         console.error('[MQTT Server Listener] Error processing packet:', err);
@@ -442,7 +446,7 @@ const server = http.createServer(async (req, res) => {
         try {
             const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
             const result = await pool.query(
-                `SELECT id, device_id, level, volume, data_usage, version, timestamp AT TIME ZONE 'UTC' as timestamp 
+                `SELECT id, device_id, level, volume, data_usage, version, timestamp 
                  FROM w_telemetry 
                  WHERE device_id = $1 
                  ORDER BY timestamp DESC LIMIT 1`,

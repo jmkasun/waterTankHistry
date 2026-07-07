@@ -1581,8 +1581,12 @@
                     }
                 }
 
-                if (elapsedSec < 70) {
-                    // Device sent a message recently (within 70 seconds) -> Online
+                const telemetryIntervalSec = parseInt(config.interval, 10) || 15;
+                const offlineThreshold = Math.max(150, telemetryIntervalSec * 4);
+                const staleThreshold = Math.max(240, telemetryIntervalSec * 6);
+
+                if (elapsedSec < offlineThreshold) {
+                    // Device sent a message recently -> Online
                     if (!deviceOnline) {
                         deviceOnline = true;
                         showToast("ESP32 Device is Online & active!", "success");
@@ -1599,7 +1603,7 @@
 
                     indicatorClass += " bg-emerald-400 animate-pulse";
                 } else {
-                    // Silence for more than 70 seconds -> Device Offline
+                    // Silence for longer than the dynamic threshold -> Device Offline
                     if (deviceOnline) {
                         deviceOnline = false;
                         showToast("ESP32 Device has gone offline (Signal lost)!", "error");
@@ -1620,7 +1624,7 @@
                         rxIndicator.classList.add('hidden');
                     }
 
-                    if (elapsedSec < 150) {
+                    if (elapsedSec < staleThreshold) {
                         indicatorClass += " bg-amber-500 animate-pulse";
                     } else {
                         indicatorClass += " bg-rose-500";
@@ -1638,7 +1642,9 @@
 
             if (waterContainer && wave1 && wave2) {
                 const elapsedSec = lastDeviceMessageTime > 0 ? Math.floor((Date.now() - lastDeviceMessageTime) / 1000) : 0;
-                const isStale = lastDeviceMessageTime > 0 && elapsedSec >= 150;
+                const telemetryIntervalSec = parseInt(config.interval, 10) || 15;
+                const staleThreshold = Math.max(240, telemetryIntervalSec * 6);
+                const isStale = lastDeviceMessageTime > 0 && elapsedSec >= staleThreshold;
 
                 if (isStale) {
                     // Turn water to warning amber/rose colors for easy identify

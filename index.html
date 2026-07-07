@@ -1668,6 +1668,13 @@
             try {
                 const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
                 const response = await fetch(`/api/device/config?device_id=${encodeURIComponent(deviceId)}`);
+                
+                const contentType = response.headers.get('content-type');
+                if (!response.ok || !contentType || !contentType.includes('application/json')) {
+                    console.warn('[API Warning] Device config response is not successful or not JSON.');
+                    return;
+                }
+
                 const result = await response.json();
                 if (result.success && result.config) {
                     const c = result.config;
@@ -1703,7 +1710,7 @@
                     console.log(`[API Log] Device configurations loaded from server for ${deviceId}`);
                 }
             } catch (err) {
-                console.error('[API Error] Fetching device config:', err);
+                console.warn('[API Warning] Fetching device config:', err.message || err);
             }
         }
 
@@ -1854,6 +1861,14 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
+                
+                const contentType = response.headers.get('content-type');
+                if (!response.ok || !contentType || !contentType.includes('application/json')) {
+                    console.warn('[API Warning] Save config response is not JSON or not successful.');
+                    showToast("Server starting up. Please try again in a moment.", "warning");
+                    return;
+                }
+
                 const res = await response.json();
                 if (res.success) {
                     showToast(`Configurations successfully saved to database for ${deviceId}! ESP32 will pick them up on its next telemetry sync.`, "success");
@@ -1861,7 +1876,7 @@
                     showToast(`Error saving configuration: ${res.error}`, "error");
                 }
             } catch (err) {
-                console.error('[API Error] Saving device config:', err);
+                console.warn('[API Warning] Saving device config:', err.message || err);
                 showToast("Network error trying to save device configuration.", "error");
             } finally {
                 if (btn) {
@@ -2254,6 +2269,13 @@
                         gsm_numbers: gsmNumbers.length > 0 ? gsmNumbers.join(',') : "none"
                     })
                 });
+                
+                const contentType = response.headers.get('content-type');
+                if (!response.ok || !contentType || !contentType.includes('application/json')) {
+                    console.warn('[API Warning] Syncing phone numbers response is not JSON or successful.');
+                    return;
+                }
+
                 const res = await response.json();
                 if (res.success) {
                     showToast("Phone numbers whitelist synchronized directly with the database.", "success");
@@ -2261,7 +2283,7 @@
                     showToast(`Failed to sync phone numbers: ${res.error}`, "error");
                 }
             } catch (err) {
-                console.error('[API Error] Syncing phone numbers:', err);
+                console.warn('[API Warning] Syncing phone numbers:', err.message || err);
                 showToast("Network error trying to sync phone numbers whitelist.", "error");
             }
         }
@@ -2385,6 +2407,13 @@
         async function loadAnalyticsDevices() {
             try {
                 const response = await fetch('/api/devices');
+                
+                const contentType = response.headers.get('content-type');
+                if (!response.ok || !contentType || !contentType.includes('application/json')) {
+                    console.warn('[Analytics Warning] Devices endpoint did not return JSON.');
+                    return;
+                }
+
                 const result = await response.json();
                 if (result.success && result.devices) {
                     const select = document.getElementById('analyticsDeviceSelect');
@@ -2411,7 +2440,7 @@
                     }
                 }
             } catch (err) {
-                console.error('[Analytics] Error loading devices:', err);
+                console.warn('[Analytics] Warning loading devices:', err.message || err);
             }
         }
 
@@ -2624,6 +2653,15 @@
                     fetch(`/api/history?device_id=${encodeURIComponent(deviceId)}&start_date=${startISO}&end_date=${endISO}&tz=${encodeURIComponent(tz)}&resolution=${analyticsResolution}`)
                 ]);
 
+                const usageContentType = usageRes.headers.get('content-type');
+                const historyContentType = historyRes.headers.get('content-type');
+
+                if (!usageRes.ok || !historyRes.ok || !usageContentType || !historyContentType || !usageContentType.includes('application/json') || !historyContentType.includes('application/json')) {
+                    console.warn('[Analytics Warning] Analytics endpoints returned non-JSON or unsuccessful response.');
+                    showToast("Failed to load historical analytics - server starting up", "warning");
+                    return;
+                }
+
                 const usageResult = await usageRes.json();
                 const historyResult = await historyRes.json();
 
@@ -2637,7 +2675,7 @@
                     showToast("Failed to load historical analytics", "error");
                 }
             } catch (err) {
-                console.error('[Analytics] Fetch error:', err);
+                console.warn('[Analytics] Fetch warning:', err.message || err);
                 showToast("Failed to connect to PostgreSQL analytics API.", "error");
             }
         }
@@ -3498,6 +3536,13 @@
                     })
                 });
 
+                const contentType = response.headers.get('content-type');
+                if (!response.ok || !contentType || !contentType.includes('application/json')) {
+                    console.warn('[FitSMS Warning] API returned non-JSON or unsuccessful response.');
+                    showToast("Failed to connect to SMS Gateway. Server is starting up.", "warning");
+                    return false;
+                }
+
                 const result = await response.json();
                 const timestamp = new Date().toLocaleString();
                 const modeLabel = smsConfig.apiMode === 'v4' ? 'OAuth v4' : 'HTTP GET';
@@ -3512,7 +3557,7 @@
                     return false;
                 }
             } catch (err) {
-                console.error('[FitSMS dispatch error]:', err);
+                console.warn('[FitSMS dispatch warning]:', err.message || err);
                 showToast("Network error trying to dispatch SMS alert.", "error");
                 const timestamp = new Date().toLocaleString();
                 const modeLabel = smsConfig.apiMode === 'v4' ? 'OAuth v4' : 'HTTP GET';
@@ -3659,6 +3704,14 @@
             try {
                 const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
                 const response = await fetch(`/api/telemetry?device_id=${encodeURIComponent(deviceId)}`);
+                
+                // Safe check for valid JSON response
+                const contentType = response.headers.get('content-type');
+                if (!response.ok || !contentType || !contentType.includes('application/json')) {
+                    console.warn('[DB telemetry polling status]: Server is starting up or returned a non-JSON response.');
+                    return;
+                }
+
                 const result = await response.json();
                 if (result.success && result.telemetry) {
                     const data = result.telemetry;
@@ -3686,7 +3739,7 @@
                     triggerRxFlash();
                 }
             } catch (err) {
-                console.error('[DB telemetry polling error]:', err);
+                console.warn('[DB telemetry polling status]: Transient background network or parsing error:', err.message || err);
             }
         }
 

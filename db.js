@@ -28,14 +28,19 @@ async function initDb() {
         level NUMERIC(8, 2) NOT NULL,
         volume NUMERIC(10, 2) NOT NULL,
         data_usage BIGINT NOT NULL DEFAULT 0,
-        version VARCHAR(20) DEFAULT '1.5',
+        version VARCHAR(20) DEFAULT '1.6',
         timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
     `);
     
     // Ensure existing table has the version column
     await client.query(`
-      ALTER TABLE w_telemetry ADD COLUMN IF NOT EXISTS version VARCHAR(20) DEFAULT '1.5';
+      ALTER TABLE w_telemetry ADD COLUMN IF NOT EXISTS version VARCHAR(20) DEFAULT '1.6';
+    `);
+
+    // Migrate any older 1.5 or empty version records to 1.6 as the new active standard
+    await client.query(`
+      UPDATE w_telemetry SET version = '1.6' WHERE version = '1.5' OR version IS NULL;
     `);
     
     // Create index to optimize historical queries
@@ -55,8 +60,34 @@ async function initDb() {
         telemetry_interval INT NOT NULL DEFAULT 15,
         gsm_numbers TEXT DEFAULT '',
         ota_url TEXT DEFAULT '',
+        api_url TEXT DEFAULT '',
+        motor1_rate NUMERIC(8, 2) NOT NULL DEFAULT 1000.0,
+        motor2_rate NUMERIC(8, 2) NOT NULL DEFAULT 5000.0,
+        pump_threshold NUMERIC(8, 2) NOT NULL DEFAULT 2500.0,
+        alert_min NUMERIC(8, 2) NOT NULL DEFAULT 20.0,
+        alert_max NUMERIC(8, 2) NOT NULL DEFAULT 90.0,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    // Ensure w_device_config has api_url and consumption calculation columns
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS api_url TEXT DEFAULT '';
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS motor1_rate NUMERIC(8, 2) NOT NULL DEFAULT 1000.0;
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS motor2_rate NUMERIC(8, 2) NOT NULL DEFAULT 5000.0;
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS pump_threshold NUMERIC(8, 2) NOT NULL DEFAULT 2500.0;
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS alert_min NUMERIC(8, 2) NOT NULL DEFAULT 20.0;
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS alert_max NUMERIC(8, 2) NOT NULL DEFAULT 90.0;
     `);
     
     console.log('[DB] PostgreSQL w_telemetry and w_device_config tables initialized successfully.');

@@ -36,7 +36,7 @@
 #define PREF_NAMESPACE "hydrosync-cfg"
 
 // --- Firmware Version ---
-#define FIRMWARE_VERSION "1.6"
+#define FIRMWARE_VERSION "1.651"
 
 // --- Global Classes ---
 WebServer server(80);
@@ -61,6 +61,13 @@ int numTanks = 1;            // Number of parallel connected tanks
 int telemetryInterval = 15;  // Telemetry logging interval in seconds (default to 15 seconds)
 String mqttPrefix = "mytank123";
 String apiServerUrl = "";    // Web App Server HTTP URL (for 24/7 background logging)
+
+// --- Consumption Calculation parameters (Saved & Loaded via NVS Preferences) ---
+float motor1Rate = 1000.0;   // Motor 1 (1-inch) Pump Flow Rate (L/hr)
+float motor2Rate = 5000.0;   // Motor 2 (2-inch) Pump Flow Rate (L/hr)
+float pumpThreshold = 2500.0; // Pump Detection Threshold (L/hr)
+float alertMinLevel = 20.0;   // Water Level Alert Min Threshold (%)
+float alertMaxLevel = 90.0;   // Water Level Alert Max Threshold (%)
 
 // --- GSM Missed Call & SMS Alert Parameters ---
 #define GSM_RX_PIN 20
@@ -212,6 +219,26 @@ const char* HTML_PORTAL_PAGE = R"rawliteral(
                 <label>Web App Server URL (for 24/7 background logging)</label>
                 <input type="text" name="api_url" value="%API_URL%" placeholder="https://your-app.vercel.app">
             </div>
+            <div class="form-group">
+                <label>Motor 1 (1-inch) Pump Flow Rate (L/hr)</label>
+                <input type="text" name="motor1_rate" value="%MOTOR1_RATE%" placeholder="1000.0">
+            </div>
+            <div class="form-group">
+                <label>Motor 2 (2-inch) Pump Flow Rate (L/hr)</label>
+                <input type="text" name="motor2_rate" value="%MOTOR2_RATE%" placeholder="5000.0">
+            </div>
+            <div class="form-group">
+                <label>Pump Detection Threshold (L/hr)</label>
+                <input type="text" name="pump_thresh" value="%PUMP_THRESH%" placeholder="2500.0">
+            </div>
+            <div class="form-group">
+                <label>Min Alert Level (%)</label>
+                <input type="text" name="alert_min" value="%ALERT_MIN%" placeholder="20.0">
+            </div>
+            <div class="form-group">
+                <label>Max Alert Level (%)</label>
+                <input type="text" name="alert_max" value="%ALERT_MAX%" placeholder="90.0">
+            </div>
             <button type="submit">Connect & Sync</button>
         </form>
     </div>
@@ -236,6 +263,11 @@ void handleRoot() {
     int currentInterval = preferences.getInt("interval", 15);
     String currentGsm = preferences.getString("gsm_nums", "");
     String currentApiUrl = preferences.getString("api_url", "");
+    float currentMotor1 = preferences.getFloat("motor1_rate", 1000.0);
+    float currentMotor2 = preferences.getFloat("motor2_rate", 5000.0);
+    float currentThresh = preferences.getFloat("pump_thresh", 2500.0);
+    float currentAlertMin = preferences.getFloat("alert_min", 20.0);
+    float currentAlertMax = preferences.getFloat("alert_max", 90.0);
     preferences.end();
 
     String html = String(HTML_PORTAL_PAGE);
@@ -246,6 +278,11 @@ void handleRoot() {
     html.replace("%INTERVAL%", String(currentInterval));
     html.replace("%GSM_NUMS%", currentGsm);
     html.replace("%API_URL%", currentApiUrl);
+    html.replace("%MOTOR1_RATE%", String(currentMotor1, 1));
+    html.replace("%MOTOR2_RATE%", String(currentMotor2, 1));
+    html.replace("%PUMP_THRESH%", String(currentThresh, 1));
+    html.replace("%ALERT_MIN%", String(currentAlertMin, 1));
+    html.replace("%ALERT_MAX%", String(currentAlertMax, 1));
 
     server.send(200, "text/html", html); 
 }
@@ -258,6 +295,11 @@ void handleSave() {
     String reqInterval = server.arg("interval");
     String reqGsm = server.arg("gsm_nums");
     String reqApiUrl = server.arg("api_url");
+    String reqMotor1 = server.arg("motor1_rate");
+    String reqMotor2 = server.arg("motor2_rate");
+    String reqThresh = server.arg("pump_thresh");
+    String reqAlertMin = server.arg("alert_min");
+    String reqAlertMax = server.arg("alert_max");
 
     preferences.begin(PREF_NAMESPACE, false);
     preferences.putString("ssid", reqSsid);
@@ -273,6 +315,21 @@ void handleSave() {
     }
     preferences.putString("gsm_nums", reqGsm);
     preferences.putString("api_url", reqApiUrl);
+    if (reqMotor1.length() > 0) {
+        preferences.putFloat("motor1_rate", reqMotor1.toFloat());
+    }
+    if (reqMotor2.length() > 0) {
+        preferences.putFloat("motor2_rate", reqMotor2.toFloat());
+    }
+    if (reqThresh.length() > 0) {
+        preferences.putFloat("pump_thresh", reqThresh.toFloat());
+    }
+    if (reqAlertMin.length() > 0) {
+        preferences.putFloat("alert_min", reqAlertMin.toFloat());
+    }
+    if (reqAlertMax.length() > 0) {
+        preferences.putFloat("alert_max", reqAlertMax.toFloat());
+    }
     preferences.putBool("configured", true);
     preferences.end();
 
@@ -446,6 +503,51 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         preferences.putString("gsm_nums", payloadStr);
         Serial.printf("[NVS] Whitelisted GSM phone numbers list saved: %s\n", payloadStr.c_str());
     }
+    else if (topicStr.endsWith("/config/api_url")) {
+        apiServerUrl = payloadStr;
+        preferences.putString("api_url", payloadStr);
+        Serial.printf("[NVS] Web App Server HTTP URL saved: %s\n", payloadStr.c_str());
+    }
+    else if (topicStr.endsWith("/config/motor1_rate")) {
+        float val = payloadStr.toFloat();
+        if (val >= 0) {
+            motor1Rate = val;
+            preferences.putFloat("motor1_rate", val);
+            Serial.printf("[NVS] Motor 1 Pump Rate saved: %.1f L/hr\n", val);
+        }
+    }
+    else if (topicStr.endsWith("/config/motor2_rate")) {
+        float val = payloadStr.toFloat();
+        if (val >= 0) {
+            motor2Rate = val;
+            preferences.putFloat("motor2_rate", val);
+            Serial.printf("[NVS] Motor 2 Pump Rate saved: %.1f L/hr\n", val);
+        }
+    }
+    else if (topicStr.endsWith("/config/pump_threshold")) {
+        float val = payloadStr.toFloat();
+        if (val >= 0) {
+            pumpThreshold = val;
+            preferences.putFloat("pump_thresh", val);
+            Serial.printf("[NVS] Pump Detection Threshold saved: %.1f L/hr\n", val);
+        }
+    }
+    else if (topicStr.endsWith("/config/alert_min")) {
+        float val = payloadStr.toFloat();
+        if (val >= 0 && val <= 100) {
+            alertMinLevel = val;
+            preferences.putFloat("alert_min", val);
+            Serial.printf("[NVS] Alert Min Level saved: %.1f %%\n", val);
+        }
+    }
+    else if (topicStr.endsWith("/config/alert_max")) {
+        float val = payloadStr.toFloat();
+        if (val >= 0 && val <= 100) {
+            alertMaxLevel = val;
+            preferences.putFloat("alert_max", val);
+            Serial.printf("[NVS] Alert Max Level saved: %.1f %%\n", val);
+        }
+    }
     else if (topicStr.endsWith("/cmd/ota")) {
         Serial.println("[OTA] OTA Trigger command received via MQTT!");
         if (payloadStr.startsWith("http://") || payloadStr.startsWith("https://")) {
@@ -466,6 +568,12 @@ void subscribeToConfig() {
     String subTopicTanks = mqttPrefix + "/config/tanks";
     String subTopicGsm = mqttPrefix + "/config/gsm_numbers";
     String subTopicInterval = mqttPrefix + "/config/interval";
+    String subTopicApiUrl = mqttPrefix + "/config/api_url";
+    String subTopicMotor1 = mqttPrefix + "/config/motor1_rate";
+    String subTopicMotor2 = mqttPrefix + "/config/motor2_rate";
+    String subTopicThresh = mqttPrefix + "/config/pump_threshold";
+    String subTopicAlertMin = mqttPrefix + "/config/alert_min";
+    String subTopicAlertMax = mqttPrefix + "/config/alert_max";
     String subTopicOta = mqttPrefix + "/cmd/ota";
 
     mqttClient.subscribe(subTopicHeight.c_str());
@@ -474,6 +582,12 @@ void subscribeToConfig() {
     mqttClient.subscribe(subTopicTanks.c_str());
     mqttClient.subscribe(subTopicGsm.c_str());
     mqttClient.subscribe(subTopicInterval.c_str());
+    mqttClient.subscribe(subTopicApiUrl.c_str());
+    mqttClient.subscribe(subTopicMotor1.c_str());
+    mqttClient.subscribe(subTopicMotor2.c_str());
+    mqttClient.subscribe(subTopicThresh.c_str());
+    mqttClient.subscribe(subTopicAlertMin.c_str());
+    mqttClient.subscribe(subTopicAlertMax.c_str());
     mqttClient.subscribe(subTopicOta.c_str());
 
     Serial.println("[MQTT] Calibration topics and OTA commands successfully subscribed.");
@@ -488,6 +602,12 @@ void publishCurrentConfig() {
         String topicTanks = mqttPrefix + "/config/tanks";
         String topicGsm = mqttPrefix + "/config/gsm_numbers";
         String topicInterval = mqttPrefix + "/config/interval";
+        String topicApiUrl = mqttPrefix + "/config/api_url";
+        String topicMotor1 = mqttPrefix + "/config/motor1_rate";
+        String topicMotor2 = mqttPrefix + "/config/motor2_rate";
+        String topicThresh = mqttPrefix + "/config/pump_threshold";
+        String topicAlertMin = mqttPrefix + "/config/alert_min";
+        String topicAlertMax = mqttPrefix + "/config/alert_max";
         String topicIp = mqttPrefix + "/status/ip";
         String topicVersion = mqttPrefix + "/status/version";
 
@@ -496,6 +616,11 @@ void publishCurrentConfig() {
         String diameterStr = String(tankDiameter, 1);
         String tanksStr = String(numTanks);
         String intervalStr = String(telemetryInterval);
+        String motor1Str = String(motor1Rate, 1);
+        String motor2Str = String(motor2Rate, 1);
+        String threshStr = String(pumpThreshold, 1);
+        String alertMinStr = String(alertMinLevel, 1);
+        String alertMaxStr = String(alertMaxLevel, 1);
         String ipStr = WiFi.localIP().toString();
 
         mqttClient.publish(topicHeight.c_str(), heightStr.c_str(), true);
@@ -504,6 +629,12 @@ void publishCurrentConfig() {
         mqttClient.publish(topicTanks.c_str(), tanksStr.c_str(), true);
         mqttClient.publish(topicGsm.c_str(), gsmNumbersList.c_str(), true);
         mqttClient.publish(topicInterval.c_str(), intervalStr.c_str(), true);
+        mqttClient.publish(topicApiUrl.c_str(), apiServerUrl.c_str(), true);
+        mqttClient.publish(topicMotor1.c_str(), motor1Str.c_str(), true);
+        mqttClient.publish(topicMotor2.c_str(), motor2Str.c_str(), true);
+        mqttClient.publish(topicThresh.c_str(), threshStr.c_str(), true);
+        mqttClient.publish(topicAlertMin.c_str(), alertMinStr.c_str(), true);
+        mqttClient.publish(topicAlertMax.c_str(), alertMaxStr.c_str(), true);
         mqttClient.publish(topicIp.c_str(), ipStr.c_str(), true);
         mqttClient.publish(topicVersion.c_str(), FIRMWARE_VERSION, true);
 
@@ -514,10 +645,16 @@ void publishCurrentConfig() {
         totalBytesSent += (topicTanks.length() + tanksStr.length() + 45);
         totalBytesSent += (topicGsm.length() + gsmNumbersList.length() + 45);
         totalBytesSent += (topicInterval.length() + intervalStr.length() + 45);
+        totalBytesSent += (topicApiUrl.length() + apiServerUrl.length() + 45);
+        totalBytesSent += (topicMotor1.length() + motor1Str.length() + 45);
+        totalBytesSent += (topicMotor2.length() + motor2Str.length() + 45);
+        totalBytesSent += (topicThresh.length() + threshStr.length() + 45);
+        totalBytesSent += (topicAlertMin.length() + alertMinStr.length() + 45);
+        totalBytesSent += (topicAlertMax.length() + alertMaxStr.length() + 45);
         totalBytesSent += (topicIp.length() + ipStr.length() + 45);
         totalBytesSent += (topicVersion.length() + strlen(FIRMWARE_VERSION) + 45);
 
-        Serial.println("[MQTT] Published current specs, phone whitelist, telemetry interval, and local IP to broker.");
+        Serial.println("[MQTT] Published current specs, phone whitelist, telemetry interval, API URL, consumption parameters, and local IP to broker.");
     }
 }
 
@@ -703,12 +840,19 @@ void setup() {
     mqttPrefix = preferences.getString("prefix", "mytank123");
     gsmNumbersList = preferences.getString("gsm_nums", "");
     apiServerUrl = preferences.getString("api_url", "");
+    motor1Rate = preferences.getFloat("motor1_rate", 1000.0);
+    motor2Rate = preferences.getFloat("motor2_rate", 5000.0);
+    pumpThreshold = preferences.getFloat("pump_thresh", 2500.0);
+    alertMinLevel = preferences.getFloat("alert_min", 20.0);
+    alertMaxLevel = preferences.getFloat("alert_max", 90.0);
     preferences.end();
 
     Serial.printf("[NVS] Loaded WiFi SSID: '%s' | Password: '%s' | Configured: %s\n", 
                   wifiSSID.c_str(), wifiPASS.c_str(), isConfigured ? "YES" : "NO");
     Serial.printf("[NVS] Loaded Web App Server URL: '%s'\n", apiServerUrl.c_str());
     Serial.printf("[NVS] Tank specs: Height=%.1fcm | SensorOffset=%.1fcm | Diameter=%.1fcm | Tanks=%d | Interval=%d s\n", tankHeight, sensorHeight, tankDiameter, numTanks, telemetryInterval);
+    Serial.printf("[NVS] Consumption: Motor1Rate=%.1f L/h | Motor2Rate=%.1f L/h | PumpThreshold=%.1f L/h\n", motor1Rate, motor2Rate, pumpThreshold);
+    Serial.printf("[NVS] Alerts: Min=%.1f%% | Max=%.1f%%\n", alertMinLevel, alertMaxLevel);
     Serial.printf("[NVS] Topic config path prefix: %s\n", mqttPrefix.c_str());
 
     if (wifiSSID == "") {

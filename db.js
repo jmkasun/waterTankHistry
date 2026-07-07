@@ -64,6 +64,8 @@ async function initDb() {
         motor1_rate NUMERIC(8, 2) NOT NULL DEFAULT 1000.0,
         motor2_rate NUMERIC(8, 2) NOT NULL DEFAULT 5000.0,
         pump_threshold NUMERIC(8, 2) NOT NULL DEFAULT 2500.0,
+        alert_min NUMERIC(8, 2) NOT NULL DEFAULT 20.0,
+        alert_max NUMERIC(8, 2) NOT NULL DEFAULT 90.0,
         updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -80,6 +82,12 @@ async function initDb() {
     `);
     await client.query(`
       ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS pump_threshold NUMERIC(8, 2) NOT NULL DEFAULT 2500.0;
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS alert_min NUMERIC(8, 2) NOT NULL DEFAULT 20.0;
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS alert_max NUMERIC(8, 2) NOT NULL DEFAULT 90.0;
     `);
     
     console.log('[DB] PostgreSQL w_telemetry and w_device_config tables initialized successfully.');

@@ -259,7 +259,7 @@ const server = http.createServer(async (req, res) => {
         try {
             const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
             const result = await pool.query(
-                `SELECT tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url, api_url, motor1_rate, motor2_rate, pump_threshold
+                `SELECT tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url, api_url, motor1_rate, motor2_rate, pump_threshold, alert_min, alert_max
                  FROM w_device_config 
                  WHERE device_id = $1`,
                 [deviceId]
@@ -280,7 +280,9 @@ const server = http.createServer(async (req, res) => {
                         api_url: config.api_url || '',
                         motor1_rate: parseFloat(config.motor1_rate || 1000.0),
                         motor2_rate: parseFloat(config.motor2_rate || 5000.0),
-                        pump_threshold: parseFloat(config.pump_threshold || 2500.0)
+                        pump_threshold: parseFloat(config.pump_threshold || 2500.0),
+                        alert_min: parseFloat(config.alert_min !== null ? config.alert_min : 20.0),
+                        alert_max: parseFloat(config.alert_max !== null ? config.alert_max : 90.0)
                     }
                 });
             } else {
@@ -298,7 +300,9 @@ const server = http.createServer(async (req, res) => {
                         api_url: '',
                         motor1_rate: 1000.0,
                         motor2_rate: 5000.0,
-                        pump_threshold: 2500.0
+                        pump_threshold: 2500.0,
+                        alert_min: 20.0,
+                        alert_max: 90.0
                     }
                 });
             }
@@ -318,7 +322,7 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                const { device_id, tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url, api_url, motor1_rate, motor2_rate, pump_threshold } = data;
+                const { device_id, tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url, api_url, motor1_rate, motor2_rate, pump_threshold, alert_min, alert_max } = data;
 
                 if (!device_id) {
                     sendJSON(res, { success: false, error: 'device_id is required' }, 400);
@@ -374,6 +378,14 @@ const server = http.createServer(async (req, res) => {
                     fields.push(`pump_threshold = $${paramIndex++}`);
                     values.push(parseFloat(pump_threshold));
                 }
+                if (alert_min !== undefined) {
+                    fields.push(`alert_min = $${paramIndex++}`);
+                    values.push(parseFloat(alert_min));
+                }
+                if (alert_max !== undefined) {
+                    fields.push(`alert_max = $${paramIndex++}`);
+                    values.push(parseFloat(alert_max));
+                }
 
                 if (fields.length === 0) {
                     sendJSON(res, { success: false, error: 'No fields to update' }, 400);
@@ -403,6 +415,8 @@ const server = http.createServer(async (req, res) => {
                 if (motor1_rate !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/motor1_rate`, motor1_rate, true));
                 if (motor2_rate !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/motor2_rate`, motor2_rate, true));
                 if (pump_threshold !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/pump_threshold`, pump_threshold, true));
+                if (alert_min !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/alert_min`, alert_min, true));
+                if (alert_max !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/alert_max`, alert_max, true));
 
                 // Publish OTA trigger immediately to initiate Over-the-Air firmware flasher
                 if (ota_url !== undefined && ota_url.toString().trim().length > 0) {

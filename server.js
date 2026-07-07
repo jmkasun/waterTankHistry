@@ -35,28 +35,20 @@ mqttClient.on('message', async (topic, message) => {
         if (topicParts.length !== 3 || topicParts[1] !== 'status') return;
 
         const deviceId = topicParts[0];
-        const metric = topicParts[2]; // level, volume, data_usage, version, or ip
+        const metric = topicParts[2]; // level, volume, or data_usage
         const valStr = message.toString().trim();
+        const value = parseFloat(valStr);
+
+        if (isNaN(value)) return;
 
         if (!deviceCache[deviceId]) {
             deviceCache[deviceId] = {
                 level: null,
                 volume: null,
                 data_usage: 0,
-                version: '1.6',
                 last_insert_time: 0
             };
         }
-
-        // Handle version status messages as strings (can contain '+', letters, or numbers)
-        if (metric === 'version') {
-            deviceCache[deviceId].version = valStr;
-            console.log(`[MQTT Server Listener] Device ${deviceId} reported Firmware Version: ${valStr}`);
-            return;
-        }
-
-        const value = parseFloat(valStr);
-        if (isNaN(value)) return;
 
         // Update cache
         if (metric === 'level') {
@@ -77,17 +69,12 @@ mqttClient.on('message', async (topic, message) => {
             const levelVal = cache.level;
             const volumeVal = cache.volume;
             const dataUsageVal = cache.data_usage || 0;
-            const versionVal = cache.version || '1.6';
 
             await pool.query(
-                `INSERT INTO w_telemetry (device_id, level, volume, data_usage, version) VALUES ($1, $2, $3, $4, $5)`,
-                [deviceId, levelVal, volumeVal, dataUsageVal, versionVal]
+                `INSERT INTO w_telemetry (device_id, level, volume, data_usage) VALUES ($1, $2, $3, $4)`,
+                [deviceId, levelVal, volumeVal, dataUsageVal]
             );
-            console.log(`[DB Log] Successfully saved telemetry for ${deviceId}: Level=${levelVal}cm, Volume=${volumeVal}L, DataUsage=${dataUsageVal} Bytes, Version=${versionVal}`);
-            
-            // Clear cache after successful insertion to require both new readings in next transmission cycle
-            cache.level = null;
-            cache.volume = null;
+            console.log(`[DB Log] Successfully saved telemetry for ${deviceId}: Level=${levelVal}cm, Volume=${volumeVal}L, DataUsage=${dataUsageVal} Bytes`);
         }
     } catch (err) {
         console.error('[MQTT Server Listener] Error processing packet:', err);
@@ -103,60 +90,6 @@ function sendJSON(res, data, statusCode = 200) {
         'Access-Control-Allow-Headers': 'Content-Type'
     });
     res.end(JSON.stringify(data));
-}
-
-// Robust MQTT publish helper that supports persistent background client as well as fallback to short-lived connection
-async function publishMqttMessage(topic, payload, retain = false) {
-    return new Promise((resolve) => {
-        if (mqttClient && mqttClient.connected) {
-            mqttClient.publish(topic, payload.toString(), { qos: 1, retain: retain }, (err) => {
-                if (err) {
-                    console.error(`[MQTT Publish Error] Failed to publish to ${topic}:`, err);
-                } else {
-                    console.log(`[MQTT Publish Success] Published to ${topic}: ${payload}`);
-                }
-                resolve();
-            });
-        } else {
-            console.log(`[MQTT Server] Background client not connected. Initializing transient connection for ${topic}...`);
-            const transientClient = mqtt.connect(mqttBroker, {
-                clientId: 'hydrosync-transient-' + Math.random().toString(16).substr(2, 6),
-                connectTimeout: 5000
-            });
-
-            let completed = false;
-            const finish = () => {
-                if (!completed) {
-                    completed = true;
-                    try { transientClient.end(); } catch (e) {}
-                    resolve();
-                }
-            };
-
-            transientClient.on('connect', () => {
-                transientClient.publish(topic, payload.toString(), { qos: 1, retain: retain }, (err) => {
-                    if (err) {
-                        console.error(`[MQTT Transient Publish Error] Failed to publish to ${topic}:`, err);
-                    } else {
-                        console.log(`[MQTT Transient Publish Success] Published to ${topic}: ${payload}`);
-                    }
-                    finish();
-                });
-            });
-
-            transientClient.on('error', (err) => {
-                console.error(`[MQTT Transient Connection Error] for ${topic}:`, err);
-                finish();
-            });
-
-            setTimeout(() => {
-                if (!completed) {
-                    console.error(`[MQTT Transient Timeout] for ${topic}`);
-                    finish();
-                }
-            }, 5000);
-        }
-    });
 }
 
 // HTTP Server
@@ -194,7 +127,7 @@ const server = http.createServer(async (req, res) => {
                 const levelVal = parseFloat(level);
                 const volumeVal = parseFloat(volume);
                 const dataUsageVal = parseInt(data_usage, 10) || 0;
-                const versionVal = version ? version.toString().trim() : '1.6';
+                const versionVal = version ? version.toString().trim() : '1.5';
 
                 if (isNaN(levelVal) || isNaN(volumeVal)) {
                     sendJSON(res, { success: false, error: 'Invalid level or volume' }, 400);
@@ -233,6 +166,14 @@ const server = http.createServer(async (req, res) => {
                 } else {
                     deviceConfig = configRes.rows[0];
                 }
+                
+                // If there is a pending OTA update, clear it after reading to ensure it only triggers once
+                if (deviceConfig.ota_url && deviceConfig.ota_url.trim().length > 0) {
+                    await pool.query(
+                        `UPDATE w_device_config SET ota_url = '' WHERE device_id = $1`,
+                        [device_id]
+                    );
+                }
 
                 console.log(`[HTTP API Log] Successfully saved telemetry for ${device_id}: Level=${levelVal}cm, Volume=${volumeVal}L, DataUsage=${dataUsageVal} Bytes, Version=${versionVal}`);
                 
@@ -263,7 +204,7 @@ const server = http.createServer(async (req, res) => {
         try {
             const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
             const result = await pool.query(
-                `SELECT tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url, api_url, motor1_rate, motor2_rate, pump_threshold, alert_min, alert_max
+                `SELECT tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url
                  FROM w_device_config 
                  WHERE device_id = $1`,
                 [deviceId]
@@ -280,13 +221,7 @@ const server = http.createServer(async (req, res) => {
                         num_tanks: parseInt(config.num_tanks, 10),
                         telemetry_interval: parseInt(config.telemetry_interval, 10),
                         gsm_numbers: config.gsm_numbers || '',
-                        ota_url: config.ota_url || '',
-                        api_url: config.api_url || '',
-                        motor1_rate: parseFloat(config.motor1_rate || 1000.0),
-                        motor2_rate: parseFloat(config.motor2_rate || 5000.0),
-                        pump_threshold: parseFloat(config.pump_threshold || 2500.0),
-                        alert_min: parseFloat(config.alert_min !== null ? config.alert_min : 20.0),
-                        alert_max: parseFloat(config.alert_max !== null ? config.alert_max : 90.0)
+                        ota_url: config.ota_url || ''
                     }
                 });
             } else {
@@ -300,13 +235,7 @@ const server = http.createServer(async (req, res) => {
                         num_tanks: 1,
                         telemetry_interval: 15,
                         gsm_numbers: '',
-                        ota_url: '',
-                        api_url: '',
-                        motor1_rate: 1000.0,
-                        motor2_rate: 5000.0,
-                        pump_threshold: 2500.0,
-                        alert_min: 20.0,
-                        alert_max: 90.0
+                        ota_url: ''
                     }
                 });
             }
@@ -326,7 +255,7 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                const { device_id, tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url, api_url, motor1_rate, motor2_rate, pump_threshold, alert_min, alert_max } = data;
+                const { device_id, tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url } = data;
 
                 if (!device_id) {
                     sendJSON(res, { success: false, error: 'device_id is required' }, 400);
@@ -366,30 +295,6 @@ const server = http.createServer(async (req, res) => {
                     fields.push(`ota_url = $${paramIndex++}`);
                     values.push(ota_url.toString().trim());
                 }
-                if (api_url !== undefined) {
-                    fields.push(`api_url = $${paramIndex++}`);
-                    values.push(api_url.toString().trim());
-                }
-                if (motor1_rate !== undefined) {
-                    fields.push(`motor1_rate = $${paramIndex++}`);
-                    values.push(parseFloat(motor1_rate));
-                }
-                if (motor2_rate !== undefined) {
-                    fields.push(`motor2_rate = $${paramIndex++}`);
-                    values.push(parseFloat(motor2_rate));
-                }
-                if (pump_threshold !== undefined) {
-                    fields.push(`pump_threshold = $${paramIndex++}`);
-                    values.push(parseFloat(pump_threshold));
-                }
-                if (alert_min !== undefined) {
-                    fields.push(`alert_min = $${paramIndex++}`);
-                    values.push(parseFloat(alert_min));
-                }
-                if (alert_max !== undefined) {
-                    fields.push(`alert_max = $${paramIndex++}`);
-                    values.push(parseFloat(alert_max));
-                }
 
                 if (fields.length === 0) {
                     sendJSON(res, { success: false, error: 'No fields to update' }, 400);
@@ -407,30 +312,6 @@ const server = http.createServer(async (req, res) => {
                 // Run query
                 await pool.query(queryStr, values);
 
-                // Instantly sync settings and OTA command with the physical device via MQTT
-                const syncPromises = [];
-                if (tank_height !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/height`, tank_height, true));
-                if (sensor_height !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/sensor_height`, sensor_height, true));
-                if (tank_diameter !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/diameter`, tank_diameter, true));
-                if (num_tanks !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/tanks`, num_tanks, true));
-                if (telemetry_interval !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/interval`, telemetry_interval, true));
-                if (gsm_numbers !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/gsm_numbers`, gsm_numbers.toString().trim(), true));
-                if (api_url !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/api_url`, api_url.toString().trim(), true));
-                if (motor1_rate !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/motor1_rate`, motor1_rate, true));
-                if (motor2_rate !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/motor2_rate`, motor2_rate, true));
-                if (pump_threshold !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/pump_threshold`, pump_threshold, true));
-                if (alert_min !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/alert_min`, alert_min, true));
-                if (alert_max !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/alert_max`, alert_max, true));
-
-                // Publish OTA trigger immediately to initiate Over-the-Air firmware flasher
-                if (ota_url !== undefined && ota_url.toString().trim().length > 0) {
-                    syncPromises.push(publishMqttMessage(`${device_id}/cmd/ota`, ota_url.toString().trim(), false));
-                }
-
-                if (syncPromises.length > 0) {
-                    await Promise.all(syncPromises);
-                }
-
                 console.log(`[HTTP API Log] Successfully updated configuration for device ${device_id}:`, data);
                 sendJSON(res, { success: true, message: 'Device configuration saved successfully.' });
             } catch (err) {
@@ -446,7 +327,7 @@ const server = http.createServer(async (req, res) => {
         try {
             const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
             const result = await pool.query(
-                `SELECT id, device_id, level, volume, data_usage, version, timestamp 
+                `SELECT id, device_id, level, volume, data_usage, version, timestamp AT TIME ZONE 'UTC' as timestamp 
                  FROM w_telemetry 
                  WHERE device_id = $1 
                  ORDER BY timestamp DESC LIMIT 1`,
@@ -816,36 +697,25 @@ const server = http.createServer(async (req, res) => {
     if (safePath.toLowerCase() === 'waterlevel.ino.bin' || safePath.toLowerCase() === 'waterlevel.bin') {
         safePath = 'waterlevel.bin';
     }
-    let filePath = path.join(__dirname, safePath);
+    const filePath = path.join(__dirname, safePath);
     
-    fs.access(filePath, fs.constants.F_OK, (accessErr) => {
-        if (accessErr) {
-            // Fallback to public folder
-            filePath = path.join(__dirname, 'public', safePath);
+    fs.readFile(filePath, (err, data) => {
+        if (err) {
+            res.writeHead(404, {'Content-Type': 'text/plain'});
+            res.end('Not Found');
+        } else {
+            let ext = path.extname(filePath).toLowerCase();
+            let mime = 'text/plain';
+            if (ext === '.html') mime = 'text/html';
+            else if (ext === '.js') mime = 'application/javascript';
+            else if (ext === '.css') mime = 'text/css';
+            else if (ext === '.svg') mime = 'image/svg+xml';
+            else if (ext === '.json') mime = 'application/json';
+            else if (ext === '.png') mime = 'image/png';
+            else if (ext === '.bin') mime = 'application/octet-stream';
+            res.writeHead(200, {'Content-Type': mime});
+            res.end(data);
         }
-        
-        fs.readFile(filePath, (err, data) => {
-            if (err) {
-                res.writeHead(404, {'Content-Type': 'text/plain'});
-                res.end('Not Found');
-            } else {
-                let ext = path.extname(filePath).toLowerCase();
-                let mime = 'text/plain';
-                if (ext === '.html') mime = 'text/html';
-                else if (ext === '.js') mime = 'application/javascript';
-                else if (ext === '.css') mime = 'text/css';
-                else if (ext === '.svg') mime = 'image/svg+xml';
-                else if (ext === '.json') mime = 'application/json';
-                else if (ext === '.png') mime = 'image/png';
-                else if (ext === '.bin') mime = 'application/octet-stream';
-                
-                res.writeHead(200, {
-                    'Content-Type': mime,
-                    'Content-Length': data.length
-                });
-                res.end(data);
-            }
-        });
     });
 
 });

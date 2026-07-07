@@ -534,7 +534,7 @@
                         </div>
                         <div>
                             <span class="block text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Total Data Usage</span>
-                            <span id="txtPeriodDataUsed" class="text-xl font-bold text-white tracking-tight">0.00 MB</span>
+                            <span id="txtPeriodDataUsed" class="text-xl font-bold text-white tracking-tight">0.00 KB</span>
                             <span class="block text-[10px] text-slate-500 mt-0.5">ESP32 transmissions</span>
                         </div>
                     </div>
@@ -943,81 +943,6 @@
                         <p class="text-[10px] text-slate-500 mt-1">Configures how frequently (in seconds) the ESP32 publishes MQTT telemetry and performs HTTP Background Logging (e.g. 15 seconds).</p>
                     </div>
 
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Background Logging Server HTTP URL (api_url)</label>
-                        <div class="relative">
-                            <input type="text" id="apiUrlInput" placeholder="https://your-app.vercel.app" class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-20 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
-                            <button onclick="document.getElementById('apiUrlInput').value = window.location.origin" type="button" class="absolute right-3 top-2.5 px-2 py-1 text-[9px] uppercase font-bold text-cyan-400 hover:text-white bg-slate-900 hover:bg-slate-800 rounded border border-slate-800/80 transition" title="Use current domain">
-                                Current
-                            </button>
-                        </div>
-                        <p class="text-[10px] text-slate-500 mt-1">Configures the HTTP POST URL on the ESP32. Set this to keep your database updating 24/7 in the background, even when this browser dashboard is closed.</p>
-                    </div>
-
-                    <div id="method1Fields" class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Motor 1 (1-inch) Pump Flow Rate (L/hr)</label>
-                            <div class="relative">
-                                <input type="number" id="motor1RateInput" placeholder="1000.0" value="1000" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
-                                <span class="absolute right-4 top-3 text-xs text-slate-500">L/hr</span>
-                            </div>
-                            <p class="text-[10px] text-slate-500 mt-1">Estimated flow rate for the 1-inch pipe filling motor (normally takes ~10 hours).</p>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Motor 2 (2-inch) Pump Flow Rate (L/hr)</label>
-                            <div class="relative">
-                                <input type="number" id="motor2RateInput" placeholder="5000.0" value="5000" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
-                                <span class="absolute right-4 top-3 text-xs text-slate-500">L/hr</span>
-                            </div>
-                            <p class="text-[10px] text-slate-500 mt-1">Estimated flow rate for the 2-inch pipe filling motor (normally takes ~2 hours).</p>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Pump Detection Threshold (L/hr)</label>
-                            <div class="relative">
-                                <input type="number" id="pumpThresholdInput" placeholder="2500.0" value="2500" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
-                                <span class="absolute right-4 top-3 text-xs text-slate-500">L/hr</span>
-                            </div>
-                            <p class="text-[10px] text-slate-500 mt-1">The rise-rate threshold in Liters per hour. Rise rates above this will classify the filling motor as Motor 2, and below as Motor 1.</p>
-                        </div>
-                    </div>
-
-                    <!-- Water Level Threshold Alerts Sub-section -->
-                    <div class="border-t border-slate-800/80 pt-4 mt-1 space-y-4">
-                        <div class="flex items-center gap-3">
-                            <div class="p-2 bg-rose-500/10 rounded-lg border border-rose-500/30">
-                                <svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                                </svg>
-                            </div>
-                            <div>
-                                <h4 class="text-xs font-bold text-white tracking-tight">Water Level Alerts</h4>
-                                <p class="text-[10px] text-slate-400">Configure alert thresholds saved in ESP32 memory</p>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-3 text-xs">
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-300 mb-1.5">Min Alert Level (%)</label>
-                                <div class="relative">
-                                    <input type="number" id="alertMinLevelInput" placeholder="20" min="0" max="100" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-rose-500 text-white placeholder-slate-600 transition">
-                                    <span class="absolute right-4 top-3 text-[10px] text-slate-500">%</span>
-                                </div>
-                                <p class="text-[9px] text-slate-500 mt-1">Triggers alert if level falls below this %.</p>
-                            </div>
-
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-300 mb-1.5">Max Alert Level (%)</label>
-                                <div class="relative">
-                                    <input type="number" id="alertMaxLevelInput" placeholder="90" min="0" max="100" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-rose-500 text-white placeholder-slate-600 transition">
-                                    <span class="absolute right-4 top-3 text-[10px] text-slate-500">%</span>
-                                </div>
-                                <p class="text-[9px] text-slate-500 mt-1">Triggers alert if level rises above this %.</p>
-                            </div>
-                        </div>
-                    </div>
-
                     <button onclick="updateSettings()" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 py-3.5 px-4 rounded-xl font-bold text-sm tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/10">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
@@ -1206,10 +1131,79 @@
                         </select>
                         <p class="text-[10px] text-slate-500 mt-1">Method 1 estimates consumption during tank filling by correcting with expected pump flow rates. Method 0 only calculates consumption when water level drops.</p>
                     </div>
+
+                    <div id="method1Fields" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Motor 1 (1-inch) Pump Flow Rate (L/hr)</label>
+                            <div class="relative">
+                                <input type="number" id="motor1RateInput" placeholder="1000.0" value="1000" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                                <span class="absolute right-4 top-3 text-xs text-slate-500">L/hr</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500 mt-1">Estimated flow rate for the 1-inch pipe filling motor (normally takes ~10 hours).</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Motor 2 (2-inch) Pump Flow Rate (L/hr)</label>
+                            <div class="relative">
+                                <input type="number" id="motor2RateInput" placeholder="5000.0" value="5000" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                                <span class="absolute right-4 top-3 text-xs text-slate-500">L/hr</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500 mt-1">Estimated flow rate for the 2-inch pipe filling motor (normally takes ~2 hours).</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Pump Detection Threshold (L/hr)</label>
+                            <div class="relative">
+                                <input type="number" id="pumpThresholdInput" placeholder="2500.0" value="2500" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                                <span class="absolute right-4 top-3 text-xs text-slate-500">L/hr</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500 mt-1">The rise-rate threshold in Liters per hour. Rise rates above this will classify the filling motor as Motor 2, and below as Motor 1.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
+            <!-- Water Level Threshold Alerts Card -->
+            <div id="alerts-threshold-card" class="bg-slate-900/30 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-rose-500/10 rounded-lg border border-rose-500/30">
+                        <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white tracking-tight">Water Level Alerts</h3>
+                        <p class="text-[11px] text-slate-400">Configure alert bounds for water level status</p>
+                    </div>
+                </div>
 
+                <div class="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Min Alert Level (%)</label>
+                        <div class="relative">
+                            <input type="number" id="alertMinLevelInput" placeholder="20" min="0" max="100" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-rose-500 text-white placeholder-slate-600 transition">
+                            <span class="absolute right-4 top-3 text-xs text-slate-500">%</span>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-1">Triggers error toast if level falls below this value.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Max Alert Level (%)</label>
+                        <div class="relative">
+                            <input type="number" id="alertMaxLevelInput" placeholder="90" min="0" max="100" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-rose-500 text-white placeholder-slate-600 transition">
+                            <span class="absolute right-4 top-3 text-xs text-slate-500">%</span>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-1">Triggers error toast if level rises above this value.</p>
+                    </div>
+                </div>
+
+                <button onclick="updateAlertThresholds()" class="w-full bg-rose-600 hover:bg-rose-500 text-white py-3.5 px-4 rounded-xl font-bold text-sm tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-rose-600/15">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Save Alert Thresholds
+                </button>
+            </div>
 
             <!-- Database & History Management -->
             <div class="bg-slate-900/30 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
@@ -1581,12 +1575,8 @@
                     }
                 }
 
-                const telemetryIntervalSec = parseInt(config.interval, 10) || 15;
-                const offlineThreshold = Math.max(150, telemetryIntervalSec * 4);
-                const staleThreshold = Math.max(240, telemetryIntervalSec * 6);
-
-                if (elapsedSec < offlineThreshold) {
-                    // Device sent a message recently -> Online
+                if (elapsedSec < 70) {
+                    // Device sent a message recently (within 70 seconds) -> Online
                     if (!deviceOnline) {
                         deviceOnline = true;
                         showToast("ESP32 Device is Online & active!", "success");
@@ -1603,7 +1593,7 @@
 
                     indicatorClass += " bg-emerald-400 animate-pulse";
                 } else {
-                    // Silence for longer than the dynamic threshold -> Device Offline
+                    // Silence for more than 70 seconds -> Device Offline
                     if (deviceOnline) {
                         deviceOnline = false;
                         showToast("ESP32 Device has gone offline (Signal lost)!", "error");
@@ -1624,7 +1614,7 @@
                         rxIndicator.classList.add('hidden');
                     }
 
-                    if (elapsedSec < staleThreshold) {
+                    if (elapsedSec < 150) {
                         indicatorClass += " bg-amber-500 animate-pulse";
                     } else {
                         indicatorClass += " bg-rose-500";
@@ -1642,9 +1632,7 @@
 
             if (waterContainer && wave1 && wave2) {
                 const elapsedSec = lastDeviceMessageTime > 0 ? Math.floor((Date.now() - lastDeviceMessageTime) / 1000) : 0;
-                const telemetryIntervalSec = parseInt(config.interval, 10) || 15;
-                const staleThreshold = Math.max(240, telemetryIntervalSec * 6);
-                const isStale = lastDeviceMessageTime > 0 && elapsedSec >= staleThreshold;
+                const isStale = lastDeviceMessageTime > 0 && elapsedSec >= 150;
 
                 if (isStale) {
                     // Turn water to warning amber/rose colors for easy identify
@@ -1669,13 +1657,6 @@
             try {
                 const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
                 const response = await fetch(`/api/device/config?device_id=${encodeURIComponent(deviceId)}`);
-                
-                const contentType = response.headers.get('content-type');
-                if (!response.ok || !contentType || !contentType.includes('application/json')) {
-                    console.warn('[API Warning] Device config response is not successful or not JSON.');
-                    return;
-                }
-
                 const result = await response.json();
                 if (result.success && result.config) {
                     const c = result.config;
@@ -1699,40 +1680,13 @@
                     const binInput = document.getElementById('otaBinUrl');
                     if (binInput) binInput.value = c.ota_url || '';
                     
-                    // Update background log url input
-                    const apiInput = document.getElementById('apiUrlInput');
-                    if (apiInput) {
-                        apiInput.value = c.api_url || window.location.origin;
-                    }
-
-                    // Update Motor and Pump Threshold values
-                    const m1Input = document.getElementById('motor1RateInput');
-                    if (m1Input && c.motor1_rate !== undefined) m1Input.value = c.motor1_rate;
-                    const m2Input = document.getElementById('motor2RateInput');
-                    if (m2Input && c.motor2_rate !== undefined) m2Input.value = c.motor2_rate;
-                    const ptInput = document.getElementById('pumpThresholdInput');
-                    if (ptInput && c.pump_threshold !== undefined) ptInput.value = c.pump_threshold;
-
-                    // Update Alert threshold inputs
-                    const alertMinInput = document.getElementById('alertMinLevelInput');
-                    if (alertMinInput && c.alert_min !== undefined) {
-                        alertMinInput.value = c.alert_min;
-                        alertThresholds.min = parseFloat(c.alert_min);
-                    }
-                    const alertMaxInput = document.getElementById('alertMaxLevelInput');
-                    if (alertMaxInput && c.alert_max !== undefined) {
-                        alertMaxInput.value = c.alert_max;
-                        alertThresholds.max = parseFloat(c.alert_max);
-                    }
-                    
                     updateConfigFromUI();
-                    saveSettingsToLocalStorage();
                     updateTelemetryUI();
                     
                     console.log(`[API Log] Device configurations loaded from server for ${deviceId}`);
                 }
             } catch (err) {
-                console.warn('[API Warning] Fetching device config:', err.message || err);
+                console.error('[API Error] Fetching device config:', err);
             }
         }
 
@@ -1858,25 +1812,6 @@
             }
 
             const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
-            const api_url = document.getElementById('apiUrlInput') ? document.getElementById('apiUrlInput').value.trim() : '';
-            
-            const motor1_rate = parseFloat(document.getElementById('motor1RateInput').value) || 1000.0;
-            const motor2_rate = parseFloat(document.getElementById('motor2RateInput').value) || 5000.0;
-            const pump_threshold = parseFloat(document.getElementById('pumpThresholdInput').value) || 2500.0;
-
-            const alert_min = parseFloat(document.getElementById('alertMinLevelInput').value);
-            const alert_max = parseFloat(document.getElementById('alertMaxLevelInput').value);
-
-            if (isNaN(alert_min) || alert_min < 0 || alert_min > 100 || isNaN(alert_max) || alert_max < 0 || alert_max > 100) {
-                showToast("Alert thresholds must be numbers between 0 and 100%.", "error");
-                return;
-            }
-
-            if (alert_min >= alert_max) {
-                showToast("Min alert threshold must be strictly less than Max alert threshold.", "error");
-                return;
-            }
-
             const payload = {
                 device_id: deviceId,
                 tank_height: config.height,
@@ -1884,13 +1819,7 @@
                 tank_diameter: config.diameter,
                 num_tanks: config.tanks,
                 telemetry_interval: config.interval,
-                gsm_numbers: gsmNumbers.length > 0 ? gsmNumbers.join(',') : "none",
-                api_url: api_url,
-                motor1_rate: motor1_rate,
-                motor2_rate: motor2_rate,
-                pump_threshold: pump_threshold,
-                alert_min: alert_min,
-                alert_max: alert_max
+                gsm_numbers: gsmNumbers.length > 0 ? gsmNumbers.join(',') : "none"
             };
 
             const btn = document.querySelector('button[onclick="updateSettings()"]');
@@ -1906,30 +1835,14 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                
-                const contentType = response.headers.get('content-type');
-                if (!response.ok || !contentType || !contentType.includes('application/json')) {
-                    console.warn('[API Warning] Save config response is not JSON or not successful.');
-                    showToast("Server starting up. Please try again in a moment.", "warning");
-                    return;
-                }
-
                 const res = await response.json();
                 if (res.success) {
-                    alertThresholds.min = alert_min;
-                    alertThresholds.max = alert_max;
-                    saveSettingsToLocalStorage();
-                    
                     showToast(`Configurations successfully saved to database for ${deviceId}! ESP32 will pick them up on its next telemetry sync.`, "success");
-                    
-                    // Force alert state re-evaluation of current level
-                    lastAlertState = 'unknown';
-                    updateTelemetryUI();
                 } else {
                     showToast(`Error saving configuration: ${res.error}`, "error");
                 }
             } catch (err) {
-                console.warn('[API Warning] Saving device config:', err.message || err);
+                console.error('[API Error] Saving device config:', err);
                 showToast("Network error trying to save device configuration.", "error");
             } finally {
                 if (btn) {
@@ -1967,7 +1880,6 @@
             const savedTanks = localStorage.getItem('hydrosync_tanks');
             const savedInterval = localStorage.getItem('hydrosync_interval');
             const savedGsmNumbers = localStorage.getItem('hydrosync_gsm_numbers');
-            const savedApiUrl = localStorage.getItem('hydrosync_api_url');
 
             const savedCalcMethod = localStorage.getItem('hydrosync_calc_method');
             const savedMotor1Rate = localStorage.getItem('hydrosync_motor1_rate');
@@ -1990,14 +1902,6 @@
                 const tiInput = document.getElementById('telemetryIntervalInput');
                 if (tiInput) tiInput.value = savedInterval;
                 config.interval = parseInt(savedInterval);
-            }
-
-            if (savedApiUrl) {
-                const apiInput = document.getElementById('apiUrlInput');
-                if (apiInput) apiInput.value = savedApiUrl;
-            } else {
-                const apiInput = document.getElementById('apiUrlInput');
-                if (apiInput) apiInput.value = window.location.origin;
             }
 
             if (savedCalcMethod) document.getElementById('calcMethodSelect').value = savedCalcMethod;
@@ -2034,7 +1938,6 @@
             const diameter = document.getElementById('diameterInput').value;
             const tanks = document.getElementById('tankCountInput').value;
             const interval = document.getElementById('telemetryIntervalInput') ? document.getElementById('telemetryIntervalInput').value : "15";
-            const api_url = document.getElementById('apiUrlInput') ? document.getElementById('apiUrlInput').value : '';
 
             const calcMethod = document.getElementById('calcMethodSelect').value;
             const motor1Rate = document.getElementById('motor1RateInput').value;
@@ -2048,7 +1951,6 @@
             localStorage.setItem('hydrosync_diameter', diameter);
             localStorage.setItem('hydrosync_tanks', tanks);
             localStorage.setItem('hydrosync_interval', interval);
-            localStorage.setItem('hydrosync_api_url', api_url);
             localStorage.setItem('hydrosync_gsm_numbers', JSON.stringify(gsmNumbers));
 
             localStorage.setItem('hydrosync_calc_method', calcMethod);
@@ -2322,13 +2224,6 @@
                         gsm_numbers: gsmNumbers.length > 0 ? gsmNumbers.join(',') : "none"
                     })
                 });
-                
-                const contentType = response.headers.get('content-type');
-                if (!response.ok || !contentType || !contentType.includes('application/json')) {
-                    console.warn('[API Warning] Syncing phone numbers response is not JSON or successful.');
-                    return;
-                }
-
                 const res = await response.json();
                 if (res.success) {
                     showToast("Phone numbers whitelist synchronized directly with the database.", "success");
@@ -2336,7 +2231,7 @@
                     showToast(`Failed to sync phone numbers: ${res.error}`, "error");
                 }
             } catch (err) {
-                console.warn('[API Warning] Syncing phone numbers:', err.message || err);
+                console.error('[API Error] Syncing phone numbers:', err);
                 showToast("Network error trying to sync phone numbers whitelist.", "error");
             }
         }
@@ -2460,13 +2355,6 @@
         async function loadAnalyticsDevices() {
             try {
                 const response = await fetch('/api/devices');
-                
-                const contentType = response.headers.get('content-type');
-                if (!response.ok || !contentType || !contentType.includes('application/json')) {
-                    console.warn('[Analytics Warning] Devices endpoint did not return JSON.');
-                    return;
-                }
-
                 const result = await response.json();
                 if (result.success && result.devices) {
                     const select = document.getElementById('analyticsDeviceSelect');
@@ -2493,7 +2381,7 @@
                     }
                 }
             } catch (err) {
-                console.warn('[Analytics] Warning loading devices:', err.message || err);
+                console.error('[Analytics] Error loading devices:', err);
             }
         }
 
@@ -2706,15 +2594,6 @@
                     fetch(`/api/history?device_id=${encodeURIComponent(deviceId)}&start_date=${startISO}&end_date=${endISO}&tz=${encodeURIComponent(tz)}&resolution=${analyticsResolution}`)
                 ]);
 
-                const usageContentType = usageRes.headers.get('content-type');
-                const historyContentType = historyRes.headers.get('content-type');
-
-                if (!usageRes.ok || !historyRes.ok || !usageContentType || !historyContentType || !usageContentType.includes('application/json') || !historyContentType.includes('application/json')) {
-                    console.warn('[Analytics Warning] Analytics endpoints returned non-JSON or unsuccessful response.');
-                    showToast("Failed to load historical analytics - server starting up", "warning");
-                    return;
-                }
-
                 const usageResult = await usageRes.json();
                 const historyResult = await historyRes.json();
 
@@ -2728,7 +2607,7 @@
                     showToast("Failed to load historical analytics", "error");
                 }
             } catch (err) {
-                console.warn('[Analytics] Fetch warning:', err.message || err);
+                console.error('[Analytics] Fetch error:', err);
                 showToast("Failed to connect to PostgreSQL analytics API.", "error");
             }
         }
@@ -2748,17 +2627,7 @@
 
             document.getElementById('txtPeriodWaterUsed').innerText = `${totalWater.toLocaleString(undefined, {maximumFractionDigits:1})} L`;
             document.getElementById('txtPeriodAvgWater').innerText = `${avgWater.toLocaleString(undefined, {maximumFractionDigits:1})} L / day`;
-            
-            // Show Total Data Usage in MB or GB based on the value (original totalData is in KB)
-            const totalDataMB = totalData / 1024;
-            let displayDataStr = "";
-            if (totalDataMB >= 1024) {
-                const totalDataGB = totalDataMB / 1024;
-                displayDataStr = `${totalDataGB.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} GB`;
-            } else {
-                displayDataStr = `${totalDataMB.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} MB`;
-            }
-            document.getElementById('txtPeriodDataUsed').innerText = displayDataStr;
+            document.getElementById('txtPeriodDataUsed').innerText = `${totalData.toLocaleString(undefined, {maximumFractionDigits:2})} KB`;
         }
 
         let activeMainTab = 'monitor'; // 'monitor', 'analytics', or 'telegram'
@@ -3340,22 +3209,12 @@
                                 ticks: { 
                                     color: '#94a3b8', 
                                     font: { size: 10 },
-                                    padding: 4,
+                                    padding: 1,
                                     callback: function(value) {
-                                        let formattedVal = value;
                                         if (value >= 1000) {
-                                            formattedVal = (value / 1000).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + 'k';
-                                        } else {
-                                            formattedVal = value.toLocaleString(undefined, { maximumFractionDigits: 1 });
+                                            return (value / 1000).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + 'k';
                                         }
-                                        
-                                        let pctStr = '';
-                                        if (typeof totalMaxVol === 'number' && totalMaxVol > 0) {
-                                            const pct = (value / totalMaxVol) * 100;
-                                            pctStr = Math.round(pct) + '%';
-                                        }
-                                        
-                                        return pctStr ? [formattedVal, pctStr] : [formattedVal];
+                                        return value;
                                     }
                                 }
                             }
@@ -3599,13 +3458,6 @@
                     })
                 });
 
-                const contentType = response.headers.get('content-type');
-                if (!response.ok || !contentType || !contentType.includes('application/json')) {
-                    console.warn('[FitSMS Warning] API returned non-JSON or unsuccessful response.');
-                    showToast("Failed to connect to SMS Gateway. Server is starting up.", "warning");
-                    return false;
-                }
-
                 const result = await response.json();
                 const timestamp = new Date().toLocaleString();
                 const modeLabel = smsConfig.apiMode === 'v4' ? 'OAuth v4' : 'HTTP GET';
@@ -3620,7 +3472,7 @@
                     return false;
                 }
             } catch (err) {
-                console.warn('[FitSMS dispatch warning]:', err.message || err);
+                console.error('[FitSMS dispatch error]:', err);
                 showToast("Network error trying to dispatch SMS alert.", "error");
                 const timestamp = new Date().toLocaleString();
                 const modeLabel = smsConfig.apiMode === 'v4' ? 'OAuth v4' : 'HTTP GET';
@@ -3767,14 +3619,6 @@
             try {
                 const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
                 const response = await fetch(`/api/telemetry?device_id=${encodeURIComponent(deviceId)}`);
-                
-                // Safe check for valid JSON response
-                const contentType = response.headers.get('content-type');
-                if (!response.ok || !contentType || !contentType.includes('application/json')) {
-                    console.warn('[DB telemetry polling status]: Server is starting up or returned a non-JSON response.');
-                    return;
-                }
-
                 const result = await response.json();
                 if (result.success && result.telemetry) {
                     const data = result.telemetry;
@@ -3802,7 +3646,7 @@
                     triggerRxFlash();
                 }
             } catch (err) {
-                console.warn('[DB telemetry polling status]: Transient background network or parsing error:', err.message || err);
+                console.error('[DB telemetry polling error]:', err);
             }
         }
 

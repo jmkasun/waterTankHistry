@@ -16,6 +16,7 @@
  * - Live Over-The-Air (OTA) configuration updates via MQTT.
  * - Exponential moving average (EMA) noise filter to prevent ultrasonic reading spikes.
  * - Graceful visual feedback using built-in LED blinking.
+ * - Mo token - apit-Om19yalJpKm8wstr27MsPN4jutMrrCe4-O31c4
  */
 
 #include <WiFi.h>
@@ -52,6 +53,10 @@ unsigned long lastLedBlinkTime = 0;
 bool ledState = false;
 bool pendingReboot = false;
 unsigned long rebootTimer = 0;
+
+// --- Wi-Fi watchdog states ---
+unsigned long lastWifiReconnectAttempt = 0;
+unsigned long firstWifiDisconnectTime = 0;
 
 // --- Physical calibration (Saved & Loaded via NVS Preferences) ---
 float tankHeight = 200.0;    // Max Water Height of the tank (cm)
@@ -369,6 +374,7 @@ void startConfigMode() {
     if (wifiSSID != "") {
         // Run in dual AP + STA mode so we can auto-reconnect in the background
         WiFi.mode(WIFI_AP_STA);
+        WiFi.setAutoReconnect(true); // Enable built-in driver auto-reconnect
         WiFi.begin(wifiSSID.c_str(), wifiPASS.c_str());
         Serial.println("[SYS] Configured as AP_STA. Still trying to connect to saved Wi-Fi in background...");
     } else {
@@ -994,6 +1000,7 @@ void setup() {
         delay(200);
         WiFi.mode(WIFI_STA);
         delay(200);
+        WiFi.setAutoReconnect(true); // Enable built-in driver auto-reconnect
         
         WiFi.begin(wifiSSID.c_str(), wifiPASS.c_str());
         
@@ -1070,43 +1077,61 @@ void loop() {
         }
 
         // Check if Wi-Fi successfully connected in the background
-        if (wifiSSID != "" && WiFi.status() == WL_CONNECTED) {
-            Serial.println("\n[SYS] Background Wi-Fi connected successfully!");
-            Serial.print("[SYS] IP Address: ");
-            Serial.println(WiFi.localIP());
+        if (wifiSSID != "") {
+            if (WiFi.status() == WL_CONNECTED) {
+                Serial.println("\n[SYS] Background Wi-Fi connected successfully!");
+                Serial.print("[SYS] IP Address: ");
+                Serial.println(WiFi.localIP());
 
-            // Close the AP mode to save power and clear the airwaves, switch to pure STA station mode
-            WiFi.softAPdisconnect(true);
-            WiFi.mode(WIFI_STA);
+                // Close the AP mode to save power and clear the airwaves, switch to pure STA station mode
+                WiFi.softAPdisconnect(true);
+                WiFi.mode(WIFI_STA);
 
-            // Configure MQTT
-            mqttClient.setServer(mqttServer, mqttPort);
-            mqttClient.setCallback(mqttCallback);
-            connectMQTTNonBlocking();
+                // Configure MQTT
+                mqttClient.setServer(mqttServer, mqttPort);
+                mqttClient.setCallback(mqttCallback);
+                connectMQTTNonBlocking();
 
-            // Set LED stable high (connected)
-            digitalWrite(LED_PIN, HIGH);
+                // Set LED stable high (connected)
+                digitalWrite(LED_PIN, HIGH);
 
-            // Exit Config mode
-            isConfigMode = false;
-            Serial.println("[SYS] Transitioned from Config AP Mode to Normal Station Mode automatically.");
+                // Exit Config mode
+                isConfigMode = false;
+                Serial.println("[SYS] Transitioned from Config AP Mode to Normal Station Mode automatically.");
+            } else {
+                // Background reconnect retry timer in config mode (every 45 seconds)
+                static unsigned long lastConfigWifiRetry = 0;
+                unsigned long currentMs = millis();
+                if (lastConfigWifiRetry == 0) {
+                    lastConfigWifiRetry = currentMs;
+                }
+                if (currentMs - lastConfigWifiRetry > 45000) {
+                    lastConfigWifiRetry = currentMs;
+                    Serial.printf("[SYS] Background Wi-Fi retry in Config Mode to SSID: %s ...\n", wifiSSID.c_str());
+                    WiFi.disconnect();
+                    delay(100);
+                    WiFi.begin(wifiSSID.c_str(), wifiPASS.c_str());
+                }
+            }
         }
     } else {
         // Robust Wi-Fi Connection watchdog and self-healing engine
         if (WiFi.status() != WL_CONNECTED) {
-            static unsigned long lastWifiReconnectAttempt = 0;
-            static unsigned long firstWifiDisconnectTime = 0;
-            
             unsigned long currentMs = millis();
             if (firstWifiDisconnectTime == 0) {
                 firstWifiDisconnectTime = currentMs ? currentMs : 1; // prevent 0 re-triggering
+                lastWifiReconnectAttempt = currentMs; // Delay the active begin retry to allow auto-reconnect first
                 Serial.println("[WIFI] Wi-Fi link lost! Activating self-healing watchdog...");
+                WiFi.disconnect(false); // Disconnect but keep configurations
+                WiFi.reconnect(); // Trigger background driver auto-reconnection
             }
             
-            // Try to reconnect every 15 seconds without blocking the loop
-            if (currentMs - lastWifiReconnectAttempt > 15000) {
+            // Try to actively call WiFi.begin every 60 seconds if automatic driver-level reconnect fails
+            if (currentMs - lastWifiReconnectAttempt > 60000) {
                 lastWifiReconnectAttempt = currentMs;
-                Serial.printf("[WIFI] Attempting Wi-Fi reconnection to SSID: %s ...\n", wifiSSID.c_str());
+                Serial.printf("[WIFI] Watchdog active reconnection attempt to SSID: %s ...\n", wifiSSID.c_str());
+                WiFi.disconnect();
+                delay(100);
                 WiFi.begin(wifiSSID.c_str(), wifiPASS.c_str());
             }
             
@@ -1117,6 +1142,12 @@ void loop() {
                 ESP.restart();
             }
         } else {
+            // Wi-Fi is connected. Reset watchdog timers.
+            if (firstWifiDisconnectTime != 0) {
+                Serial.println("[WIFI] Wi-Fi link successfully restored. Resetting watchdog.");
+                firstWifiDisconnectTime = 0;
+            }
+
             // Keep MQTT live without blocking when connected
             if (!mqttClient.connected()) {
                 connectMQTTNonBlocking();

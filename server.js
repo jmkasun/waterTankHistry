@@ -5,8 +5,24 @@ const { URL } = require('url');
 const mqtt = require('mqtt');
 const { pool, initDb } = require('./db');
 
-// Initialize database
-initDb();
+// Keep track of registered device IDs to filter out public broker spam
+const registeredDevices = new Set(['mytank123']);
+
+async function loadRegisteredDevices() {
+    try {
+        const res = await pool.query('SELECT device_id FROM w_device_config');
+        res.rows.forEach(row => registeredDevices.add(row.device_id));
+        console.log(`[MQTT Server Listener] Loaded ${registeredDevices.size} registered devices from database:`, Array.from(registeredDevices));
+    } catch (err) {
+        console.error('[MQTT Server Listener] Error loading registered devices:', err);
+    }
+}
+
+// Initialize database and load registered devices
+(async () => {
+    await initDb();
+    await loadRegisteredDevices();
+})();
 
 // MQTT Listener in the background
 const mqttBroker = 'mqtt://broker.hivemq.com:1883';
@@ -35,6 +51,12 @@ mqttClient.on('message', async (topic, message) => {
         if (topicParts.length !== 3 || topicParts[1] !== 'status') return;
 
         const deviceId = topicParts[0];
+
+        // Filter out unregistered devices to protect database from public HiveMQ spam
+        if (!registeredDevices.has(deviceId)) {
+            return;
+        }
+
         const metric = topicParts[2]; // level, volume, data_usage, version, or ip
         const valStr = message.toString().trim();
 
@@ -191,6 +213,9 @@ const server = http.createServer(async (req, res) => {
                     return;
                 }
 
+                // Register device in memory set
+                registeredDevices.add(device_id);
+
                 const levelVal = parseFloat(level);
                 const volumeVal = parseFloat(volume);
                 const dataUsageVal = parseInt(data_usage, 10) || 0;
@@ -334,6 +359,9 @@ const server = http.createServer(async (req, res) => {
                     sendJSON(res, { success: false, error: 'device_id is required' }, 400);
                     return;
                 }
+
+                // Register device in memory set
+                registeredDevices.add(device_id);
 
                 // Construct dynamic update query based on provided fields
                 const fields = [];

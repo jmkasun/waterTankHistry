@@ -3162,23 +3162,105 @@
                         pointBorderColors.push('#3b82f6');
                         pointRadii.push(0);
                         pointHoverRadii.push(0);
-                        pointMotorLabels.push({ motor: 'None', rate: 0, isUptrend: false });
+                        pointMotorLabels.push({ 
+                            motor: 'None', 
+                            rate: 0, 
+                            isUptrend: false,
+                            indFillingRate: 0,
+                            indOutflowRate: 0
+                        });
                         continue;
                     }
 
+                    // Find nearest previous valid point
+                    let prevValid = null;
+                    for (let p = i - 1; p >= 0; p--) {
+                        if (historyRows[p].avg_volume !== null) {
+                            prevValid = historyRows[p];
+                            break;
+                        }
+                    }
+
+                    // Find nearest next valid point
+                    let nextValid = null;
+                    for (let n = i + 1; n < historyRows.length; n++) {
+                        if (historyRows[n].avg_volume !== null) {
+                            nextValid = historyRows[n];
+                            break;
+                        }
+                    }
+
+                    let indRate = 0;
+                    const volCurrent = parseFloat(row.avg_volume);
+                    const timeCurrent = new Date(row.hour_timestamp);
+
+                    if (prevValid && nextValid) {
+                        const volPrev = parseFloat(prevValid.avg_volume);
+                        const timePrev = new Date(prevValid.hour_timestamp);
+                        const volNext = parseFloat(nextValid.avg_volume);
+                        const timeNext = new Date(nextValid.hour_timestamp);
+
+                        const dt = (timeNext - timePrev) / (1000 * 60 * 60); // hours
+                        if (dt > 0) {
+                            indRate = (volNext - volPrev) / dt;
+                        }
+                    } else if (prevValid) {
+                        const volPrev = parseFloat(prevValid.avg_volume);
+                        const timePrev = new Date(prevValid.hour_timestamp);
+
+                        const dt = (timeCurrent - timePrev) / (1000 * 60 * 60); // hours
+                        if (dt > 0) {
+                            indRate = (volCurrent - volPrev) / dt;
+                        }
+                    } else if (nextValid) {
+                        const volNext = parseFloat(nextValid.avg_volume);
+                        const timeNext = new Date(nextValid.hour_timestamp);
+
+                        const dt = (timeNext - timeCurrent) / (1000 * 60 * 60); // hours
+                        if (dt > 0) {
+                            indRate = (volNext - volCurrent) / dt;
+                        }
+                    }
+
+                    const m1Rate = parseFloat(document.getElementById('motor1RateInput')?.value || '1000');
+                    const m2Rate = parseFloat(document.getElementById('motor2RateInput')?.value || '5000');
+
                     const interval = findIntervalForIndex(i);
+                    let indFillingRate = 0;
+                    let indOutflowRate = 0;
+
+                    if (interval) {
+                        const active_motor_rate = interval.motor.includes('Motor 2') ? m2Rate : m1Rate;
+                        indFillingRate = active_motor_rate;
+                        indOutflowRate = Math.max(0, active_motor_rate - indRate);
+                    } else {
+                        indFillingRate = 0;
+                        indOutflowRate = Math.max(0, -indRate);
+                    }
                     if (interval) {
                         pointBackgroundColors.push(interval.color);
                         pointBorderColors.push(interval.borderColor);
                         pointRadii.push(4.5);
                         pointHoverRadii.push(7.5);
-                        pointMotorLabels.push({ motor: interval.motor, rate: interval.overallRate, isUptrend: true });
+                        pointMotorLabels.push({ 
+                            motor: interval.motor, 
+                            rate: interval.overallRate, 
+                            isUptrend: true,
+                            indFillingRate: indFillingRate,
+                            indOutflowRate: indOutflowRate
+                        });
                     } else {
                         pointBackgroundColors.push('#3b82f6'); // Default Blue
                         pointBorderColors.push('#1d4ed8');
                         pointRadii.push(3);
                         pointHoverRadii.push(6);
-                        pointMotorLabels.push({ motor: 'None (Stable/Discharging)', rate: 0, isUptrend: false });
+                        pointMotorLabels.push({ 
+                            motor: 'None (Stable/Discharging)', 
+                            rate: 0, 
+                            isUptrend: false,
+                            indFillingRate: indFillingRate,
+                            indOutflowRate: indOutflowRate
+                        });
                     }
                 }
 
@@ -3300,13 +3382,24 @@
                                         const idx = context.dataIndex;
                                         const meta = pointMotorLabels[idx];
                                         if (meta) {
+                                            const formatRateVal = (rate) => {
+                                                if (!rate || rate === 0) return '0 L/hr';
+                                                if (rate < 10) return rate.toFixed(1) + ' L/hr';
+                                                return Math.round(rate).toLocaleString() + ' L/hr';
+                                            };
                                             if (meta.isUptrend) {
                                                 return [
                                                     `Pump Status: Active (${meta.motor})`,
-                                                    `Overall Filling Rate: ${Math.round(meta.rate).toLocaleString()} L/hr`
+                                                    `Individual Filling Rate: ${formatRateVal(meta.indFillingRate)}`,
+                                                    `Individual Outflow Rate: ${formatRateVal(meta.indOutflowRate)}`,
+                                                    `Overall Interval Rate: ${Math.round(meta.rate).toLocaleString()} L/hr`
                                                 ];
                                             } else {
-                                                return `Pump Status: Standby / Outflow Only`;
+                                                return [
+                                                    `Pump Status: Standby`,
+                                                    `Individual Filling Rate: ${formatRateVal(meta.indFillingRate)}`,
+                                                    `Individual Outflow Rate: ${formatRateVal(meta.indOutflowRate)}`
+                                                ];
                                             }
                                         }
                                         return '';

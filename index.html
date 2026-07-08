@@ -3222,21 +3222,32 @@
                         }
                     }
 
-                    const m1Rate = parseFloat(document.getElementById('motor1RateInput')?.value || '1000');
-                    const m2Rate = parseFloat(document.getElementById('motor2RateInput')?.value || '5000');
-
-                    const interval = findIntervalForIndex(i);
                     let indFillingRate = 0;
                     let indOutflowRate = 0;
 
+                    const interval = findIntervalForIndex(i);
                     if (interval) {
-                        const active_motor_rate = interval.motor.includes('Motor 2') ? m2Rate : m1Rate;
-                        indFillingRate = active_motor_rate;
-                        indOutflowRate = Math.max(0, active_motor_rate - indRate);
+                        const m1Rate = parseFloat(document.getElementById('motor1RateInput')?.value || '1000');
+                        const m2Rate = parseFloat(document.getElementById('motor2RateInput')?.value || '5000');
+                        let activeMotorRate = 0;
+                        if (interval.motor.includes('Motor 1')) {
+                            activeMotorRate = m1Rate;
+                        } else if (interval.motor.includes('Motor 2')) {
+                            activeMotorRate = m2Rate;
+                        }
+
+                        indFillingRate = Math.max(0, indRate);
+                        indOutflowRate = Math.max(0, activeMotorRate - indFillingRate);
                     } else {
-                        indFillingRate = 0;
-                        indOutflowRate = Math.max(0, -indRate);
+                        if (indRate > 0) {
+                            indFillingRate = indRate;
+                            indOutflowRate = 0;
+                        } else if (indRate < 0) {
+                            indFillingRate = 0;
+                            indOutflowRate = Math.abs(indRate);
+                        }
                     }
+
                     if (interval) {
                         pointBackgroundColors.push(interval.color);
                         pointBorderColors.push(interval.borderColor);

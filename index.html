@@ -1858,7 +1858,13 @@
             }
 
             const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
-            const api_url = document.getElementById('apiUrlInput') ? document.getElementById('apiUrlInput').value.trim() : '';
+            let api_url = document.getElementById('apiUrlInput') ? document.getElementById('apiUrlInput').value.trim() : '';
+            if (api_url && !api_url.startsWith('http://') && !api_url.startsWith('https://')) {
+                api_url = 'https://' + api_url;
+                if (document.getElementById('apiUrlInput')) {
+                    document.getElementById('apiUrlInput').value = api_url;
+                }
+            }
             
             const motor1_rate = parseFloat(document.getElementById('motor1RateInput').value) || 1000.0;
             const motor2_rate = parseFloat(document.getElementById('motor2RateInput').value) || 5000.0;

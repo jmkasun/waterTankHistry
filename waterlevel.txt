@@ -295,6 +295,10 @@ void handleSave() {
     String reqInterval = server.arg("interval");
     String reqGsm = server.arg("gsm_nums");
     String reqApiUrl = server.arg("api_url");
+    reqApiUrl.trim();
+    if (reqApiUrl.length() > 0 && !reqApiUrl.startsWith("http://") && !reqApiUrl.startsWith("https://")) {
+        reqApiUrl = "https://" + reqApiUrl;
+    }
     String reqMotor1 = server.arg("motor1_rate");
     String reqMotor2 = server.arg("motor2_rate");
     String reqThresh = server.arg("pump_thresh");
@@ -409,6 +413,129 @@ float getFilteredDistance() {
         smoothedDistance = (raw * filterAlpha) + (smoothedDistance * (1.0 - filterAlpha));
     }
     return smoothedDistance;
+}
+
+// --- Lightweight JSON Parsing Helper ---
+String parseJsonString(String json, String key) {
+    String searchKey = "\"" + key + "\":\"";
+    int startIdx = json.indexOf(searchKey);
+    if (startIdx == -1) {
+        searchKey = "\"" + key + "\":";
+        startIdx = json.indexOf(searchKey);
+        if (startIdx == -1) return "";
+        startIdx += searchKey.length();
+        while (startIdx < json.length() && (json[startIdx] == ' ' || json[startIdx] == '\t')) {
+            startIdx++;
+        }
+        int endIdx = startIdx;
+        while (endIdx < json.length() && (isDigit(json[endIdx]) || json[endIdx] == '.' || json[endIdx] == '-')) {
+            endIdx++;
+        }
+        return json.substring(startIdx, endIdx);
+    }
+    startIdx += searchKey.length();
+    int endIdx = json.indexOf("\"", startIdx);
+    if (endIdx == -1) return "";
+    return json.substring(startIdx, endIdx);
+}
+
+// Forward declaration for triggerHttpOta
+void triggerHttpOta(String url);
+
+// --- Process server-provided configurations received via HTTP response ---
+void handleHttpResponseConfig(String response) {
+    if (response.indexOf("\"success\":true") == -1) return;
+    
+    preferences.begin(PREF_NAMESPACE, false);
+    bool changed = false;
+
+    // 1. Tank Height
+    String heightStr = parseJsonString(response, "tank_height");
+    if (heightStr.length() > 0) {
+        float val = heightStr.toFloat();
+        if (val > 0 && val != tankHeight) {
+            tankHeight = val;
+            preferences.putFloat("height", val);
+            Serial.printf("[HTTP Sync] Updated tank height: %.1f cm\n", val);
+            changed = true;
+        }
+    }
+
+    // 2. Sensor Height Offset
+    String shStr = parseJsonString(response, "sensor_height");
+    if (shStr.length() > 0) {
+        float val = shStr.toFloat();
+        if (val >= 0 && val != sensorHeight) {
+            sensorHeight = val;
+            preferences.putFloat("sensor_height", val);
+            Serial.printf("[HTTP Sync] Updated sensor offset: %.1f cm\n", val);
+            changed = true;
+        }
+    }
+
+    // 3. Tank Diameter
+    String diaStr = parseJsonString(response, "tank_diameter");
+    if (diaStr.length() > 0) {
+        float val = diaStr.toFloat();
+        if (val > 0 && val != tankDiameter) {
+            tankDiameter = val;
+            preferences.putFloat("diameter", val);
+            Serial.printf("[HTTP Sync] Updated diameter: %.1f cm\n", val);
+            changed = true;
+        }
+    }
+
+    // 4. Num Tanks
+    String tanksStr = parseJsonString(response, "num_tanks");
+    if (tanksStr.length() > 0) {
+        int val = tanksStr.toInt();
+        if (val > 0 && val != numTanks) {
+            numTanks = val;
+            preferences.putInt("tanks", val);
+            Serial.printf("[HTTP Sync] Updated number of tanks: %d\n", val);
+            changed = true;
+        }
+    }
+
+    // 5. Telemetry Interval
+    String intervalStr = parseJsonString(response, "telemetry_interval");
+    if (intervalStr.length() > 0) {
+        int val = intervalStr.toInt();
+        if (val >= 5 && val != telemetryInterval) {
+            telemetryInterval = val;
+            preferences.putInt("interval", val);
+            Serial.printf("[HTTP Sync] Updated telemetry interval: %d s\n", val);
+            changed = true;
+        }
+    }
+
+    // 6. GSM numbers whitelist
+    String gsmStr = parseJsonString(response, "gsm_numbers");
+    if (gsmStr.length() > 0 && gsmStr != gsmNumbersList) {
+        if (gsmStr == "none") gsmStr = "";
+        gsmNumbersList = gsmStr;
+        preferences.putString("gsm_nums", gsmStr);
+        Serial.printf("[HTTP Sync] Updated GSM whitelist: %s\n", gsmStr.c_str());
+        changed = true;
+    }
+
+    // 7. API Server URL
+    String apiStr = parseJsonString(response, "api_url");
+    if (apiStr.length() > 0 && apiStr != apiServerUrl) {
+        apiServerUrl = apiStr;
+        preferences.putString("api_url", apiStr);
+        Serial.printf("[HTTP Sync] Updated API Server URL: %s\n", apiStr.c_str());
+        changed = true;
+    }
+
+    preferences.end();
+
+    // 8. Over-The-Air Firmware Trigger
+    String otaStr = parseJsonString(response, "ota_url");
+    if (otaStr.length() > 0 && (otaStr.startsWith("http://") || otaStr.startsWith("https://"))) {
+        Serial.printf("[HTTP Sync] OTA update triggered from HTTP response: %s\n", otaStr.c_str());
+        triggerHttpOta(otaStr);
+    }
 }
 
 // --- Remote HTTP OTA Firmware Flasher ---
@@ -965,11 +1092,37 @@ void loop() {
             Serial.println("[SYS] Transitioned from Config AP Mode to Normal Station Mode automatically.");
         }
     } else {
-        // Keep MQTT live without blocking
-        if (!mqttClient.connected()) {
-            connectMQTTNonBlocking();
+        // Robust Wi-Fi Connection watchdog and self-healing engine
+        if (WiFi.status() != WL_CONNECTED) {
+            static unsigned long lastWifiReconnectAttempt = 0;
+            static unsigned long firstWifiDisconnectTime = 0;
+            
+            unsigned long currentMs = millis();
+            if (firstWifiDisconnectTime == 0) {
+                firstWifiDisconnectTime = currentMs ? currentMs : 1; // prevent 0 re-triggering
+                Serial.println("[WIFI] Wi-Fi link lost! Activating self-healing watchdog...");
+            }
+            
+            // Try to reconnect every 15 seconds without blocking the loop
+            if (currentMs - lastWifiReconnectAttempt > 15000) {
+                lastWifiReconnectAttempt = currentMs;
+                Serial.printf("[WIFI] Attempting Wi-Fi reconnection to SSID: %s ...\n", wifiSSID.c_str());
+                WiFi.begin(wifiSSID.c_str(), wifiPASS.c_str());
+            }
+            
+            // If disconnected for more than 5 minutes (300,000 ms), reboot ESP32 to self-heal
+            if (currentMs - firstWifiDisconnectTime > 300000) {
+                Serial.println("[WIFI] Wi-Fi offline for >5 mins. Rebooting ESP32 for full stack reset...");
+                delay(1000);
+                ESP.restart();
+            }
         } else {
-            mqttClient.loop();
+            // Keep MQTT live without blocking when connected
+            if (!mqttClient.connected()) {
+                connectMQTTNonBlocking();
+            } else {
+                mqttClient.loop();
+            }
         }
 
         // Maintain and process incoming SIM/GSM serial communications
@@ -1058,17 +1211,23 @@ void loop() {
                     WiFiClientSecure clientSecure;
                     clientSecure.setInsecure(); // Skip certificate verification for SSL
                     http.begin(clientSecure, endpoint);
+                    http.setTimeout(3000); // 3-second timeout to prevent blocking on network hiccups
                     http.addHeader("Content-Type", "application/json");
                     httpResponseCode = http.POST(jsonPayload);
                 } else {
                     WiFiClient client;
                     http.begin(client, endpoint);
+                    http.setTimeout(3000); // 3-second timeout to prevent blocking on network hiccups
                     http.addHeader("Content-Type", "application/json");
                     httpResponseCode = http.POST(jsonPayload);
                 }
 
                 if (httpResponseCode > 0) {
                     Serial.printf("[HTTP] Telemetry POST success, response: %d\n", httpResponseCode);
+                    if (httpResponseCode == 200) {
+                        String responseBody = http.getString();
+                        handleHttpResponseConfig(responseBody);
+                    }
                 } else {
                     Serial.printf("[HTTP] Telemetry POST failed, error: %s\n", http.errorToString(httpResponseCode).c_str());
                 }

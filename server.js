@@ -209,7 +209,7 @@ const server = http.createServer(async (req, res) => {
                 
                 // Get or create device configuration
                 let configRes = await pool.query(
-                    `SELECT tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url
+                    `SELECT tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url, api_url
                      FROM w_device_config WHERE device_id = $1`,
                     [device_id]
                 );
@@ -228,7 +228,8 @@ const server = http.createServer(async (req, res) => {
                         num_tanks: 1,
                         telemetry_interval: 15,
                         gsm_numbers: '',
-                        ota_url: ''
+                        ota_url: '',
+                        api_url: ''
                     };
                 } else {
                     deviceConfig = configRes.rows[0];
@@ -247,7 +248,8 @@ const server = http.createServer(async (req, res) => {
                         num_tanks: parseInt(deviceConfig.num_tanks, 10),
                         telemetry_interval: parseInt(deviceConfig.telemetry_interval, 10),
                         gsm_numbers: deviceConfig.gsm_numbers || '',
-                        ota_url: deviceConfig.ota_url || ''
+                        ota_url: deviceConfig.ota_url || '',
+                        api_url: deviceConfig.api_url || ''
                     }
                 });
             } catch (err) {

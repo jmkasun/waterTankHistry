@@ -456,7 +456,10 @@
                                 <option value="4H" class="bg-slate-950 text-slate-300">4 Hours</option>
                                 <option value="8H" class="bg-slate-950 text-slate-300">8 Hours</option>
                                 <option value="12H" class="bg-slate-950 text-slate-300">12 Hours</option>
+                                <option value="24H" class="bg-slate-950 text-slate-300">24 Hours</option>
                                 <option value="today" class="bg-slate-950 text-slate-300">Today</option>
+                                <option value="yesterday" class="bg-slate-950 text-slate-300">Yesterday</option>
+                                <option value="3d" class="bg-slate-950 text-slate-300">3 Days</option>
                                 <option value="7d" class="bg-slate-950 text-slate-300">7 Days</option>
                                 <option value="14d" class="bg-slate-950 text-cyan-400" selected>14 Days</option>
                                 <option value="30d" class="bg-slate-950 text-slate-300">30 Days</option>
@@ -2419,7 +2422,19 @@
             } else if (preset === '12H') {
                 start.setHours(end.getHours() - 12);
                 analyticsResolution = '30m';
+            } else if (preset === '24H') {
+                start.setHours(end.getHours() - 24);
+                analyticsResolution = '30m';
             } else if (preset === 'today') {
+                start.setHours(0, 0, 0, 0);
+                analyticsResolution = '30m';
+            } else if (preset === 'yesterday') {
+                start.setDate(end.getDate() - 1);
+                start.setHours(0, 0, 0, 0);
+                end.setDate(end.getDate() - 1);
+                analyticsResolution = '30m';
+            } else if (preset === '3d') {
+                start.setDate(end.getDate() - 2);
                 start.setHours(0, 0, 0, 0);
                 analyticsResolution = '30m';
             } else if (preset === '7d') {
@@ -2647,7 +2662,16 @@
                     start.setHours(end.getHours() - 8);
                 } else if (preset === '12H') {
                     start.setHours(end.getHours() - 12);
+                } else if (preset === '24H') {
+                    start.setHours(end.getHours() - 24);
                 } else if (preset === 'today') {
+                    start.setHours(0, 0, 0, 0);
+                } else if (preset === 'yesterday') {
+                    start.setDate(end.getDate() - 1);
+                    start.setHours(0, 0, 0, 0);
+                    end.setDate(end.getDate() - 1);
+                } else if (preset === '3d') {
+                    start.setDate(end.getDate() - 2);
                     start.setHours(0, 0, 0, 0);
                 } else if (preset === '7d') {
                     start.setDate(end.getDate() - 6);
@@ -2667,7 +2691,7 @@
                 }
                 
                 // For day-based presets, go from start of day of start, to end of day of end
-                if (['today', '7d', '14d', '30d', 'month', '90d'].includes(preset)) {
+                if (['today', 'yesterday', '3d', '7d', '14d', '30d', 'month', '90d'].includes(preset)) {
                     startISO = new Date(getLocalYYYYMMDD(start) + 'T00:00:00').toISOString();
                     endISO = new Date(getLocalYYYYMMDD(end) + 'T23:59:59').toISOString();
                 } else {

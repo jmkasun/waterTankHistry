@@ -3758,6 +3758,30 @@
                     document.getElementById('sms_msg_high').value = cfg.sms_msg_high || '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
                     document.getElementById('sms_msg_normal').value = cfg.sms_msg_normal || 'ℹ️ RECOVERY: Water level is back to NORMAL range: [Percent]%. Device ID: [Device]. Time: [Timestamp]';
 
+                    // Self-heal: If config timezone_offset is missing or 0 (and browser is not 0), update it
+                    const currentBrowserOffset = new Date().getTimezoneOffset();
+                    if (cfg.timezone_offset === null || cfg.timezone_offset === undefined || (cfg.timezone_offset === 0 && currentBrowserOffset !== 0)) {
+                        cfg.timezone_offset = currentBrowserOffset;
+                        fetch('/api/sms/config', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                device_id: deviceId,
+                                sms_api_mode: cfg.sms_api_mode || 'v3',
+                                sms_api_token: cfg.sms_api_token || '',
+                                sms_sender_id: cfg.sms_sender_id || 'TextLK',
+                                sms_oauth_endpoint: cfg.sms_oauth_endpoint || 'https://app.text.lk/api/v3/',
+                                sms_http_endpoint: cfg.sms_http_endpoint || 'https://app.text.lk/api/http/',
+                                sms_recipient_numbers: cfg.sms_recipient_numbers || '',
+                                sms_alert_enabled: !!cfg.sms_alert_enabled,
+                                sms_msg_low: cfg.sms_msg_low,
+                                sms_msg_high: cfg.sms_msg_high,
+                                sms_msg_normal: cfg.sms_msg_normal,
+                                timezone_offset: currentBrowserOffset
+                            })
+                        }).catch(e => console.error('[SMS UI] Auto-heal config offset error:', e));
+                    }
+
                     toggleSmsEndpointInputs();
                 }
             } catch (err) {
@@ -3804,7 +3828,8 @@
                         sms_alert_enabled: alertEnabled,
                         sms_msg_low: msgLow,
                         sms_msg_high: msgHigh,
-                        sms_msg_normal: msgNormal
+                        sms_msg_normal: msgNormal,
+                        timezone_offset: new Date().getTimezoneOffset()
                     })
                 });
 

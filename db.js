@@ -126,6 +126,9 @@ async function initDb() {
     await client.query(`
       ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS sms_msg_normal TEXT DEFAULT 'ℹ️ RECOVERY: Water level is back to NORMAL range: [Percent]%. Device ID: [Device]. Time: [Timestamp]';
     `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS timezone_offset INT DEFAULT 0;
+    `);
 
     // Create w_sms_schedules table
     await client.query(`

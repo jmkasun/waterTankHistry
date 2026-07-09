@@ -758,7 +758,7 @@ const server = http.createServer(async (req, res) => {
         try {
             const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
             const result = await pool.query(
-                `SELECT sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal
+                `SELECT sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset
                  FROM w_device_config WHERE device_id = $1`,
                 [deviceId]
             );
@@ -768,6 +768,7 @@ const server = http.createServer(async (req, res) => {
                 config.sms_msg_low = config.sms_msg_low || '⚠️ ALERT: Water level is critically LOW at [Percent]%! (Below [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
                 config.sms_msg_high = config.sms_msg_high || '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
                 config.sms_msg_normal = config.sms_msg_normal || 'ℹ️ RECOVERY: Water level is back to NORMAL range: [Percent]%. Device ID: [Device]. Time: [Timestamp]';
+                config.timezone_offset = config.timezone_offset !== undefined && config.timezone_offset !== null ? config.timezone_offset : 0;
                 sendJSON(res, { success: true, config });
             } else {
                 sendJSON(res, {
@@ -784,7 +785,8 @@ const server = http.createServer(async (req, res) => {
                         alert_max: 90.0,
                         sms_msg_low: '⚠️ ALERT: Water level is critically LOW at [Percent]%! (Below [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]',
                         sms_msg_high: '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]',
-                        sms_msg_normal: 'ℹ️ RECOVERY: Water level is back to NORMAL range: [Percent]%. Device ID: [Device]. Time: [Timestamp]'
+                        sms_msg_normal: 'ℹ️ RECOVERY: Water level is back to NORMAL range: [Percent]%. Device ID: [Device]. Time: [Timestamp]',
+                        timezone_offset: 0
                     }
                 });
             }
@@ -802,7 +804,7 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                const { device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, sms_msg_low, sms_msg_high, sms_msg_normal } = data;
+                const { device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset } = data;
                 
                 if (!device_id) {
                     sendJSON(res, { success: false, error: 'device_id is required' }, 400);
@@ -810,11 +812,12 @@ const server = http.createServer(async (req, res) => {
                 }
 
                 const smsAlertEnabled = sms_alert_enabled === true || sms_alert_enabled === 'true';
+                const tzOffset = timezone_offset !== undefined && timezone_offset !== null ? parseInt(timezone_offset, 10) : 0;
 
                 await pool.query(
                     `INSERT INTO w_device_config (
-                        device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, sms_msg_low, sms_msg_high, sms_msg_normal
-                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                        device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset
+                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                      ON CONFLICT (device_id) DO UPDATE SET
                         sms_api_mode = EXCLUDED.sms_api_mode,
                         sms_oauth_endpoint = EXCLUDED.sms_oauth_endpoint,
@@ -826,6 +829,7 @@ const server = http.createServer(async (req, res) => {
                         sms_msg_low = COALESCE(EXCLUDED.sms_msg_low, w_device_config.sms_msg_low),
                         sms_msg_high = COALESCE(EXCLUDED.sms_msg_high, w_device_config.sms_msg_high),
                         sms_msg_normal = COALESCE(EXCLUDED.sms_msg_normal, w_device_config.sms_msg_normal),
+                        timezone_offset = COALESCE(EXCLUDED.timezone_offset, w_device_config.timezone_offset),
                         updated_at = CURRENT_TIMESTAMP`,
                     [
                         device_id,
@@ -838,7 +842,8 @@ const server = http.createServer(async (req, res) => {
                         smsAlertEnabled,
                         sms_msg_low || '',
                         sms_msg_high || '',
-                        sms_msg_normal || ''
+                        sms_msg_normal || '',
+                        tzOffset
                     ]
                 );
 
@@ -1187,10 +1192,26 @@ async function sendSmsMessageDirectly(config, recipient, messageText) {
     });
 }
 
+function getFormattedLocalTimestamp(offsetInMinutes) {
+    const tzOffset = (offsetInMinutes !== undefined && offsetInMinutes !== null) ? parseInt(offsetInMinutes, 10) : 0;
+    const now = new Date();
+    const localTime = new Date(now.getTime() - (tzOffset * 60000));
+    const year = localTime.getUTCFullYear();
+    const month = (localTime.getUTCMonth() + 1).toString().padStart(2, '0');
+    const day = localTime.getUTCDate().toString().padStart(2, '0');
+    let hours = localTime.getUTCHours();
+    const minutes = localTime.getUTCMinutes().toString().padStart(2, '0');
+    const seconds = localTime.getUTCSeconds().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds} ${ampm}`;
+}
+
 async function checkDeviceThresholdAlerts(deviceId, level, volume) {
     try {
         const configRes = await pool.query(
-            `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal
+            `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset
              FROM w_device_config WHERE device_id = $1`,
             [deviceId]
         );
@@ -1241,7 +1262,7 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
                 thresholdValue = `${alertMin.toFixed(0)}-${alertMax.toFixed(0)}`;
             }
 
-            const timestamp = new Date().toLocaleString();
+            const timestamp = getFormattedLocalTimestamp(config.timezone_offset);
             let message = template
                 .replace(/\[Percent\]/g, percent.toFixed(0))
                 .replace(/\[Threshold\]/g, thresholdValue)
@@ -1345,7 +1366,7 @@ async function runScheduleCheck() {
                     .replace(/\[Percent\]/g, `${percent.toFixed(0)}%`)
                     .replace(/\[Volume\]/g, `${volume.toLocaleString()} Liters`)
                     .replace(/\[Depth\]/g, `${depth.toFixed(1)} cm`)
-                    .replace(/\[Timestamp\]/g, new Date().toLocaleString());
+                    .replace(/\[Timestamp\]/g, getFormattedLocalTimestamp(schedule.timezone_offset));
             } else if (schedule.schedule_type === 'motor_on') {
                 message = schedule.message_template || 'MOTOR ON';
                 await publishMqttMessage(`${schedule.device_id}/cmd/motor`, 'ON', false);

@@ -107,6 +107,11 @@ mqttClient.on('message', async (topic, message) => {
             );
             console.log(`[DB Log] Successfully saved telemetry for ${deviceId}: Level=${levelVal}cm, Volume=${volumeVal}L, DataUsage=${dataUsageVal} Bytes, Version=${versionVal}`);
             
+            // Check for threshold alerts and dispatch SMS if needed
+            checkDeviceThresholdAlerts(deviceId, levelVal, volumeVal).catch(err => {
+                console.error('[SMS Trigger Error] Error checking threshold alerts:', err);
+            });
+
             // Clear cache after successful insertion to require both new readings in next transmission cycle
             cache.level = null;
             cache.volume = null;
@@ -128,6 +133,86 @@ function sendJSON(res, data, statusCode = 200) {
 }
 
 // Robust MQTT publish helper that supports persistent background client as well as fallback to short-lived connection
+let transientQueue = [];
+let isProcessingTransientQueue = false;
+
+async function processTransientQueue() {
+    if (isProcessingTransientQueue || transientQueue.length === 0) return;
+    isProcessingTransientQueue = true;
+
+    console.log(`[MQTT Server] Initializing single transient connection to process ${transientQueue.length} queued messages...`);
+    const transientClient = mqtt.connect(mqttBroker, {
+        clientId: 'hydrosync-transient-' + Math.random().toString(16).substr(2, 6),
+        connectTimeout: 8000
+    });
+
+    let connected = false;
+    let completed = false;
+
+    const finishAll = (err) => {
+        if (!completed) {
+            completed = true;
+            try { transientClient.end(); } catch (e) {}
+            
+            // Resolve all currently queued items
+            const itemsToResolve = [...transientQueue];
+            transientQueue = [];
+            isProcessingTransientQueue = false;
+            
+            itemsToResolve.forEach(item => {
+                if (err) {
+                    console.error(`[MQTT Transient Error] Failed to publish ${item.topic}:`, err);
+                }
+                item.resolve();
+            });
+
+            // If new items were added while finishing, run again
+            if (transientQueue.length > 0) {
+                processTransientQueue();
+            }
+        }
+    };
+
+    transientClient.on('connect', async () => {
+        connected = true;
+        console.log(`[MQTT Transient] Connected. Publishing ${transientQueue.length} messages...`);
+        
+        while (transientQueue.length > 0) {
+            const item = transientQueue.shift();
+            try {
+                await new Promise((res, rej) => {
+                    transientClient.publish(item.topic, item.payload.toString(), { qos: 1, retain: item.retain }, (err) => {
+                        if (err) {
+                            console.error(`[MQTT Transient Publish Error] Failed for ${item.topic}:`, err);
+                            rej(err);
+                        } else {
+                            console.log(`[MQTT Transient Publish Success] ${item.topic}: ${item.payload}`);
+                            res();
+                        }
+                    });
+                });
+                item.resolve();
+            } catch (err) {
+                item.resolve(); // resolve anyway to not block
+            }
+        }
+        
+        finishAll();
+    });
+
+    transientClient.on('error', (err) => {
+        console.error('[MQTT Transient Connection Error]:', err);
+        finishAll(err);
+    });
+
+    setTimeout(() => {
+        if (!connected) {
+            console.error('[MQTT Transient Connection Timeout]');
+            finishAll(new Error('Connection timeout'));
+        }
+    }, 8000);
+}
+
 async function publishMqttMessage(topic, payload, retain = false) {
     return new Promise((resolve) => {
         if (mqttClient && mqttClient.connected) {
@@ -140,43 +225,9 @@ async function publishMqttMessage(topic, payload, retain = false) {
                 resolve();
             });
         } else {
-            console.log(`[MQTT Server] Background client not connected. Initializing transient connection for ${topic}...`);
-            const transientClient = mqtt.connect(mqttBroker, {
-                clientId: 'hydrosync-transient-' + Math.random().toString(16).substr(2, 6),
-                connectTimeout: 5000
-            });
-
-            let completed = false;
-            const finish = () => {
-                if (!completed) {
-                    completed = true;
-                    try { transientClient.end(); } catch (e) {}
-                    resolve();
-                }
-            };
-
-            transientClient.on('connect', () => {
-                transientClient.publish(topic, payload.toString(), { qos: 1, retain: retain }, (err) => {
-                    if (err) {
-                        console.error(`[MQTT Transient Publish Error] Failed to publish to ${topic}:`, err);
-                    } else {
-                        console.log(`[MQTT Transient Publish Success] Published to ${topic}: ${payload}`);
-                    }
-                    finish();
-                });
-            });
-
-            transientClient.on('error', (err) => {
-                console.error(`[MQTT Transient Connection Error] for ${topic}:`, err);
-                finish();
-            });
-
-            setTimeout(() => {
-                if (!completed) {
-                    console.error(`[MQTT Transient Timeout] for ${topic}`);
-                    finish();
-                }
-            }, 5000);
+            console.log(`[MQTT Server] Background client not connected. Queuing message for ${topic} (payload: ${payload})...`);
+            transientQueue.push({ topic, payload, retain, resolve });
+            processTransientQueue();
         }
     });
 }
@@ -231,6 +282,11 @@ const server = http.createServer(async (req, res) => {
                     `INSERT INTO w_telemetry (device_id, level, volume, data_usage, version) VALUES ($1, $2, $3, $4, $5)`,
                     [device_id, levelVal, volumeVal, dataUsageVal, versionVal]
                 );
+                
+                // Check for threshold alerts and dispatch SMS if needed
+                checkDeviceThresholdAlerts(device_id, levelVal, volumeVal).catch(err => {
+                    console.error('[SMS Trigger Error] Error checking threshold alerts on HTTP telemetry:', err);
+                });
                 
                 // Get or create device configuration
                 let configRes = await pool.query(
@@ -697,149 +753,244 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // API: Send SMS via FitSMS Gateway (Proxy)
-    if (urlPath === '/api/send-sms' && req.method === 'POST') {
+    // API: Get SMS gateway settings
+    if (urlPath === '/api/sms/config' && req.method === 'GET') {
+        try {
+            const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
+            const result = await pool.query(
+                `SELECT sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max
+                 FROM w_device_config WHERE device_id = $1`,
+                [deviceId]
+            );
+            if (result.rows.length > 0) {
+                sendJSON(res, { success: true, config: result.rows[0] });
+            } else {
+                sendJSON(res, {
+                    success: true,
+                    config: {
+                        sms_api_mode: 'v3',
+                        sms_oauth_endpoint: 'https://app.text.lk/api/v3/',
+                        sms_http_endpoint: 'https://app.text.lk/api/http/',
+                        sms_api_token: '5812|zSz889GfK4tAKEJO3PaYaPOyw3kUW86LRgLbu7JSd908c821',
+                        sms_sender_id: 'TextLK',
+                        sms_recipient_numbers: '',
+                        sms_alert_enabled: false,
+                        alert_min: 20.0,
+                        alert_max: 90.0
+                    }
+                });
+            }
+        } catch (err) {
+            console.error('[API Error] GET /api/sms/config:', err);
+            sendJSON(res, { success: false, error: err.message }, 500);
+        }
+        return;
+    }
+
+    // API: Save SMS gateway settings
+    if (urlPath === '/api/sms/config' && req.method === 'POST') {
         let body = '';
-        req.on('data', chunk => {
-            body += chunk.toString();
-        });
+        req.on('data', chunk => body += chunk.toString());
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                const { api_mode, endpoint_url, api_token, recipient, sender_id, message } = data;
-
-                if (!endpoint_url || !api_token || !recipient || !message) {
-                    sendJSON(res, { success: false, error: 'Missing required fields: endpoint_url, api_token, recipient, or message' }, 400);
+                const { device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled } = data;
+                
+                if (!device_id) {
+                    sendJSON(res, { success: false, error: 'device_id is required' }, 400);
                     return;
                 }
 
-                const mode = api_mode || 'v4';
-                let targetUrl = endpoint_url;
-                let payload = '';
-                let headers = {};
-                let method = 'POST';
+                const smsAlertEnabled = sms_alert_enabled === true || sms_alert_enabled === 'true';
 
-                if (mode === 'v4') {
-                    // OAuth 2.0 / Bearer Token-based V4 API
-                    if (!targetUrl.endsWith('/')) {
-                        targetUrl += '/';
-                    }
-                    if (!targetUrl.includes('sms/send') && !targetUrl.includes('sms')) {
-                        targetUrl += 'sms/send';
-                    }
+                await pool.query(
+                    `INSERT INTO w_device_config (
+                        device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled
+                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                     ON CONFLICT (device_id) DO UPDATE SET
+                        sms_api_mode = EXCLUDED.sms_api_mode,
+                        sms_oauth_endpoint = EXCLUDED.sms_oauth_endpoint,
+                        sms_http_endpoint = EXCLUDED.sms_http_endpoint,
+                        sms_api_token = EXCLUDED.sms_api_token,
+                        sms_sender_id = EXCLUDED.sms_sender_id,
+                        sms_recipient_numbers = EXCLUDED.sms_recipient_numbers,
+                        sms_alert_enabled = EXCLUDED.sms_alert_enabled,
+                        updated_at = CURRENT_TIMESTAMP`,
+                    [
+                        device_id,
+                        sms_api_mode || 'v3',
+                        sms_oauth_endpoint || 'https://app.text.lk/api/v3/',
+                        sms_http_endpoint || 'https://app.text.lk/api/http/',
+                        sms_api_token || '5812|zSz889GfK4tAKEJO3PaYaPOyw3kUW86LRgLbu7JSd908c821',
+                        sms_sender_id || 'TextLK',
+                        sms_recipient_numbers || '',
+                        smsAlertEnabled
+                    ]
+                );
 
-                    headers = {
-                        'Authorization': `Bearer ${api_token}`,
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    };
-
-                    payload = JSON.stringify({
-                        recipient: recipient,
-                        to: recipient,
-                        sender_id: sender_id || '',
-                        from: sender_id || '',
-                        sender: sender_id || '',
-                        message: message,
-                        body: message
-                    });
-                    method = 'POST';
-                } else {
-                    // HTTP API Mode (using GET or POST form URL-encoded)
-                    // Let's default to GET with query parameters, which is standard for HTTP endpoints
-                    const urlObj = new URL(targetUrl);
-                    urlObj.searchParams.set('api_token', api_token);
-                    urlObj.searchParams.set('token', api_token);
-                    urlObj.searchParams.set('recipient', recipient);
-                    urlObj.searchParams.set('to', recipient);
-                    urlObj.searchParams.set('sender_id', sender_id || '');
-                    urlObj.searchParams.set('from', sender_id || '');
-                    urlObj.searchParams.set('sender', sender_id || '');
-                    urlObj.searchParams.set('message', message);
-                    urlObj.searchParams.set('body', message);
-                    
-                    targetUrl = urlObj.toString();
-                    method = 'GET';
-                    headers = {
-                        'Accept': 'application/json'
-                    };
-                }
-
-                const parsedUrl = new URL(targetUrl);
-                const httpModule = targetUrl.startsWith('https') ? require('https') : require('http');
-
-                const options = {
-                    hostname: parsedUrl.hostname,
-                    port: parsedUrl.port || (targetUrl.startsWith('https') ? 443 : 80),
-                    path: parsedUrl.pathname + parsedUrl.search,
-                    method: method,
-                    headers: headers
-                };
-
-                if (method === 'POST' && payload) {
-                    options.headers['Content-Length'] = Buffer.byteLength(payload);
-                }
-
-                const smsReq = httpModule.request(options, (smsRes) => {
-                    let responseData = '';
-                    smsRes.on('data', (chunk) => {
-                        responseData += chunk;
-                    });
-                    smsRes.on('end', () => {
-                        try {
-                            let isSuccess = false;
-                            let errorDetail = '';
-
-                            try {
-                                const resJson = JSON.parse(responseData);
-                                if (resJson.success || resJson.status === 'success' || resJson.ok || resJson.status === true || resJson.status === 'sent') {
-                                    isSuccess = true;
-                                } else if (resJson.error || resJson.message) {
-                                    errorDetail = resJson.error || resJson.message;
-                                } else {
-                                    if (resJson.message_id || resJson.id || resJson.data) {
-                                        isSuccess = true;
-                                    } else {
-                                        errorDetail = JSON.stringify(resJson);
-                                    }
-                                }
-                            } catch (e) {
-                                const textLower = responseData.toLowerCase();
-                                if (textLower.includes('success') || textLower.includes('ok') || textLower.includes('sent') || (smsRes.statusCode >= 200 && smsRes.statusCode < 300)) {
-                                    isSuccess = true;
-                                } else {
-                                    errorDetail = responseData || `HTTP Status ${smsRes.statusCode}`;
-                                }
-                            }
-
-                            if (isSuccess || (smsRes.statusCode >= 200 && smsRes.statusCode < 300)) {
-                                sendJSON(res, { success: true, message: 'SMS Alert dispatched successfully via FitSMS Gateway', rawResponse: responseData });
-                            } else {
-                                sendJSON(res, { success: false, error: errorDetail || 'FitSMS Gateway returned an error status', rawResponse: responseData }, smsRes.statusCode || 400);
-                            }
-                        } catch (e) {
-                            sendJSON(res, { success: false, error: 'Failed to process FitSMS API response' }, 500);
-                        }
-                    });
-                });
-
-                smsReq.on('error', (err) => {
-                    console.error('[FitSMS Gateway Proxy Error]:', err);
-                    sendJSON(res, { success: false, error: err.message }, 500);
-                });
-
-                if (method === 'POST' && payload) {
-                    smsReq.write(payload);
-                }
-                smsReq.end();
-
+                sendJSON(res, { success: true, message: 'SMS Gateway and Alert settings saved successfully.' });
             } catch (err) {
-                console.error('[API Error] /api/send-sms:', err);
+                console.error('[API Error] POST /api/sms/config:', err);
                 sendJSON(res, { success: false, error: err.message }, 500);
             }
         });
         return;
     }
+
+    // API: Get SMS Schedules
+    if (urlPath === '/api/sms/schedules' && req.method === 'GET') {
+        try {
+            const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
+            const result = await pool.query(
+                `SELECT id, device_id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, days_of_week, message_template, is_enabled
+                 FROM w_sms_schedules
+                 WHERE device_id = $1
+                 ORDER BY scheduled_time ASC`,
+                [deviceId]
+            );
+            sendJSON(res, { success: true, schedules: result.rows });
+        } catch (err) {
+            console.error('[API Error] GET /api/sms/schedules:', err);
+            sendJSON(res, { success: false, error: err.message }, 500);
+        }
+        return;
+    }
+
+    // API: Save or Update SMS Schedule
+    if (urlPath === '/api/sms/schedules' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk.toString());
+        req.on('end', async () => {
+            try {
+                const data = JSON.parse(body);
+                const { id, device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week, message_template, is_enabled } = data;
+
+                if (!device_id || !schedule_type || !recipient_numbers || !scheduled_time) {
+                    sendJSON(res, { success: false, error: 'Missing required schedule fields' }, 400);
+                    return;
+                }
+
+                const isEnabled = is_enabled !== false;
+
+                if (id) {
+                    await pool.query(
+                        `UPDATE w_sms_schedules SET
+                            schedule_type = $1,
+                            recipient_numbers = $2,
+                            scheduled_time = $3,
+                            days_of_week = $4,
+                            message_template = $5,
+                            is_enabled = $6
+                         WHERE id = $7 AND device_id = $8`,
+                        [schedule_type, recipient_numbers, scheduled_time, days_of_week || '1,2,3,4,5,6,0', message_template || '', isEnabled, id, device_id]
+                    );
+                    sendJSON(res, { success: true, message: 'Schedule updated successfully.' });
+                } else {
+                    await pool.query(
+                        `INSERT INTO w_sms_schedules (
+                            device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week, message_template, is_enabled
+                         ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                        [device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week || '1,2,3,4,5,6,0', message_template || '', isEnabled]
+                    );
+                    sendJSON(res, { success: true, message: 'Schedule created successfully.' });
+                }
+            } catch (err) {
+                console.error('[API Error] POST /api/sms/schedules:', err);
+                sendJSON(res, { success: false, error: err.message }, 500);
+            }
+        });
+        return;
+    }
+
+    // API: Delete SMS Schedule
+    if (urlPath === '/api/sms/schedules' && req.method === 'DELETE') {
+        try {
+            const id = reqUrl.searchParams.get('id');
+            const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
+            if (!id) {
+                sendJSON(res, { success: false, error: 'id is required' }, 400);
+                return;
+            }
+            await pool.query('DELETE FROM w_sms_schedules WHERE id = $1 AND device_id = $2', [id, deviceId]);
+            sendJSON(res, { success: true, message: 'Schedule deleted successfully.' });
+        } catch (err) {
+            console.error('[API Error] DELETE /api/sms/schedules:', err);
+            sendJSON(res, { success: false, error: err.message }, 500);
+        }
+        return;
+    }
+
+    // API: Send manual/test SMS
+    if (urlPath === '/api/sms/send-test' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk.toString());
+        req.on('end', async () => {
+            try {
+                const data = JSON.parse(body);
+                const { device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, recipient, message } = data;
+
+                if (!recipient || !message) {
+                    sendJSON(res, { success: false, error: 'recipient and message are required' }, 400);
+                    return;
+                }
+
+                const smsConfig = {
+                    sms_api_mode: sms_api_mode || 'v3',
+                    sms_oauth_endpoint: sms_oauth_endpoint || 'https://app.text.lk/api/v3/',
+                    sms_http_endpoint: sms_http_endpoint || 'https://app.text.lk/api/http/',
+                    sms_api_token: sms_api_token || '5812|zSz889GfK4tAKEJO3PaYaPOyw3kUW86LRgLbu7JSd908c821',
+                    sms_sender_id: sms_sender_id || 'TextLK'
+                };
+
+                const result = await sendSmsMessageDirectly(smsConfig, recipient, message);
+                await saveSmsLog(device_id || 'mytank123', recipient, `[Test SMS] ${message}`, result.success ? 'SUCCESS' : 'FAILED', result.success ? null : result.error);
+                if (result.success) {
+                    sendJSON(res, { success: true, message: 'Test SMS sent successfully!', rawResponse: result.rawResponse });
+                } else {
+                    sendJSON(res, { success: false, error: result.error, rawResponse: result.rawResponse }, 400);
+                }
+            } catch (err) {
+                console.error('[API Error] POST /api/sms/send-test:', err);
+                sendJSON(res, { success: false, error: err.message }, 500);
+            }
+        });
+        return;
+    }
+
+    // API: Vercel/Serverless Cron Trigger for Scheduled SMS Tasks
+    if (urlPath === '/api/sms/cron' && req.method === 'GET') {
+        try {
+            console.log('[API SMS Cron] Manual/scheduled cron trigger received. Checking schedules...');
+            const count = await runScheduleCheck();
+            sendJSON(res, { success: true, checked: true, schedulesTriggered: count, message: 'Schedule checks completed successfully.' });
+        } catch (err) {
+            console.error('[API Error] GET /api/sms/cron:', err);
+            sendJSON(res, { success: false, error: err.message }, 500);
+        }
+        return;
+    }
+
+    // API: Get SMS logs history
+    if (urlPath === '/api/sms/logs' && req.method === 'GET') {
+        try {
+            const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
+            const result = await pool.query(
+                `SELECT id, recipient, message, status, error_message, timestamp
+                 FROM w_sms_logs
+                 WHERE device_id = $1
+                 ORDER BY timestamp DESC
+                 LIMIT 25`,
+                [deviceId]
+            );
+            sendJSON(res, { success: true, logs: result.rows });
+        } catch (err) {
+            console.error('[API Error] GET /api/sms/logs:', err);
+            sendJSON(res, { success: false, error: err.message }, 500);
+        }
+        return;
+    }
+
+
 
     // Static Web Server fallback for HTML/CSS/JS/TXT
     let safePath = urlPath === '/' ? 'index.html' : urlPath.substring(1);
@@ -885,5 +1036,310 @@ if (require.main === module || !process.env.VERCEL) {
         console.log('HydroSync Server listening on port 3000');
     });
 }
+
+// --- Server-side SMS Gateway Helpers & Scheduler Daemon ---
+
+const lastDeviceSmsStates = {};
+
+async function saveSmsLog(deviceId, recipient, message, status, errorMessage = null) {
+    try {
+        await pool.query(
+            `INSERT INTO w_sms_logs (device_id, recipient, message, status, error_message)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [deviceId, recipient, message, status, errorMessage]
+        );
+    } catch (err) {
+        console.error('[DB Error] Failed to save SMS log to w_sms_logs:', err);
+    }
+}
+
+async function sendSmsMessageDirectly(config, recipient, messageText) {
+    return new Promise((resolve) => {
+        try {
+            const mode = config.sms_api_mode || 'v3';
+            let targetUrl = mode === 'v3' ? (config.sms_oauth_endpoint || 'https://app.text.lk/api/v3/') : (config.sms_http_endpoint || 'https://app.text.lk/api/http/');
+            let payload = '';
+            let headers = {};
+            let method = 'POST';
+
+            if (mode === 'v3') {
+                if (!targetUrl.endsWith('/')) {
+                    targetUrl += '/';
+                }
+                if (!targetUrl.includes('sms/send') && !targetUrl.includes('sms')) {
+                    targetUrl += 'sms/send';
+                }
+
+                headers = {
+                    'Authorization': `Bearer ${config.sms_api_token || config.api_token}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                };
+
+                payload = JSON.stringify({
+                    recipient: recipient,
+                    sender_id: config.sms_sender_id || 'TextLK',
+                    message: messageText
+                });
+                method = 'POST';
+            } else {
+                const urlObj = new URL(targetUrl);
+                urlObj.searchParams.set('api_token', config.sms_api_token || config.api_token);
+                urlObj.searchParams.set('recipient', recipient);
+                urlObj.searchParams.set('sender_id', config.sms_sender_id || 'TextLK');
+                urlObj.searchParams.set('message', messageText);
+                
+                targetUrl = urlObj.toString();
+                method = 'GET';
+                headers = {
+                    'Accept': 'application/json'
+                };
+            }
+
+            const parsedUrl = new URL(targetUrl);
+            const httpModule = targetUrl.startsWith('https') ? require('https') : require('http');
+
+            const options = {
+                hostname: parsedUrl.hostname,
+                port: parsedUrl.port || (targetUrl.startsWith('https') ? 443 : 80),
+                path: parsedUrl.pathname + parsedUrl.search,
+                method: method,
+                headers: headers
+            };
+
+            if (method === 'POST' && payload) {
+                options.headers['Content-Length'] = Buffer.byteLength(payload);
+            }
+
+            const smsReq = httpModule.request(options, (smsRes) => {
+                let responseData = '';
+                smsRes.on('data', (chunk) => {
+                    responseData += chunk;
+                });
+                smsRes.on('end', () => {
+                    try {
+                        let isSuccess = false;
+                        let errorDetail = '';
+
+                        try {
+                            const resJson = JSON.parse(responseData);
+                            if (resJson.success || resJson.status === 'success' || resJson.ok || resJson.status === true || resJson.status === 'sent') {
+                                isSuccess = true;
+                            } else if (resJson.error || resJson.message) {
+                                errorDetail = resJson.error || resJson.message;
+                            } else {
+                                if (resJson.message_id || resJson.id || resJson.data) {
+                                    isSuccess = true;
+                                } else {
+                                    errorDetail = JSON.stringify(resJson);
+                                }
+                            }
+                        } catch (e) {
+                            const textLower = responseData.toLowerCase();
+                            if (textLower.includes('success') || textLower.includes('ok') || textLower.includes('sent') || (smsRes.statusCode >= 200 && smsRes.statusCode < 300)) {
+                                isSuccess = true;
+                            } else {
+                                errorDetail = responseData || `HTTP Status ${smsRes.statusCode}`;
+                            }
+                        }
+
+                        if (isSuccess || (smsRes.statusCode >= 200 && smsRes.statusCode < 300)) {
+                            resolve({ success: true, rawResponse: responseData });
+                        } else {
+                            resolve({ success: false, error: errorDetail || 'Gateway returned an error status', rawResponse: responseData });
+                        }
+                    } catch (e) {
+                        resolve({ success: false, error: 'Failed to process gateway response' });
+                    }
+                });
+            });
+
+            smsReq.on('error', (err) => {
+                console.error('[SMS Dispatch Error]:', err);
+                resolve({ success: false, error: err.message });
+            });
+
+            if (method === 'POST' && payload) {
+                smsReq.write(payload);
+            }
+            smsReq.end();
+
+        } catch (err) {
+            console.error('[SMS Send Error]:', err);
+            resolve({ success: false, error: err.message });
+        }
+    });
+}
+
+async function checkDeviceThresholdAlerts(deviceId, level, volume) {
+    try {
+        const configRes = await pool.query(
+            `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max
+             FROM w_device_config WHERE device_id = $1`,
+            [deviceId]
+        );
+        if (configRes.rows.length === 0) return;
+        const config = configRes.rows[0];
+
+        if (!config.sms_alert_enabled || !config.sms_recipient_numbers) return;
+
+        const tankHeight = parseFloat(config.tank_height) || 200.0;
+        const tankDiameter = parseFloat(config.tank_diameter) || 228.0;
+        const numTanks = parseInt(config.num_tanks, 10) || 1;
+
+        let percent = 0;
+        if (level !== null && level !== undefined) {
+            percent = (parseFloat(level) / tankHeight) * 100;
+        } else if (volume !== null && volume !== undefined) {
+            const singleMaxVol = (Math.PI * Math.pow(tankDiameter / 2, 2) * tankHeight) / 1000;
+            const totalMaxVol = singleMaxVol * numTanks;
+            percent = (parseFloat(volume) / totalMaxVol) * 100;
+        }
+        percent = Math.min(Math.max(percent, 0), 100);
+
+        const alertMin = parseFloat(config.alert_min) || 20.0;
+        const alertMax = parseFloat(config.alert_max) || 90.0;
+
+        let currentState = 'NORMAL';
+        if (percent < alertMin) {
+            currentState = 'LOW';
+        } else if (percent > alertMax) {
+            currentState = 'HIGH';
+        }
+
+        const prevState = lastDeviceSmsStates[deviceId] || 'NORMAL';
+
+        if (currentState !== prevState) {
+            lastDeviceSmsStates[deviceId] = currentState;
+
+            let message = '';
+            const timestamp = new Date().toLocaleString();
+            if (currentState === 'LOW') {
+                message = `⚠️ ALERT: Water level is critically LOW at ${percent.toFixed(0)}%! (Below ${alertMin}% threshold). Device ID: ${deviceId}. Time: ${timestamp}`;
+            } else if (currentState === 'HIGH') {
+                message = `⚠️ ALERT: Water level is critically HIGH at ${percent.toFixed(0)}%! (Above ${alertMax}% threshold). Device ID: ${deviceId}. Time: ${timestamp}`;
+            } else {
+                message = `ℹ️ RECOVERY: Water level is back to NORMAL range: ${percent.toFixed(0)}%. Device ID: ${deviceId}. Time: ${timestamp}`;
+            }
+
+            const recipients = config.sms_recipient_numbers.split(',').map(n => n.trim()).filter(Boolean);
+            console.log(`[SMS Threshold Alert] State changed ${prevState} -> ${currentState} for ${deviceId}. Sending to ${recipients.length} numbers...`);
+
+            for (const rec of recipients) {
+                const res = await sendSmsMessageDirectly(config, rec, message);
+                console.log(`[SMS Threshold Alert] Dispatch to ${rec}: ${res.success ? 'Success' : 'Failed (' + res.error + ')'}`);
+                await saveSmsLog(deviceId, rec, message, res.success ? 'SUCCESS' : 'FAILED', res.success ? null : res.error);
+            }
+        }
+    } catch (err) {
+        console.error('[SMS Threshold Check Error]:', err);
+    }
+}
+
+// Standalone function to execute the scheduled SMS automation checks
+async function runScheduleCheck() {
+    let checkedCount = 0;
+    try {
+        const now = new Date();
+        const currentHHMM = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+        const currentDay = now.getDay().toString();
+
+        const result = await pool.query(
+            `SELECT id, device_id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, days_of_week, message_template, last_run
+             FROM w_sms_schedules
+             WHERE is_enabled = TRUE`
+        );
+
+        for (const schedule of result.rows) {
+            const schedParts = schedule.scheduled_time.split(':');
+            const schedHHMM = `${schedParts[0].padStart(2, '0')}:${schedParts[1].padStart(2, '0')}`;
+
+            if (schedHHMM !== currentHHMM) {
+                continue;
+            }
+
+            const days = (schedule.days_of_week || '').split(',').map(d => d.trim());
+            if (!days.includes(currentDay)) {
+                continue;
+            }
+
+            if (schedule.last_run) {
+                const lastRunTime = new Date(schedule.last_run).getTime();
+                if (Date.now() - lastRunTime < 90000) {
+                    continue;
+                }
+            }
+
+            console.log(`[SMS Scheduler] Triggering schedule ID ${schedule.id} (${schedule.schedule_type}) for device ${schedule.device_id}...`);
+            checkedCount++;
+
+            await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP WHERE id = $1', [schedule.id]);
+
+            const configRes = await pool.query(
+                `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id
+                 FROM w_device_config WHERE device_id = $1`,
+                [schedule.device_id]
+            );
+            
+            if (configRes.rows.length === 0) {
+                console.warn(`[SMS Scheduler] Configuration not found for device ${schedule.device_id}. Skipping.`);
+                continue;
+            }
+            const config = configRes.rows[0];
+
+            let message = '';
+            
+            if (schedule.schedule_type === 'status_update') {
+                const telRes = await pool.query(
+                    `SELECT level, volume, timestamp FROM w_telemetry WHERE device_id = $1 ORDER BY timestamp DESC LIMIT 1`,
+                    [schedule.device_id]
+                );
+
+                let percent = 0;
+                let volume = 0;
+                let depth = 0;
+                if (telRes.rows.length > 0) {
+                    const row = telRes.rows[0];
+                    depth = parseFloat(row.level) || 0;
+                    volume = parseFloat(row.volume) || 0;
+                    
+                    const tankHeight = parseFloat(config.tank_height) || 200.0;
+                    const tankDiameter = parseFloat(config.tank_diameter) || 228.0;
+                    const numTanks = parseInt(config.num_tanks, 10) || 1;
+                    percent = (depth / tankHeight) * 100;
+                    percent = Math.min(Math.max(percent, 0), 100);
+                }
+
+                message = schedule.message_template || `HydroSync Status for Device [Device]: Level is [Percent], Volume is [Volume], Depth is [Depth].`;
+                message = message
+                    .replace(/\[Device\]/g, schedule.device_id)
+                    .replace(/\[Percent\]/g, `${percent.toFixed(0)}%`)
+                    .replace(/\[Volume\]/g, `${volume.toLocaleString()} Liters`)
+                    .replace(/\[Depth\]/g, `${depth.toFixed(1)} cm`)
+                    .replace(/\[Timestamp\]/g, new Date().toLocaleString());
+            } else if (schedule.schedule_type === 'motor_on') {
+                message = schedule.message_template || 'MOTOR ON';
+                await publishMqttMessage(`${schedule.device_id}/cmd/motor`, 'ON', false);
+            } else if (schedule.schedule_type === 'motor_off') {
+                message = schedule.message_template || 'MOTOR OFF';
+                await publishMqttMessage(`${schedule.device_id}/cmd/motor`, 'OFF', false);
+            }
+
+            const recipients = schedule.recipient_numbers.split(',').map(n => n.trim()).filter(Boolean);
+            for (const rec of recipients) {
+                console.log(`[SMS Scheduler] Sending scheduled SMS to ${rec}...`);
+                const res = await sendSmsMessageDirectly(config, rec, message);
+                console.log(`[SMS Scheduler] Dispatch results: ${res.success ? 'SUCCESS' : 'FAILED: ' + res.error}`);
+                await saveSmsLog(schedule.device_id, rec, message, res.success ? 'SUCCESS' : 'FAILED', res.success ? null : res.error);
+            }
+        }
+    } catch (err) {
+        console.error('[SMS Scheduler Error]:', err);
+    }
+    return checkedCount;
+}
+
+// Background scheduler daemon check loop (runs every 30 seconds for self-hosted instances)
+setInterval(runScheduleCheck, 30000);
 
 module.exports = server;

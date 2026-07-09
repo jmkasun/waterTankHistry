@@ -139,11 +139,11 @@
                 </svg>
                 Historical Analytics
             </button>
-            <button onclick="switchMainTab('telegram')" id="btnMainTabTelegram" class="flex items-center gap-2 px-5 py-3 border-b-2 border-transparent hover:border-slate-800 text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition">
-                <svg class="w-4 h-4 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            <button onclick="switchMainTab('sms_automation')" id="btnMainTabSmsAutomation" class="flex items-center gap-2 px-5 py-3 border-b-2 border-transparent hover:border-slate-800 text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
                 </svg>
-                FitSMS Gateway
+                SMS Automation
             </button>
         </div>
 
@@ -545,231 +545,229 @@
             </div>
         </section>
 
-        <!-- FitSMS Gateway Alerts Tab Content -->
-        <section id="tabContentTelegram" class="w-full flex flex-col gap-6 hidden">
-            <!-- Setup & Guide Header Card -->
-            <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 md:p-8 flex flex-col gap-6 animate-fade-in">
-                <div>
-                    <h3 class="text-base font-bold text-white mb-1 flex items-center gap-2">
-                        <svg class="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                        </svg>
-                        FitSMS Gateway Alerts
-                        <span class="text-[10px] px-2 py-0.5 rounded bg-pink-500/15 text-pink-400 border border-pink-500/20 uppercase font-semibold tracking-wider">Active proxy</span>
-                    </h3>
-                    <p class="text-xs text-slate-400">Receive high-speed SMS alerts and notifications about critical water level changes directly on your phone using Sri Lanka's leading bulk SMS provider, FitSMS.lk.</p>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <!-- Guide Item 1 -->
-                    <div class="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex gap-3 items-start">
-                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-pink-500/10 text-pink-400 font-bold text-xs shrink-0 mt-0.5">1</span>
-                        <div>
-                            <p class="font-bold text-slate-200 text-xs">Verify Your API Token</p>
-                            <p class="text-[11px] text-slate-400 mt-1">Get your Sanctum API Token from your <strong class="text-pink-400 select-all">FITSMS.lk</strong> account dashboard. The default token has been pre-configured for you.</p>
-                        </div>
-                    </div>
-                    <!-- Guide Item 2 -->
-                    <div class="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex gap-3 items-start">
-                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-pink-500/10 text-pink-400 font-bold text-xs shrink-0 mt-0.5">2</span>
-                        <div>
-                            <p class="font-bold text-slate-200 text-xs">Select API Protocol</p>
-                            <p class="text-[11px] text-slate-400 mt-1">Choose between the modern, highly secure <strong>OAuth 2.0 V4 API</strong> or the lightweight <strong>HTTP API</strong>. Provide a valid recipient phone number (e.g. <code>94771234567</code>).</p>
-                        </div>
-                    </div>
-                    <!-- Guide Item 3 -->
-                    <div class="bg-slate-950/40 border border-slate-850 p-4 rounded-2xl flex gap-3 items-start">
-                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-pink-500/10 text-pink-400 font-bold text-xs shrink-0 mt-0.5">3</span>
-                        <div>
-                            <p class="font-bold text-slate-200 text-xs">Define Trigger Thresholds</p>
-                            <p class="text-[11px] text-slate-400 mt-1">Enable auto-notifications. When your tank breaches the minimum or maximum thresholds, an SMS alert will instantly dispatch to keep your team informed.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- FitSMS Connection settings -->
-                <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
-                    <div class="flex items-center gap-3">
-                        <div class="p-2 bg-pink-500/10 rounded-lg border border-pink-500/30">
-                            <svg class="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                            </svg>
-                        </div>
-                        <div>
-                            <h3 class="text-sm font-bold text-white tracking-tight">Credentials & Gateway Details</h3>
-                            <p class="text-[11px] text-slate-400">Provide endpoint settings for routing outbound SMS messages</p>
-                        </div>
-                    </div>
-
-                    <div class="space-y-4 text-xs">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-300 mb-1.5">
-                                    <span>API Mode Protocol</span>
-                                </label>
-                                <select id="smsApiMode" onchange="toggleEndpointFields()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white transition">
-                                    <option value="v4" selected>OAuth 2.0 V4 JSON API</option>
-                                    <option value="http">HTTP GET API</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-300 mb-1.5">
-                                    <span>Sender ID / Brand Name</span>
-                                </label>
-                                <input type="text" id="smsSenderId" placeholder="e.g. FitSMS" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition font-mono">
-                            </div>
-                        </div>
-
-                        <div id="divOauthEndpoint">
-                            <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between">
-                                <span>OAuth 2.0 API Endpoint</span>
-                                <span class="text-[10px] text-slate-500 font-normal">FITSMS API v4 URL</span>
-                            </label>
-                            <input type="text" id="smsOauthEndpoint" placeholder="https://app.fitsms.lk/api/v4/" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition font-mono">
-                        </div>
-
-                        <div id="divHttpEndpoint" class="hidden">
-                            <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between">
-                                <span>HTTP API Endpoint</span>
-                                <span class="text-[10px] text-slate-500 font-normal">HTTP Gateway URL</span>
-                            </label>
-                            <input type="text" id="smsHttpEndpoint" placeholder="https://app.fitsms.lk/api/http/" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition font-mono">
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between">
-                                <span>API Token / Secret Key</span>
-                                <span class="text-[10px] text-slate-500 font-normal">Sanctum Token</span>
-                            </label>
-                            <div class="relative font-mono">
-                                <input type="password" id="smsApiToken" placeholder="e.g. 544|dr3JYXmtfxE..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition">
-                                <button onclick="toggleTokenVisibility('smsApiToken', this)" class="absolute right-3 top-3 text-slate-500 hover:text-slate-300 transition">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between">
-                                    <span>Recipient Phone Number</span>
-                                    <span class="text-[10px] text-slate-500 font-normal">Int'l format</span>
-                                </label>
-                                <input type="text" id="smsRecipient" placeholder="e.g. 94771234567" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition font-mono">
-                            </div>
-
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between">
-                                    <span>Recipient Contact Label</span>
-                                    <span class="text-[10px] text-slate-500 font-normal">Label</span>
-                                </label>
-                                <input type="text" id="smsRecipientLabel" placeholder="e.g. Alert Mobile / Operator" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition">
-                            </div>
-                        </div>
-
-                        <button onclick="saveSmsSettings()" class="w-full bg-slate-800 hover:bg-slate-700 text-white py-3 px-4 rounded-xl font-bold text-xs tracking-wide border border-slate-700 transition flex items-center justify-center gap-2">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            Save FitSMS Gateway Settings
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Automatic Notification & Test Card -->
-                <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
-                    <div class="flex items-center gap-3">
-                        <div class="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/30">
+        <!-- SMS Automation & Scheduler Tab Content -->
+        <section id="tabContentSmsAutomation" class="w-full flex flex-col gap-6 hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Left Panel: Gateway Settings -->
+                <div class="lg:col-span-5 bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-6">
+                    <div>
+                        <h3 class="text-base font-bold text-white mb-1 flex items-center gap-2">
                             <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                             </svg>
-                        </div>
-                        <div>
-                            <h3 class="text-sm font-bold text-white tracking-tight">Auto-Alert Trigger Rules</h3>
-                            <p class="text-[11px] text-slate-400">Dispatch FitSMS alerts on critical level bounds violations</p>
-                        </div>
+                            SMS Gateway & Alert Rules
+                        </h3>
+                        <p class="text-xs text-slate-400">Configure your Text.lk API token and low/high level notifications.</p>
                     </div>
 
-                    <div class="space-y-4 text-xs">
-                        <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-3">
-                            <div class="flex items-center justify-between">
-                                <div class="flex flex-col">
-                                    <span class="font-bold text-slate-200 text-xs">Enable Auto Alert Broadcast</span>
-                                    <span class="text-[10px] text-slate-500">Transmits FitSMS alerts when level breaches thresholds</span>
-                                </div>
-                                <label class="relative inline-flex items-center cursor-pointer select-none">
-                                    <input type="checkbox" id="smsEnableAutoAlerts" class="sr-only peer" onchange="toggleSmsAutoAlerts()">
-                                    <div class="w-10 h-6 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-pink-500"></div>
+                    <!-- Device Identifier Selector -->
+                    <div class="flex items-center gap-2 bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-2">
+                        <span class="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Device Target:</span>
+                        <select id="smsDeviceSelect" onchange="loadSmsGatewaySettings(); loadSmsSchedules(); loadSmsLogs();" class="bg-transparent text-xs text-slate-200 focus:outline-none border-none cursor-pointer">
+                            <option class="bg-slate-950 text-slate-200" value="mytank123">mytank123</option>
+                        </select>
+                    </div>
+
+                    <form id="formSmsConfig" onsubmit="event.preventDefault(); saveSmsGatewaySettings();" class="flex flex-col gap-4">
+                        <!-- API Mode Selector -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[10px] uppercase tracking-wider font-bold text-slate-400">SMS Gateway Protocol</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label class="flex items-center gap-2 bg-slate-950/50 border border-slate-800 rounded-xl p-3 cursor-pointer hover:border-cyan-500/50 transition">
+                                    <input type="radio" name="sms_api_mode" value="v3" checked class="text-cyan-500 focus:ring-cyan-500" onchange="toggleSmsEndpointInputs()">
+                                    <span class="text-xs text-slate-200 font-semibold">OAuth v3 JSON</span>
+                                </label>
+                                <label class="flex items-center gap-2 bg-slate-950/50 border border-slate-800 rounded-xl p-3 cursor-pointer hover:border-cyan-500/50 transition">
+                                    <input type="radio" name="sms_api_mode" value="http" class="text-cyan-500 focus:ring-cyan-500" onchange="toggleSmsEndpointInputs()">
+                                    <span class="text-xs text-slate-200 font-semibold">HTTP GET API</span>
                                 </label>
                             </div>
                         </div>
 
-                        <!-- Test SMS sender -->
-                        <div class="space-y-2">
-                            <label class="block text-xs font-semibold text-slate-300">Send Test SMS Alert</label>
-                            <textarea id="smsMessageText" rows="3" class="w-full bg-slate-950 border border-slate-800 focus:border-pink-500 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none transition font-mono" placeholder="Write custom text or use shortcuts below..."></textarea>
-                            
-                            <!-- Template insertion tags -->
-                            <div class="flex flex-wrap gap-1.5 pt-1 font-mono">
-                                <button type="button" onclick="insertTagSms('[Device]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Device]</button>
-                                <button type="button" onclick="insertTagSms('[Percent]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Percent]</button>
-                                <button type="button" onclick="insertTagSms('[Volume]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Volume]</button>
-                                <button type="button" onclick="insertTagSms('[Depth]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Depth]</button>
-                                <button type="button" onclick="insertTagSms('[Status]')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[10px] text-slate-300 rounded font-semibold transition">[Status]</button>
-                            </div>
+                        <!-- API Token -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[10px] uppercase tracking-wider font-bold text-slate-400 flex justify-between items-center">
+                                <span>API Token / Bearer Key</span>
+                                <button type="button" onclick="toggleApiTokenVisibility()" class="text-cyan-400 hover:text-cyan-300 text-[10px] lowercase">toggle visibility</button>
+                            </label>
+                            <input id="sms_api_token" type="password" value="5812|zSz889GfK4tAKEJO3PaYaPOyw3kUW86LRgLbu7JSd908c821" placeholder="Enter Text.lk API token..." class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
+                        </div>
 
-                            <button id="btnSendSmsTest" onclick="sendSmsTest()" class="w-full bg-pink-600 hover:bg-pink-500 text-white py-3 px-4 rounded-xl font-bold text-xs tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-pink-500/10">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                                </svg>
-                                Send FitSMS Gateway Test Now
+                        <!-- Sender ID -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[10px] uppercase tracking-wider font-bold text-slate-400">Sender ID (Masking/Brand)</label>
+                            <input id="sms_sender_id" type="text" value="TextLK" placeholder="e.g. TextLK, Notify" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
+                        </div>
+
+                        <!-- Endpoint URLs -->
+                        <div id="rowOauthEndpoint" class="flex flex-col gap-1.5">
+                            <label class="text-[10px] uppercase tracking-wider font-bold text-slate-400">OAuth API v3 Base URL</label>
+                            <input id="sms_oauth_endpoint" type="url" value="https://app.text.lk/api/v3/" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
+                        </div>
+
+                        <div id="rowHttpEndpoint" class="flex flex-col gap-1.5 hidden">
+                            <label class="text-[10px] uppercase tracking-wider font-bold text-slate-400">HTTP GET Endpoint URL</label>
+                            <input id="sms_http_endpoint" type="url" value="https://app.text.lk/api/http/" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
+                        </div>
+
+                        <!-- Recipient Mobile Numbers -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[10px] uppercase tracking-wider font-bold text-slate-400">Alert Recipients (comma-separated)</label>
+                            <input id="sms_recipient_numbers" type="text" placeholder="+94771234567, +94711234567" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
+                            <span class="text-[9px] text-slate-500">Provide international format starting with country prefix (e.g., +94 for Sri Lanka).</span>
+                        </div>
+
+                        <!-- Checkbox and limits -->
+                        <div class="bg-slate-950/30 border border-slate-800/80 rounded-2xl p-4 flex flex-col gap-3.5">
+                            <label class="flex items-start gap-2.5 cursor-pointer">
+                                <input id="sms_alert_enabled" type="checkbox" class="mt-0.5 rounded text-cyan-500 focus:ring-cyan-500 bg-slate-950 border-slate-800">
+                                <div>
+                                    <span class="block text-xs text-slate-200 font-semibold">Enable Water Level alerts</span>
+                                    <span class="block text-[10px] text-slate-400">Triggers auto-alerts on critical low/high thresholds 24/7.</span>
+                                </div>
+                            </label>
+
+                            <div class="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800/50">
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-[9px] uppercase tracking-wider font-bold text-slate-500">Low Trigger (%)</label>
+                                    <input id="sms_alert_min" type="number" min="5" max="45" value="20" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-cyan-500/80">
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-[9px] uppercase tracking-wider font-bold text-slate-500">High Trigger (%)</label>
+                                    <input id="sms_alert_max" type="number" min="55" max="98" value="90" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-cyan-500/80">
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs tracking-wider uppercase py-3 rounded-xl transition shadow-lg shadow-cyan-600/10">
+                            Save Gateway Settings
+                        </button>
+                    </form>
+
+                    <!-- Manual Test SMS block -->
+                    <div class="border-t border-slate-800/60 pt-5 flex flex-col gap-3">
+                        <span class="text-[10px] uppercase tracking-wider font-bold text-slate-400">Dispatch Test SMS</span>
+                        <div class="flex flex-col gap-2">
+                            <input id="sms_test_recipient" type="text" placeholder="Recipient e.g. +94771234567" class="w-full bg-slate-950/80 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none">
+                            <textarea id="sms_test_message" rows="2" placeholder="Write test message body..." class="w-full bg-slate-950/80 border border-slate-800 rounded-lg p-2.5 text-xs text-white focus:outline-none resize-none">HydroSync: This is a manual test dispatch message from your smart water management panel.</textarea>
+                            <button onclick="sendManualTestSms()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold text-xs py-2 rounded-lg transition">
+                                Dispatch Test SMS
                             </button>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Transmission Log History -->
-            <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 md:p-8 flex flex-col gap-4">
-                <div class="flex justify-between items-center">
+                <!-- Right Panel: Automation & Schedules -->
+                <div class="lg:col-span-7 bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-6">
                     <div>
-                        <h3 class="text-sm font-bold text-white mb-0.5">Transmission Logs & Dispatch History</h3>
-                        <p class="text-xs text-slate-400">Tracking all outbound SMS dispatches made via FitSMS Gateway proxy</p>
+                        <h3 class="text-base font-bold text-white mb-1 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            Scheduled SMS & Automation
+                        </h3>
+                        <p class="text-xs text-slate-400">Trigger status templates or command motor relays on specific days & times.</p>
                     </div>
-                    <button onclick="clearSmsLogs()" class="text-[11px] text-rose-400 hover:text-rose-300 font-bold transition flex items-center gap-1">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                        </svg>
-                        Clear Logs
-                    </button>
-                </div>
 
-                <div class="overflow-x-auto border border-slate-800/80 rounded-2xl bg-slate-950/40">
-                    <table class="w-full text-left border-collapse text-xs">
-                        <thead>
-                            <tr class="border-b border-slate-800 bg-slate-950/80 text-slate-400 font-bold">
-                                <th class="p-3">Timestamp</th>
-                                <th class="p-3">Recipient</th>
-                                <th class="p-3">Protocol</th>
-                                <th class="p-3">Message Body</th>
-                                <th class="p-3">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="smsLogsTableBody">
+                    <!-- Add New Schedule Card -->
+                    <div class="bg-slate-950/40 border border-slate-800/80 rounded-2xl p-5 flex flex-col gap-4">
+                        <span class="text-xs font-bold text-white uppercase tracking-wider">Create Automation Task</span>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Task Type</label>
+                                <select id="sched_type" onchange="onScheduleTypeChange()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200">
+                                    <option value="status_update">📊 Daily Water Status Update SMS</option>
+                                    <option value="motor_on">🔌 Motor ON Relay SMS (Command)</option>
+                                    <option value="motor_off">🔌 Motor OFF Relay SMS (Command)</option>
+                                </select>
+                            </div>
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Scheduled Time</label>
+                                <input id="sched_time" type="time" value="08:30" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200">
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Recipients (comma-separated)</label>
+                            <input id="sched_recipients" type="text" placeholder="e.g. +94771234567, +94711234567" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-200 focus:outline-none">
+                        </div>
+
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[9px] uppercase tracking-wider font-bold text-slate-400 flex justify-between items-center">
+                                <span>Message Template / Relay SMS payload</span>
+                                <span id="lblDynamicTip" class="text-[8px] text-cyan-400 font-semibold">Supports [Percent], [Volume], [Depth] tokens</span>
+                            </label>
+                            <textarea id="sched_template" rows="2.5" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none" placeholder="Enter status message template or command payload..."></textarea>
+                        </div>
+
+                        <!-- Days of week selector -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Active Days of Week</label>
+                            <div class="flex flex-wrap gap-1.5">
+                                <label class="flex items-center gap-1.5 bg-slate-950 border border-slate-800/80 px-2.5 py-1.5 rounded-lg text-[10px] text-slate-300 font-semibold cursor-pointer select-none hover:border-indigo-500/30">
+                                    <input type="checkbox" name="sched_days" value="1" checked class="rounded text-indigo-500 bg-slate-950 border-slate-800"> Mon
+                                </label>
+                                <label class="flex items-center gap-1.5 bg-slate-950 border border-slate-800/80 px-2.5 py-1.5 rounded-lg text-[10px] text-slate-300 font-semibold cursor-pointer select-none hover:border-indigo-500/30">
+                                    <input type="checkbox" name="sched_days" value="2" checked class="rounded text-indigo-500 bg-slate-950 border-slate-800"> Tue
+                                </label>
+                                <label class="flex items-center gap-1.5 bg-slate-950 border border-slate-800/80 px-2.5 py-1.5 rounded-lg text-[10px] text-slate-300 font-semibold cursor-pointer select-none hover:border-indigo-500/30">
+                                    <input type="checkbox" name="sched_days" value="3" checked class="rounded text-indigo-500 bg-slate-950 border-slate-800"> Wed
+                                </label>
+                                <label class="flex items-center gap-1.5 bg-slate-950 border border-slate-800/80 px-2.5 py-1.5 rounded-lg text-[10px] text-slate-300 font-semibold cursor-pointer select-none hover:border-indigo-500/30">
+                                    <input type="checkbox" name="sched_days" value="4" checked class="rounded text-indigo-500 bg-slate-950 border-slate-800"> Thu
+                                </label>
+                                <label class="flex items-center gap-1.5 bg-slate-950 border border-slate-800/80 px-2.5 py-1.5 rounded-lg text-[10px] text-slate-300 font-semibold cursor-pointer select-none hover:border-indigo-500/30">
+                                    <input type="checkbox" name="sched_days" value="5" checked class="rounded text-indigo-500 bg-slate-950 border-slate-800"> Fri
+                                </label>
+                                <label class="flex items-center gap-1.5 bg-slate-950 border border-slate-800/80 px-2.5 py-1.5 rounded-lg text-[10px] text-slate-300 font-semibold cursor-pointer select-none hover:border-indigo-500/30">
+                                    <input type="checkbox" name="sched_days" value="6" checked class="rounded text-indigo-500 bg-slate-950 border-slate-800"> Sat
+                                </label>
+                                <label class="flex items-center gap-1.5 bg-slate-950 border border-slate-800/80 px-2.5 py-1.5 rounded-lg text-[10px] text-slate-300 font-semibold cursor-pointer select-none hover:border-indigo-500/30">
+                                    <input type="checkbox" name="sched_days" value="0" checked class="rounded text-indigo-500 bg-slate-950 border-slate-800"> Sun
+                                </label>
+                            </div>
+                        </div>
+
+                        <button onclick="createSmsSchedule()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs tracking-wider uppercase py-2.5 rounded-xl transition mt-1">
+                            Add Schedule Task
+                        </button>
+                    </div>
+
+                    <!-- Active Schedules list -->
+                    <div class="flex flex-col gap-3">
+                        <span class="text-xs font-bold text-white uppercase tracking-wider">Active Schedules & Triggers</span>
+                        <div id="smsSchedulesContainer" class="flex flex-col gap-2.5 max-h-[400px] overflow-y-auto pr-1">
                             <!-- Populated dynamically via JS -->
-                            <tr>
-                                <td colspan="5" class="p-8 text-center text-slate-500 italic">No SMS transmission logs available. Send an alert to dispatch.</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                            <div class="text-center py-8 text-xs text-slate-500">Loading schedules...</div>
+                        </div>
+                    </div>
+
+                    <!-- SMS Dispatch History Logs -->
+                    <div class="flex flex-col gap-3 border-t border-slate-800/60 pt-5">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                                <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                                </svg>
+                                SMS Transmission Logs
+                            </span>
+                            <button onclick="loadSmsLogs()" class="text-cyan-400 hover:text-cyan-300 text-xs font-semibold flex items-center gap-1">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 3v3H16" />
+                                </svg>
+                                Refresh
+                            </button>
+                        </div>
+                        <div id="smsLogsContainer" class="flex flex-col gap-2 max-h-[300px] overflow-y-auto pr-1">
+                            <div class="text-center py-6 text-xs text-slate-500">Loading delivery logs...</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
+
     </main>
 
     <!-- Password Prompt Modal -->
@@ -2075,18 +2073,15 @@
                 if (lastAlertState !== 'low') {
                     showToast(`⚠️ Alert: Water level is critically low at ${percent.toFixed(0)}%! (Below ${alertThresholds.min}% threshold)`, 'error');
                     lastAlertState = 'low';
-                    triggerTelegramAutoAlert('LOW', percent);
                 }
             } else if (percent > alertThresholds.max) {
                 if (lastAlertState !== 'high') {
                     showToast(`⚠️ Alert: Water level is critically high at ${percent.toFixed(0)}%! (Above ${alertThresholds.max}% threshold)`, 'error');
                     lastAlertState = 'high';
-                    triggerTelegramAutoAlert('HIGH', percent);
                 }
             } else {
                 if (lastAlertState !== 'normal' && lastAlertState !== 'unknown') {
                     showToast(`ℹ️ Notice: Water level has returned to safe range: ${percent.toFixed(0)}%.`, 'success');
-                    triggerTelegramAutoAlert('NORMAL', percent);
                 }
                 lastAlertState = 'normal';
             }
@@ -2512,6 +2507,27 @@
                     } else {
                         select.value = result.devices[0];
                     }
+
+                    // Also sync with SMS device selection
+                    const selectSms = document.getElementById('smsDeviceSelect');
+                    if (selectSms) {
+                        const previousSmsVal = selectSms.value;
+                        selectSms.innerHTML = '';
+                        result.devices.forEach(dev => {
+                            const option = document.createElement('option');
+                            option.value = dev;
+                            option.textContent = dev;
+                            option.className = "bg-slate-950 text-slate-200";
+                            selectSms.appendChild(option);
+                        });
+                        if (result.devices.includes(activePrefix)) {
+                            selectSms.value = activePrefix;
+                        } else if (result.devices.includes(previousSmsVal)) {
+                            selectSms.value = previousSmsVal;
+                        } else {
+                            selectSms.value = result.devices[0];
+                        }
+                    }
                 }
             } catch (err) {
                 console.warn('[Analytics] Warning loading devices:', err.message || err);
@@ -2791,24 +2807,24 @@
             document.getElementById('txtPeriodDataUsed').innerText = displayDataStr;
         }
 
-        let activeMainTab = 'monitor'; // 'monitor', 'analytics', or 'telegram'
+        let activeMainTab = 'monitor'; // 'monitor', 'analytics', or 'sms_automation'
 
         function switchMainTab(tab) {
             activeMainTab = tab;
             const tabMonitor = document.getElementById('tabContentMonitor');
             const tabAnalytics = document.getElementById('tabContentAnalytics');
-            const tabTelegram = document.getElementById('tabContentTelegram');
+            const tabSmsAutomation = document.getElementById('tabContentSmsAutomation');
             const btnMonitor = document.getElementById('btnMainTabMonitor');
             const btnAnalytics = document.getElementById('btnMainTabAnalytics');
-            const btnTelegram = document.getElementById('btnMainTabTelegram');
+            const btnSmsAutomation = document.getElementById('btnMainTabSmsAutomation');
 
             // Hide all tab content
             if (tabMonitor) tabMonitor.classList.add('hidden');
             if (tabAnalytics) tabAnalytics.classList.add('hidden');
-            if (tabTelegram) tabTelegram.classList.add('hidden');
+            if (tabSmsAutomation) tabSmsAutomation.classList.add('hidden');
 
             // Reset tab button states to inactive
-            [btnMonitor, btnAnalytics, btnTelegram].forEach(btn => {
+            [btnMonitor, btnAnalytics, btnSmsAutomation].forEach(btn => {
                 if (btn) {
                     btn.className = "flex items-center gap-2 px-5 py-3 border-b-2 border-transparent hover:border-slate-800 text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition";
                 }
@@ -2826,9 +2842,15 @@
                 setTimeout(() => {
                     renderAnalyticsChart();
                 }, 50);
-            } else if (tab === 'telegram') {
-                if (tabTelegram) tabTelegram.classList.remove('hidden');
-                if (btnTelegram) btnTelegram.className = "flex items-center gap-2 px-5 py-3 border-b-2 border-pink-500 text-pink-400 font-bold text-xs tracking-wider uppercase transition";
+            } else if (tab === 'sms_automation') {
+                if (tabSmsAutomation) tabSmsAutomation.classList.remove('hidden');
+                if (btnSmsAutomation) btnSmsAutomation.className = "flex items-center gap-2 px-5 py-3 border-b-2 border-cyan-500 text-cyan-400 font-bold text-xs tracking-wider uppercase transition";
+                
+                // Load SMS automation configurations and schedules
+                loadSmsGatewaySettings();
+                loadSmsSchedules();
+                loadSmsLogs();
+                setTimeout(onScheduleTypeChange, 50);
             }
         }
 
@@ -3501,338 +3523,6 @@
             chartInstance = new Chart(ctx, chartConfig);
         }
 
-        // --- FitSMS Gateway Alerts State & Helpers ---
-        let smsConfig = {
-            apiMode: "v4",
-            senderId: "FitSMS",
-            oauthEndpoint: "https://app.fitsms.lk/api/v4/",
-            httpEndpoint: "https://app.fitsms.lk/api/http/",
-            apiToken: "544|dr3JYXmtfxEwes0ryc3MUY0k2U7zYAM0SkbCxEUTd58a01be",
-            recipient: "",
-            recipientLabel: "",
-            enableAutoAlerts: false
-        };
-        let smsLogs = [];
-
-        function toggleEndpointFields() {
-            const mode = document.getElementById('smsApiMode').value;
-            if (mode === 'v4') {
-                document.getElementById('divOauthEndpoint').classList.remove('hidden');
-                document.getElementById('divHttpEndpoint').classList.add('hidden');
-            } else {
-                document.getElementById('divOauthEndpoint').classList.add('hidden');
-                document.getElementById('divHttpEndpoint').classList.remove('hidden');
-            }
-        }
-
-        function insertTagSms(tag) {
-            const textarea = document.getElementById('smsMessageText');
-            if (!textarea) return;
-            const start = textarea.selectionStart;
-            const end = textarea.selectionEnd;
-            const text = textarea.value;
-            const before = text.substring(0, start);
-            const after = text.substring(end, text.length);
-            textarea.value = before + tag + after;
-            textarea.focus();
-            textarea.selectionStart = textarea.selectionEnd = start + tag.length;
-        }
-
-        function formatSmsAlertMessage(template) {
-            updateConfigFromUI();
-            const percent = parseFloat(document.getElementById('txtPercent').innerText) || 0;
-            const liters = parseFloat(document.getElementById('txtVolume').innerText.replace(/,/g, '')) || 0;
-            const depth = parseFloat(document.getElementById('txtLevel').innerText) || 0;
-            const deviceId = document.getElementById('topicPrefix').value || "mytank123";
-            const status = lastAlertState.toUpperCase();
-            const timestamp = new Date().toLocaleString();
-
-            return template
-                .replace(/\[Device\]/g, deviceId)
-                .replace(/\[Percent\]/g, `${percent.toFixed(0)}%`)
-                .replace(/\[Volume\]/g, `${liters.toLocaleString()} Liters`)
-                .replace(/\[Depth\]/g, `${depth.toFixed(1)} cm`)
-                .replace(/\[Status\]/g, status)
-                .replace(/\[Timestamp\]/g, timestamp);
-        }
-
-        function triggerTelegramAutoAlert(type, percent) {
-            if (!smsConfig.enableAutoAlerts || !smsConfig.apiToken || !smsConfig.recipient) return;
-
-            let messageTemplate = "";
-            if (type === 'LOW') {
-                messageTemplate = "HydroSync Alert: Low Water Level. Device: [Device]. Level fell to [Percent] ([Volume]). Depth: [Depth]. Time: [Timestamp]";
-            } else if (type === 'HIGH') {
-                messageTemplate = "HydroSync Alert: High Water Level. Device: [Device]. Level reached [Percent] ([Volume]). Depth: [Depth]. Time: [Timestamp]";
-            } else if (type === 'NORMAL') {
-                messageTemplate = "HydroSync Recovery: Water Level Safe. Device: [Device]. Level is safe at [Percent] ([Volume]). Time: [Timestamp]";
-            } else {
-                return;
-            }
-
-            const formattedMessage = formatSmsAlertMessage(messageTemplate);
-            sendSmsMessageDirectly(formattedMessage, "System Auto-Alert");
-        }
-
-        function loadSmsSettings() {
-            const savedMode = localStorage.getItem('hydrosync_sms_mode') || 'v4';
-            const savedSenderId = localStorage.getItem('hydrosync_sms_sender_id') || 'FitSMS';
-            const savedOauthUrl = localStorage.getItem('hydrosync_sms_oauth_url') || 'https://app.fitsms.lk/api/v4/';
-            const savedHttpUrl = localStorage.getItem('hydrosync_sms_http_url') || 'https://app.fitsms.lk/api/http/';
-            const savedToken = localStorage.getItem('hydrosync_sms_token') || '544|dr3JYXmtfxEwes0ryc3MUY0k2U7zYAM0SkbCxEUTd58a01be';
-            const savedRecipient = localStorage.getItem('hydrosync_sms_recipient') || '';
-            const savedLabel = localStorage.getItem('hydrosync_sms_label') || 'My Phone';
-            const savedAuto = localStorage.getItem('hydrosync_sms_auto_alerts') === 'true';
-
-            smsConfig.apiMode = savedMode;
-            smsConfig.senderId = savedSenderId;
-            smsConfig.oauthEndpoint = savedOauthUrl;
-            smsConfig.httpEndpoint = savedHttpUrl;
-            smsConfig.apiToken = savedToken;
-            smsConfig.recipient = savedRecipient;
-            smsConfig.recipientLabel = savedLabel;
-            smsConfig.enableAutoAlerts = savedAuto;
-
-            const modeEl = document.getElementById('smsApiMode');
-            const senderEl = document.getElementById('smsSenderId');
-            const oauthEl = document.getElementById('smsOauthEndpoint');
-            const httpEl = document.getElementById('smsHttpEndpoint');
-            const tokenEl = document.getElementById('smsApiToken');
-            const recipientEl = document.getElementById('smsRecipient');
-            const labelEl = document.getElementById('smsRecipientLabel');
-            const autoEl = document.getElementById('smsEnableAutoAlerts');
-
-            if (modeEl) modeEl.value = savedMode;
-            if (senderEl) senderEl.value = savedSenderId;
-            if (oauthEl) oauthEl.value = savedOauthUrl;
-            if (httpEl) httpEl.value = savedHttpUrl;
-            if (tokenEl) tokenEl.value = savedToken;
-            if (recipientEl) recipientEl.value = savedRecipient;
-            if (labelEl) labelEl.value = savedLabel;
-            if (autoEl) autoEl.checked = savedAuto;
-
-            // Set up default text in test message box
-            const textEl = document.getElementById('smsMessageText');
-            if (textEl) textEl.value = "HydroSync Status Update\nDevice ID: [Device]\nWater Level: [Percent]\nVolume: [Volume]\nStatus: [Status]\nTime: [Timestamp]";
-
-            toggleEndpointFields();
-            loadSmsLogs();
-        }
-
-        function saveSmsSettings() {
-            const mode = document.getElementById('smsApiMode').value;
-            const senderId = document.getElementById('smsSenderId').value.trim() || 'FitSMS';
-            const oauthUrl = document.getElementById('smsOauthEndpoint').value.trim() || 'https://app.fitsms.lk/api/v4/';
-            const httpUrl = document.getElementById('smsHttpEndpoint').value.trim() || 'https://app.fitsms.lk/api/http/';
-            const token = document.getElementById('smsApiToken').value.trim() || '544|dr3JYXmtfxEwes0ryc3MUY0k2U7zYAM0SkbCxEUTd58a01be';
-            const recipient = document.getElementById('smsRecipient').value.trim();
-            const label = document.getElementById('smsRecipientLabel').value.trim() || 'Alert Phone';
-
-            if (!recipient) {
-                showToast("Recipient phone number is required.", "error");
-                return;
-            }
-
-            smsConfig.apiMode = mode;
-            smsConfig.senderId = senderId;
-            smsConfig.oauthEndpoint = oauthUrl;
-            smsConfig.httpEndpoint = httpUrl;
-            smsConfig.apiToken = token;
-            smsConfig.recipient = recipient;
-            smsConfig.recipientLabel = label;
-
-            localStorage.setItem('hydrosync_sms_mode', mode);
-            localStorage.setItem('hydrosync_sms_sender_id', senderId);
-            localStorage.setItem('hydrosync_sms_oauth_url', oauthUrl);
-            localStorage.setItem('hydrosync_sms_http_url', httpUrl);
-            localStorage.setItem('hydrosync_sms_token', token);
-            localStorage.setItem('hydrosync_sms_recipient', recipient);
-            localStorage.setItem('hydrosync_sms_label', label);
-
-            showToast("FitSMS Gateway settings saved successfully!", "success");
-            
-            if (token && recipient) {
-                showToast("Ready! Try sending a test SMS below.", "info");
-            }
-        }
-
-        function toggleSmsAutoAlerts() {
-            const enable = document.getElementById('smsEnableAutoAlerts').checked;
-            smsConfig.enableAutoAlerts = enable;
-            localStorage.setItem('hydrosync_sms_auto_alerts', enable ? 'true' : 'false');
-            showToast(`Automatic FitSMS alerts ${enable ? 'ENABLED' : 'DISABLED'}.`, enable ? "success" : "info");
-        }
-
-        function toggleTokenVisibility(inputId, btn) {
-            const input = document.getElementById(inputId);
-            if (!input) return;
-            if (input.type === 'password') {
-                input.type = 'text';
-                btn.innerHTML = `
-                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 01-1.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                    </svg>
-                `;
-            } else {
-                input.type = 'password';
-                btn.innerHTML = `
-                    <svg class="w-4 h-4 text-slate-500 hover:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                `;
-            }
-        }
-
-        async function sendSmsTest() {
-            const template = document.getElementById('smsMessageText').value.trim();
-            if (!template) {
-                showToast("Please enter a message to send.", "error");
-                return;
-            }
-
-            if (!smsConfig.apiToken || !smsConfig.recipient) {
-                showToast("Please configure and save FitSMS API Token and Recipient first.", "error");
-                return;
-            }
-
-            const formattedMessage = formatSmsAlertMessage(template);
-            const btn = document.getElementById('btnSendSmsTest');
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = `<span class="inline-block animate-spin mr-1">🌀</span> Dispatching SMS alert...`;
-            }
-
-            const success = await sendSmsMessageDirectly(formattedMessage, smsConfig.recipientLabel || smsConfig.recipient);
-            
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = `
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                    </svg>
-                    Send FitSMS Gateway Test Now
-                `;
-            }
-        }
-
-        async function sendSmsMessageDirectly(messageText, recipient) {
-            try {
-                const response = await fetch('/api/send-sms', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        api_mode: smsConfig.apiMode,
-                        endpoint_url: smsConfig.apiMode === 'v4' ? smsConfig.oauthEndpoint : smsConfig.httpEndpoint,
-                        api_token: smsConfig.apiToken,
-                        recipient: smsConfig.recipient,
-                        sender_id: smsConfig.senderId,
-                        message: messageText
-                    })
-                });
-
-                const contentType = response.headers.get('content-type');
-                if (!response.ok || !contentType || !contentType.includes('application/json')) {
-                    console.warn('[FitSMS Warning] API returned non-JSON or unsuccessful response.');
-                    showToast("Failed to connect to SMS Gateway. Server is starting up.", "warning");
-                    return false;
-                }
-
-                const result = await response.json();
-                const timestamp = new Date().toLocaleString();
-                const modeLabel = smsConfig.apiMode === 'v4' ? 'OAuth v4' : 'HTTP GET';
-
-                if (result.success) {
-                    showToast("FitSMS Gateway Alert dispatched successfully!", "success");
-                    logSmsDispatch(timestamp, recipient, modeLabel, messageText, "Success", "");
-                    return true;
-                } else {
-                    showToast(`Dispatch failed: ${result.error}`, "error");
-                    logSmsDispatch(timestamp, recipient, modeLabel, messageText, "Failed", result.error);
-                    return false;
-                }
-            } catch (err) {
-                console.warn('[FitSMS dispatch warning]:', err.message || err);
-                showToast("Network error trying to dispatch SMS alert.", "error");
-                const timestamp = new Date().toLocaleString();
-                const modeLabel = smsConfig.apiMode === 'v4' ? 'OAuth v4' : 'HTTP GET';
-                logSmsDispatch(timestamp, recipient, modeLabel, messageText, "Failed", err.message || "Network Error");
-                return false;
-            }
-        }
-
-        function logSmsDispatch(timestamp, recipient, protocol, text, status, errorMsg) {
-            const logEntry = {
-                timestamp,
-                recipient,
-                protocol,
-                text,
-                status,
-                error: errorMsg
-            };
-            smsLogs.unshift(logEntry);
-            if (smsLogs.length > 50) smsLogs.pop();
-            
-            localStorage.setItem('hydrosync_sms_logs', JSON.stringify(smsLogs));
-            renderSmsLogs();
-        }
-
-        function loadSmsLogs() {
-            const saved = localStorage.getItem('hydrosync_sms_logs');
-            if (saved) {
-                try {
-                    smsLogs = JSON.parse(saved);
-                } catch(e) {
-                    smsLogs = [];
-                }
-            } else {
-                smsLogs = [];
-            }
-            renderSmsLogs();
-        }
-
-        function clearSmsLogs() {
-            smsLogs = [];
-            localStorage.removeItem('hydrosync_sms_logs');
-            renderSmsLogs();
-            showToast("Transmission history cleared.", "info");
-        }
-
-        function renderSmsLogs() {
-            const body = document.getElementById('smsLogsTableBody');
-            if (!body) return;
-
-            if (smsLogs.length === 0) {
-                body.innerHTML = `
-                    <tr>
-                        <td colspan="5" class="p-8 text-center text-slate-500 italic">No SMS transmission logs available. Send an alert to dispatch.</td>
-                    </tr>
-                `;
-                return;
-            }
-
-            body.innerHTML = smsLogs.map(log => {
-                let statusBadge = "";
-                if (log.status === "Success") {
-                    statusBadge = `<span class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">SUCCESS</span>`;
-                } else {
-                    statusBadge = `<span class="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-bold" title="${log.error || ''}">FAILED</span>`;
-                }
-
-                return `
-                    <tr class="border-b border-slate-800/60 hover:bg-slate-900/10 transition">
-                        <td class="p-3 text-slate-400 font-mono text-[11px] whitespace-nowrap">${log.timestamp}</td>
-                        <td class="p-3 font-semibold text-slate-200">${log.recipient}</td>
-                        <td class="p-3 text-slate-400 font-mono text-[10px]">${log.protocol}</td>
-                        <td class="p-3 text-slate-300 max-w-xs md:max-w-md truncate" title="${log.text}">${log.text}</td>
-                        <td class="p-3">${statusBadge}</td>
-                    </tr>
-                `;
-            }).join('');
-        }
-
         // Telemetry mode and Simulation states
         let syncMode = 'mqtt'; // 'mqtt' or 'direct'
         let directPollInterval = null;
@@ -3940,6 +3630,538 @@
             }
         }
 
+        async function loadSmsLogs() {
+            try {
+                const selectSms = document.getElementById('smsDeviceSelect');
+                const deviceId = selectSms ? selectSms.value : 'mytank123';
+                const container = document.getElementById('smsLogsContainer');
+                if (!container) return;
+
+                const response = await fetch(`/api/sms/logs?device_id=${encodeURIComponent(deviceId)}`);
+                const result = await response.json();
+
+                if (result.success && result.logs) {
+                    if (result.logs.length === 0) {
+                        container.innerHTML = `<div class="text-center py-6 text-xs text-slate-500">No transmission logs recorded yet.</div>`;
+                        return;
+                    }
+
+                    container.innerHTML = result.logs.map(log => {
+                        const isSuccess = log.status === 'SUCCESS';
+                        const badgeColor = isSuccess ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+                        const formattedTime = new Date(log.timestamp).toLocaleString();
+                        
+                        return `
+                            <div class="bg-slate-950/40 border border-slate-800/80 rounded-xl p-3 flex flex-col gap-1.5 text-xs text-slate-200">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-mono text-[10px] text-slate-400">To: ${log.recipient}</span>
+                                    <span class="px-2 py-0.5 rounded border text-[9px] font-bold ${badgeColor}">
+                                        ${log.status}
+                                    </span>
+                                </div>
+                                <p class="text-slate-300 leading-relaxed text-[11px]">${log.message}</p>
+                                ${!isSuccess && log.error_message ? `
+                                    <div class="bg-rose-950/20 border border-rose-950/40 rounded px-2.5 py-1.5 text-[10px] text-rose-300 font-mono mt-1 break-words">
+                                        Error: ${log.error_message}
+                                    </div>
+                                ` : ''}
+                                <span class="text-[9px] text-slate-500 text-right mt-1">${formattedTime}</span>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    container.innerHTML = `<div class="text-center py-6 text-xs text-rose-400">Failed to load logs: ${result.error || 'Server error'}</div>`;
+                }
+            } catch (err) {
+                console.error('[SMS Logs UI] Error loading logs:', err);
+                const container = document.getElementById('smsLogsContainer');
+                if (container) {
+                    container.innerHTML = `<div class="text-center py-6 text-xs text-rose-400">Network error loading logs.</div>`;
+                }
+            }
+        }
+
+        // --- SMS Gateway Settings and Scheduled Automation Script ---
+
+        let isSmsTokenVisible = false;
+
+        function toggleApiTokenVisibility() {
+            const input = document.getElementById('sms_api_token');
+            if (input) {
+                isSmsTokenVisible = !isSmsTokenVisible;
+                input.type = isSmsTokenVisible ? 'text' : 'password';
+            }
+        }
+
+        function toggleSmsEndpointInputs() {
+            const mode = document.querySelector('input[name="sms_api_mode"]:checked').value;
+            const rowOauth = document.getElementById('rowOauthEndpoint');
+            const rowHttp = document.getElementById('rowHttpEndpoint');
+
+            if (mode === 'v3') {
+                if (rowOauth) rowOauth.classList.remove('hidden');
+                if (rowHttp) rowHttp.classList.add('hidden');
+            } else {
+                if (rowOauth) rowOauth.classList.add('hidden');
+                if (rowHttp) rowHttp.classList.remove('hidden');
+            }
+        }
+
+        async function loadSmsGatewaySettings() {
+            try {
+                const selectSms = document.getElementById('smsDeviceSelect');
+                const deviceId = selectSms ? selectSms.value : 'mytank123';
+
+                const response = await fetch(`/api/sms/config?device_id=${encodeURIComponent(deviceId)}`);
+                const result = await response.json();
+
+                if (result.success && result.config) {
+                    const cfg = result.config;
+                    
+                    // Set radio button
+                    const radios = document.getElementsByName('sms_api_mode');
+                    for (const r of radios) {
+                        if (r.value === (cfg.sms_api_mode || 'v3')) {
+                            r.checked = true;
+                        }
+                    }
+
+                    document.getElementById('sms_api_token').value = cfg.sms_api_token || '';
+                    document.getElementById('sms_sender_id').value = cfg.sms_sender_id || 'TextLK';
+                    document.getElementById('sms_oauth_endpoint').value = cfg.sms_oauth_endpoint || 'https://app.text.lk/api/v3/';
+                    document.getElementById('sms_http_endpoint').value = cfg.sms_http_endpoint || 'https://app.text.lk/api/http/';
+                    document.getElementById('sms_recipient_numbers').value = cfg.sms_recipient_numbers || '';
+                    document.getElementById('sms_alert_enabled').checked = !!cfg.sms_alert_enabled;
+                    document.getElementById('sms_alert_min').value = Math.round(parseFloat(cfg.alert_min) || 20);
+                    document.getElementById('sms_alert_max').value = Math.round(parseFloat(cfg.alert_max) || 90);
+
+                    toggleSmsEndpointInputs();
+                }
+            } catch (err) {
+                console.error('[SMS UI] Failed to load gateway settings:', err);
+                showToast('Failed to retrieve SMS configuration from server.', 'error');
+            }
+        }
+
+        async function saveSmsGatewaySettings() {
+            try {
+                const selectSms = document.getElementById('smsDeviceSelect');
+                const deviceId = selectSms ? selectSms.value : 'mytank123';
+
+                const mode = document.querySelector('input[name="sms_api_mode"]:checked').value;
+                const token = document.getElementById('sms_api_token').value.trim();
+                const senderId = document.getElementById('sms_sender_id').value.trim();
+                const oauthUrl = document.getElementById('sms_oauth_endpoint').value.trim();
+                const httpUrl = document.getElementById('sms_http_endpoint').value.trim();
+                const recipients = document.getElementById('sms_recipient_numbers').value.trim();
+                const alertEnabled = document.getElementById('sms_alert_enabled').checked;
+                const alertMin = parseFloat(document.getElementById('sms_alert_min').value) || 20;
+                const alertMax = parseFloat(document.getElementById('sms_alert_max').value) || 90;
+
+                if (!token) {
+                    showToast('API token is required.', 'error');
+                    return;
+                }
+
+                const response = await fetch('/api/sms/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device_id: deviceId,
+                        sms_api_mode: mode,
+                        sms_api_token: token,
+                        sms_sender_id: senderId,
+                        sms_oauth_endpoint: oauthUrl,
+                        sms_http_endpoint: httpUrl,
+                        sms_recipient_numbers: recipients,
+                        sms_alert_enabled: alertEnabled
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Update alert inputs on calibration tab if they exist
+                    const minInput = document.getElementById('alertMinLevelInput');
+                    const maxInput = document.getElementById('alertMaxLevelInput');
+                    if (minInput) minInput.value = alertMin;
+                    if (maxInput) maxInput.value = alertMax;
+
+                    // Sync thresholds with device config
+                    updateConfigFromUI();
+                    const api_url = document.getElementById('apiUrlInput') ? document.getElementById('apiUrlInput').value.trim() : '';
+                    const ota_url = document.getElementById('otaBinUrl') ? document.getElementById('otaBinUrl').value.trim() : '';
+                    const motor1_rate = parseFloat(document.getElementById('motor1RateInput')?.value) || 1000.0;
+                    const motor2_rate = parseFloat(document.getElementById('motor2RateInput')?.value) || 5000.0;
+                    const pump_threshold = parseFloat(document.getElementById('pumpThresholdInput')?.value) || 2500.0;
+
+                    const mainRes = await fetch('/api/device/config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            device_id: deviceId,
+                            tank_height: config.height,
+                            sensor_height: config.sensorHeight,
+                            tank_diameter: config.diameter,
+                            num_tanks: config.tanks,
+                            telemetry_interval: config.interval,
+                            gsm_numbers: gsmNumbers.length > 0 ? gsmNumbers.join(',') : "none",
+                            api_url: api_url,
+                            ota_url: ota_url,
+                            motor1_rate: motor1_rate,
+                            motor2_rate: motor2_rate,
+                            pump_threshold: pump_threshold,
+                            alert_min: alertMin,
+                            alert_max: alertMax
+                        })
+                    });
+
+                    const mainResult = await mainRes.json();
+                    if (mainResult.success) {
+                        alertThresholds.min = alertMin;
+                        alertThresholds.max = alertMax;
+                        saveSettingsToLocalStorage();
+                        lastAlertState = 'unknown';
+                        updateTelemetryUI();
+                    }
+
+                    showToast('SMS Gateway and Alert settings updated successfully.', 'success');
+                } else {
+                    showToast(result.error || 'Failed to save configuration.', 'error');
+                }
+            } catch (err) {
+                console.error('[SMS UI] Error saving settings:', err);
+                showToast('Network error while saving SMS settings.', 'error');
+            }
+        }
+
+        async function sendManualTestSms() {
+            try {
+                const selectSms = document.getElementById('smsDeviceSelect');
+                const deviceId = selectSms ? selectSms.value : 'mytank123';
+
+                const recipient = document.getElementById('sms_test_recipient').value.trim();
+                const message = document.getElementById('sms_test_message').value.trim();
+
+                const mode = document.querySelector('input[name="sms_api_mode"]:checked').value;
+                const token = document.getElementById('sms_api_token').value.trim();
+                const senderId = document.getElementById('sms_sender_id').value.trim();
+                const oauthUrl = document.getElementById('sms_oauth_endpoint').value.trim();
+                const httpUrl = document.getElementById('sms_http_endpoint').value.trim();
+
+                if (!recipient || !message) {
+                    showToast('Provide recipient number and test message.', 'error');
+                    return;
+                }
+
+                showToast('Dispatching test SMS message...', 'info');
+
+                const response = await fetch('/api/sms/send-test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device_id: deviceId,
+                        sms_api_mode: mode,
+                        sms_api_token: token,
+                        sms_sender_id: senderId,
+                        sms_oauth_endpoint: oauthUrl,
+                        sms_http_endpoint: httpUrl,
+                        recipient: recipient,
+                        message: message
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showToast('Test SMS successfully dispatched!', 'success');
+                } else {
+                    showToast(result.error || 'Gateway dispatch failed.', 'error');
+                }
+                loadSmsLogs();
+            } catch (err) {
+                console.error('[SMS UI] Test error:', err);
+                showToast('Failed to dispatch test message.', 'error');
+            }
+        }
+
+        function onScheduleTypeChange() {
+            const type = document.getElementById('sched_type').value;
+            const template = document.getElementById('sched_template');
+            const lblTip = document.getElementById('lblDynamicTip');
+
+            if (type === 'status_update') {
+                template.value = "HydroSync Status: [Device] is currently at [Percent] capacity ([Volume] / [Depth]). Sync: [Timestamp].";
+                if (lblTip) lblTip.innerText = "Supports [Percent], [Volume], [Depth] tokens";
+            } else if (type === 'motor_on') {
+                template.value = "MOTOR ON";
+                if (lblTip) lblTip.innerText = "Sent as command payload to the physical pump";
+            } else if (type === 'motor_off') {
+                template.value = "MOTOR OFF";
+                if (lblTip) lblTip.innerText = "Sent as command payload to the physical pump";
+            }
+        }
+
+        async function loadSmsSchedules() {
+            try {
+                const selectSms = document.getElementById('smsDeviceSelect');
+                const deviceId = selectSms ? selectSms.value : 'mytank123';
+
+                const response = await fetch(`/api/sms/schedules?device_id=${encodeURIComponent(deviceId)}`);
+                const result = await response.json();
+
+                const container = document.getElementById('smsSchedulesContainer');
+                if (!container) return;
+
+                if (result.success && result.schedules) {
+                    window.activeSchedules = result.schedules;
+                    
+                    if (result.schedules.length === 0) {
+                        container.innerHTML = `
+                            <div class="text-center py-8 border border-dashed border-slate-800 rounded-2xl w-full">
+                                <span class="block text-xs text-slate-500">No scheduled automation tasks configured.</span>
+                                <span class="block text-[10px] text-slate-600 mt-1">Create a status update or pump trigger above.</span>
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    container.innerHTML = '';
+                    result.schedules.forEach(sched => {
+                        const card = document.createElement('div');
+                        card.className = "bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition hover:border-slate-700/60 w-full";
+
+                        const formatDays = (daysStr) => {
+                            const dayMap = { '1': 'Mon', '2': 'Tue', '3': 'Wed', '4': 'Thu', '5': 'Fri', '6': 'Sat', '0': 'Sun' };
+                            return daysStr.split(',').map(d => dayMap[d.trim()] || d).join(', ');
+                        };
+
+                        const typeLabels = {
+                            'status_update': { label: '📊 Status Update', color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20' },
+                            'motor_on': { label: '🔌 Motor ON', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
+                            'motor_off': { label: '🔌 Motor OFF', color: 'text-rose-400 bg-rose-500/10 border-rose-500/20' }
+                        };
+
+                        const meta = typeLabels[sched.schedule_type] || { label: sched.schedule_type, color: 'text-slate-400 bg-slate-500/10' };
+
+                        card.innerHTML = `
+                            <div class="flex flex-col gap-1.5 flex-grow">
+                                <div class="flex items-center gap-2">
+                                    <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold border ${meta.color}">${meta.label}</span>
+                                    <span class="text-sm font-bold text-slate-100">${sched.scheduled_time.substring(0, 5)}</span>
+                                </div>
+                                <div class="text-xs text-slate-400 leading-relaxed font-mono">
+                                    "${sched.message_template}"
+                                </div>
+                                <div class="text-[10px] text-slate-400 flex flex-wrap gap-x-3 gap-y-1 items-center">
+                                    <span>Days: <strong class="text-slate-300">${formatDays(sched.days_of_week)}</strong></span>
+                                    <span class="w-1 h-1 rounded-full bg-slate-700"></span>
+                                    <span>To: <strong class="text-slate-300">${sched.recipient_numbers}</strong></span>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 self-end md:self-auto">
+                                <label class="flex items-center gap-2 cursor-pointer select-none">
+                                    <input type="checkbox" ${sched.is_enabled ? 'checked' : ''} onchange="toggleScheduleActive(${sched.id}, this.checked)" class="rounded text-indigo-500 bg-slate-900 border-slate-800">
+                                    <span class="text-[10px] font-bold text-slate-400 uppercase">Active</span>
+                                </label>
+                                <button onclick="deleteSmsSchedule(${sched.id})" class="p-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl text-rose-400 transition" title="Delete Schedule">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        `;
+                        container.appendChild(card);
+                    });
+                }
+            } catch (err) {
+                console.error('[SMS UI] Failed to load schedules list:', err);
+            }
+        }
+
+        async function createSmsSchedule() {
+            try {
+                const selectSms = document.getElementById('smsDeviceSelect');
+                const deviceId = selectSms ? selectSms.value : 'mytank123';
+
+                const type = document.getElementById('sched_type').value;
+                const time = document.getElementById('sched_time').value;
+                const recipients = document.getElementById('sched_recipients').value.trim();
+                const template = document.getElementById('sched_template').value.trim();
+
+                if (!time || !recipients || !template) {
+                    showToast('Please provide scheduled time, template text, and recipients.', 'error');
+                    return;
+                }
+
+                const daysChks = document.getElementsByName('sched_days');
+                const selectedDays = [];
+                for (const c of daysChks) {
+                    if (c.checked) {
+                        selectedDays.push(c.value);
+                    }
+                }
+
+                if (selectedDays.length === 0) {
+                    showToast('Please select at least one day of the week.', 'error');
+                    return;
+                }
+
+                const payload = {
+                    device_id: deviceId,
+                    schedule_type: type,
+                    recipient_numbers: recipients,
+                    scheduled_time: time + ':00',
+                    days_of_week: selectedDays.join(','),
+                    message_template: template,
+                    is_enabled: true
+                };
+
+                const response = await fetch('/api/sms/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showToast('Schedule created successfully!', 'success');
+                    document.getElementById('sched_recipients').value = '';
+                    loadSmsSchedules();
+                } else {
+                    showToast(result.error || 'Failed to create schedule.', 'error');
+                }
+            } catch (err) {
+                console.error('[SMS UI] Create schedule error:', err);
+                showToast('Failed to create new scheduled task.', 'error');
+            }
+        }
+
+        async function toggleScheduleActive(id, isChecked) {
+            try {
+                if (!window.activeSchedules) return;
+                const s = window.activeSchedules.find(item => item.id === id);
+                if (!s) return;
+
+                const payload = {
+                    id: s.id,
+                    device_id: s.device_id,
+                    schedule_type: s.schedule_type,
+                    recipient_numbers: s.recipient_numbers,
+                    scheduled_time: s.scheduled_time,
+                    days_of_week: s.days_of_week,
+                    message_template: s.message_template,
+                    is_enabled: isChecked
+                };
+
+                const response = await fetch('/api/sms/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showToast(`Schedule task ${isChecked ? 'enabled' : 'disabled'}.`, 'success');
+                    loadSmsSchedules();
+                } else {
+                    showToast(result.error || 'Failed to update schedule status.', 'error');
+                }
+            } catch (err) {
+                console.error('[SMS UI] Toggle schedule error:', err);
+            }
+        }
+
+        function customConfirm(message, onConfirm) {
+            // Create backdrop
+            const backdrop = document.createElement('div');
+            backdrop.id = 'customConfirmModal';
+            backdrop.className = 'fixed inset-0 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-4 z-[9999] opacity-0 transition-opacity duration-150';
+            
+            // Create dialog card
+            const dialog = document.createElement('div');
+            dialog.className = 'bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl flex flex-col gap-4 transform scale-95 transition-all duration-150';
+            
+            dialog.innerHTML = `
+                <div class="flex items-center gap-3 text-amber-400">
+                    <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wider">Confirm Action</h3>
+                </div>
+                <p class="text-xs text-slate-300 leading-relaxed">${message}</p>
+                <div class="flex items-center justify-end gap-3 mt-2">
+                    <button id="confirmCancelBtn" class="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition">
+                        Cancel
+                    </button>
+                    <button id="confirmConfirmBtn" class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-rose-500/10">
+                        Delete
+                    </button>
+                </div>
+            `;
+            
+            backdrop.appendChild(dialog);
+            document.body.appendChild(backdrop);
+            
+            // Fade-in and zoom transitions
+            setTimeout(() => {
+                backdrop.classList.remove('opacity-0');
+                backdrop.classList.add('opacity-100');
+                dialog.classList.remove('scale-95');
+                dialog.classList.add('scale-100');
+            }, 10);
+            
+            const close = () => {
+                dialog.classList.remove('scale-100');
+                dialog.classList.add('scale-95');
+                backdrop.classList.remove('opacity-100');
+                backdrop.classList.add('opacity-0');
+                setTimeout(() => {
+                    if (backdrop.parentNode) {
+                        backdrop.parentNode.removeChild(backdrop);
+                    }
+                }, 150);
+            };
+            
+            document.getElementById('confirmCancelBtn').onclick = () => {
+                close();
+            };
+            
+            document.getElementById('confirmConfirmBtn').onclick = () => {
+                close();
+                onConfirm();
+            };
+            
+            backdrop.onclick = (e) => {
+                if (e.target === backdrop) {
+                    close();
+                }
+            };
+        }
+
+        async function deleteSmsSchedule(id) {
+            customConfirm('Are you sure you want to delete this scheduled task?', async () => {
+                try {
+                    const selectSms = document.getElementById('smsDeviceSelect');
+                    const deviceId = selectSms ? selectSms.value : 'mytank123';
+
+                    const response = await fetch(`/api/sms/schedules?id=${id}&device_id=${encodeURIComponent(deviceId)}`, {
+                        method: 'DELETE'
+                    });
+
+                    const result = await response.json();
+                    if (result.success) {
+                        showToast('Schedule deleted successfully.', 'success');
+                        loadSmsSchedules();
+                    } else {
+                        showToast(result.error || 'Failed to delete schedule.', 'error');
+                    }
+                } catch (err) {
+                    console.error('[SMS UI] Delete schedule error:', err);
+                    showToast('Failed to delete scheduled task.', 'error');
+                }
+            });
+        }
+
         function onDeviceIdChange() {
             const newId = document.getElementById('topicPrefix').value || 'mytank123';
             showToast(`Switched active Device ID to: ${newId}`, "info");
@@ -3947,6 +4169,14 @@
             loadTelemetryFromLocalStorage();
             fetchDeviceConfigFromServer();
             fetchAnalyticsData();
+            
+            // Keep SMS device selector synchronized
+            const selectSms = document.getElementById('smsDeviceSelect');
+            if (selectSms) {
+                selectSms.value = newId;
+                loadSmsGatewaySettings();
+                loadSmsSchedules();
+            }
         }
 
         // Initialize App on load
@@ -3975,8 +4205,7 @@
             initAnalyticsDates();
             loadAnalyticsDevices();
 
-            // Initialize FitSMS Gateway configurations
-            loadSmsSettings();
+
 
             // Auto-trigger first analytics query after a slight delay
             setTimeout(fetchAnalyticsData, 1000);

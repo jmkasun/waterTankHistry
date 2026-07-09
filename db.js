@@ -89,8 +89,60 @@ async function initDb() {
     await client.query(`
       ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS alert_max NUMERIC(8, 2) NOT NULL DEFAULT 90.0;
     `);
+
+    // Add SMS Gateway & Alert configurations
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS sms_api_mode VARCHAR(20) DEFAULT 'v3';
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS sms_oauth_endpoint TEXT DEFAULT 'https://app.text.lk/api/v3/';
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS sms_http_endpoint TEXT DEFAULT 'https://app.text.lk/api/http/';
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS sms_api_token TEXT DEFAULT '5812|zSz889GfK4tAKEJO3PaYaPOyw3kUW86LRgLbu7JSd908c821';
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS sms_sender_id VARCHAR(50) DEFAULT 'TextLK';
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS sms_recipient_numbers TEXT DEFAULT '';
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS sms_alert_enabled BOOLEAN DEFAULT FALSE;
+    `);
+
+    // Create w_sms_schedules table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS w_sms_schedules (
+        id SERIAL PRIMARY KEY,
+        device_id VARCHAR(100) NOT NULL,
+        schedule_type VARCHAR(50) NOT NULL, -- 'status_update', 'motor_on', 'motor_off'
+        recipient_numbers TEXT NOT NULL,
+        scheduled_time TIME NOT NULL,
+        days_of_week VARCHAR(50) DEFAULT '1,2,3,4,5,6,0', -- 1=Mon, ..., 0=Sun
+        message_template TEXT DEFAULT '',
+        is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        last_run TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Create w_sms_logs table to track SMS transmission status
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS w_sms_logs (
+        id SERIAL PRIMARY KEY,
+        device_id VARCHAR(100) NOT NULL,
+        recipient VARCHAR(100) NOT NULL,
+        message TEXT NOT NULL,
+        status VARCHAR(20) NOT NULL, -- 'SUCCESS', 'FAILED'
+        error_message TEXT,
+        timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
     
-    console.log('[DB] PostgreSQL w_telemetry and w_device_config tables initialized successfully.');
+    console.log('[DB] PostgreSQL w_telemetry, w_device_config, w_sms_schedules, and w_sms_logs tables initialized successfully.');
   } catch (err) {
     console.error('[DB] Error initializing database:', err);
   } finally {

@@ -628,14 +628,18 @@
                                 </div>
                             </label>
 
-                            <div class="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800/50">
+                            <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800/50">
                                 <div class="flex flex-col gap-1">
-                                    <label class="text-[9px] uppercase tracking-wider font-bold text-slate-500">Low Trigger (%)</label>
+                                    <label class="text-[9px] uppercase tracking-wider font-bold text-slate-500" title="Low Threshold Trigger">Low Trigger (%)</label>
                                     <input id="sms_alert_min" type="number" min="5" max="45" value="20" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-cyan-500/80">
                                 </div>
                                 <div class="flex flex-col gap-1">
-                                    <label class="text-[9px] uppercase tracking-wider font-bold text-slate-500">High Trigger (%)</label>
+                                    <label class="text-[9px] uppercase tracking-wider font-bold text-slate-500" title="High Threshold Trigger">High Trigger (%)</label>
                                     <input id="sms_alert_max" type="number" min="55" max="98" value="90" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-cyan-500/80">
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-[9px] uppercase tracking-wider font-bold text-slate-500" title="Hysteresis margin to prevent recovery message toggle storms">Recovery Margin (%)</label>
+                                    <input id="sms_recovery_margin" type="number" min="1" max="25" value="5" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-cyan-500/80">
                                 </div>
                             </div>
 
@@ -3753,6 +3757,7 @@
                     document.getElementById('sms_alert_enabled').checked = !!cfg.sms_alert_enabled;
                     document.getElementById('sms_alert_min').value = Math.round(parseFloat(cfg.alert_min) || 20);
                     document.getElementById('sms_alert_max').value = Math.round(parseFloat(cfg.alert_max) || 90);
+                    document.getElementById('sms_recovery_margin').value = Math.round(parseFloat(cfg.recovery_margin) || 5);
                     
                     document.getElementById('sms_msg_low').value = cfg.sms_msg_low || '⚠️ ALERT: Water level is critically LOW at [Percent]%! (Below [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
                     document.getElementById('sms_msg_high').value = cfg.sms_msg_high || '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
@@ -3777,7 +3782,8 @@
                                 sms_msg_low: cfg.sms_msg_low,
                                 sms_msg_high: cfg.sms_msg_high,
                                 sms_msg_normal: cfg.sms_msg_normal,
-                                timezone_offset: currentBrowserOffset
+                                timezone_offset: currentBrowserOffset,
+                                recovery_margin: cfg.recovery_margin !== undefined && cfg.recovery_margin !== null ? parseFloat(cfg.recovery_margin) : 5
                             })
                         }).catch(e => console.error('[SMS UI] Auto-heal config offset error:', e));
                     }
@@ -3804,6 +3810,7 @@
                 const alertEnabled = document.getElementById('sms_alert_enabled').checked;
                 const alertMin = parseFloat(document.getElementById('sms_alert_min').value) || 20;
                 const alertMax = parseFloat(document.getElementById('sms_alert_max').value) || 90;
+                const recoveryMargin = parseFloat(document.getElementById('sms_recovery_margin').value) || 5;
                 
                 const msgLow = document.getElementById('sms_msg_low').value.trim();
                 const msgHigh = document.getElementById('sms_msg_high').value.trim();
@@ -3829,7 +3836,8 @@
                         sms_msg_low: msgLow,
                         sms_msg_high: msgHigh,
                         sms_msg_normal: msgNormal,
-                        timezone_offset: new Date().getTimezoneOffset()
+                        timezone_offset: new Date().getTimezoneOffset(),
+                        recovery_margin: recoveryMargin
                     })
                 });
 

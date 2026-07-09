@@ -758,7 +758,7 @@ const server = http.createServer(async (req, res) => {
         try {
             const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
             const result = await pool.query(
-                `SELECT sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset
+                `SELECT sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin
                  FROM w_device_config WHERE device_id = $1`,
                 [deviceId]
             );
@@ -769,6 +769,7 @@ const server = http.createServer(async (req, res) => {
                 config.sms_msg_high = config.sms_msg_high || '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
                 config.sms_msg_normal = config.sms_msg_normal || 'ℹ️ RECOVERY: Water level is back to NORMAL range: [Percent]%. Device ID: [Device]. Time: [Timestamp]';
                 config.timezone_offset = config.timezone_offset !== undefined && config.timezone_offset !== null ? config.timezone_offset : 0;
+                config.recovery_margin = config.recovery_margin !== undefined && config.recovery_margin !== null ? parseFloat(config.recovery_margin) : 5.0;
                 sendJSON(res, { success: true, config });
             } else {
                 sendJSON(res, {
@@ -786,7 +787,8 @@ const server = http.createServer(async (req, res) => {
                         sms_msg_low: '⚠️ ALERT: Water level is critically LOW at [Percent]%! (Below [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]',
                         sms_msg_high: '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]',
                         sms_msg_normal: 'ℹ️ RECOVERY: Water level is back to NORMAL range: [Percent]%. Device ID: [Device]. Time: [Timestamp]',
-                        timezone_offset: 0
+                        timezone_offset: 0,
+                        recovery_margin: 5.0
                     }
                 });
             }
@@ -804,7 +806,7 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                const { device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset } = data;
+                const { device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin } = data;
                 
                 if (!device_id) {
                     sendJSON(res, { success: false, error: 'device_id is required' }, 400);
@@ -813,11 +815,12 @@ const server = http.createServer(async (req, res) => {
 
                 const smsAlertEnabled = sms_alert_enabled === true || sms_alert_enabled === 'true';
                 const tzOffset = timezone_offset !== undefined && timezone_offset !== null ? parseInt(timezone_offset, 10) : 0;
+                const margin = recovery_margin !== undefined && recovery_margin !== null ? parseFloat(recovery_margin) : 5.0;
 
                 await pool.query(
                     `INSERT INTO w_device_config (
-                        device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset
-                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                        device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin
+                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                      ON CONFLICT (device_id) DO UPDATE SET
                         sms_api_mode = EXCLUDED.sms_api_mode,
                         sms_oauth_endpoint = EXCLUDED.sms_oauth_endpoint,
@@ -830,6 +833,7 @@ const server = http.createServer(async (req, res) => {
                         sms_msg_high = COALESCE(EXCLUDED.sms_msg_high, w_device_config.sms_msg_high),
                         sms_msg_normal = COALESCE(EXCLUDED.sms_msg_normal, w_device_config.sms_msg_normal),
                         timezone_offset = COALESCE(EXCLUDED.timezone_offset, w_device_config.timezone_offset),
+                        recovery_margin = COALESCE(EXCLUDED.recovery_margin, w_device_config.recovery_margin),
                         updated_at = CURRENT_TIMESTAMP`,
                     [
                         device_id,
@@ -843,7 +847,8 @@ const server = http.createServer(async (req, res) => {
                         sms_msg_low || '',
                         sms_msg_high || '',
                         sms_msg_normal || '',
-                        tzOffset
+                        tzOffset,
+                        margin
                     ]
                 );
 
@@ -1211,7 +1216,7 @@ function getFormattedLocalTimestamp(offsetInMinutes) {
 async function checkDeviceThresholdAlerts(deviceId, level, volume) {
     try {
         const configRes = await pool.query(
-            `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset
+            `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin
              FROM w_device_config WHERE device_id = $1`,
             [deviceId]
         );
@@ -1236,15 +1241,39 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
 
         const alertMin = parseFloat(config.alert_min) || 20.0;
         const alertMax = parseFloat(config.alert_max) || 90.0;
-
-        let currentState = 'NORMAL';
-        if (percent < alertMin) {
-            currentState = 'LOW';
-        } else if (percent > alertMax) {
-            currentState = 'HIGH';
-        }
+        const recoveryMargin = config.recovery_margin !== undefined && config.recovery_margin !== null ? parseFloat(config.recovery_margin) : 5.0;
 
         const prevState = lastDeviceSmsStates[deviceId] || 'NORMAL';
+
+        let currentState = prevState;
+        if (prevState === 'LOW') {
+            // Only recover to NORMAL if percent has risen at least recoveryMargin above alertMin
+            if (percent >= alertMin + recoveryMargin) {
+                currentState = 'NORMAL';
+            } else if (percent > alertMax) {
+                currentState = 'HIGH';
+            } else {
+                currentState = 'LOW';
+            }
+        } else if (prevState === 'HIGH') {
+            // Only recover to NORMAL if percent has dropped at least recoveryMargin below alertMax
+            if (percent <= alertMax - recoveryMargin) {
+                currentState = 'NORMAL';
+            } else if (percent < alertMin) {
+                currentState = 'LOW';
+            } else {
+                currentState = 'HIGH';
+            }
+        } else {
+            // prevState is NORMAL
+            if (percent < alertMin) {
+                currentState = 'LOW';
+            } else if (percent > alertMax) {
+                currentState = 'HIGH';
+            } else {
+                currentState = 'NORMAL';
+            }
+        }
 
         if (currentState !== prevState) {
             lastDeviceSmsStates[deviceId] = currentState;
@@ -1364,7 +1393,7 @@ async function runScheduleCheck() {
                 message = message
                     .replace(/\[Device\]/g, schedule.device_id)
                     .replace(/\[Percent\]/g, `${percent.toFixed(0)}%`)
-                    .replace(/\[Volume\]/g, `${volume.toLocaleString()} Liters`)
+                    .replace(/\[Volume\]/g, `${volume.toLocaleString()} L`)
                     .replace(/\[Depth\]/g, `${depth.toFixed(1)} cm`)
                     .replace(/\[Timestamp\]/g, getFormattedLocalTimestamp(schedule.timezone_offset));
             } else if (schedule.schedule_type === 'motor_on') {

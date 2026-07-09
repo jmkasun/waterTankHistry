@@ -1371,4 +1371,44 @@ async function runScheduleCheck() {
 // Background scheduler daemon check loop (runs every 30 seconds for self-hosted instances)
 setInterval(runScheduleCheck, 30000);
 
+// Graceful shutdown to instantly release database and MQTT client resources on server restarts/stops
+async function gracefulShutdown(signal) {
+    console.log(`[Server] Received ${signal}. Starting graceful shutdown...`);
+    
+    // Close HTTP server first to reject incoming requests
+    if (server && server.listening) {
+        server.close(() => {
+            console.log('[Server] HTTP server closed.');
+        });
+    }
+
+    // Close MQTT background client
+    if (mqttClient) {
+        try {
+            mqttClient.end(true, () => {
+                console.log('[MQTT] Background client disconnected.');
+            });
+        } catch (err) {
+            console.error('[MQTT] Error disconnecting background client:', err);
+        }
+    }
+
+    // Close PostgreSQL pool
+    if (pool) {
+        try {
+            console.log('[DB] Closing database pool connections...');
+            await pool.end();
+            console.log('[DB] Database pool ended successfully.');
+        } catch (err) {
+            console.error('[DB] Error ending database pool:', err);
+        }
+    }
+
+    console.log('[Server] Graceful shutdown completed.');
+    process.exit(0);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
 module.exports = server;

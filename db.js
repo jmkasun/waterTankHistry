@@ -12,6 +12,9 @@ if (connectionString.includes('sslmode=')) {
 
 const pool = new Pool({
   connectionString,
+  max: 2, // Set extremely conservative max connection limit for shared Aiven database
+  idleTimeoutMillis: 1000, // Close idle connections after 1 second to instantly free up slots
+  connectionTimeoutMillis: 3000, // Fail quickly if connection can't be established
   ssl: {
     rejectUnauthorized: false
   }

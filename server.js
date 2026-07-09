@@ -758,12 +758,17 @@ const server = http.createServer(async (req, res) => {
         try {
             const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
             const result = await pool.query(
-                `SELECT sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max
+                `SELECT sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal
                  FROM w_device_config WHERE device_id = $1`,
                 [deviceId]
             );
             if (result.rows.length > 0) {
-                sendJSON(res, { success: true, config: result.rows[0] });
+                const config = result.rows[0];
+                // Provide defaults if null
+                config.sms_msg_low = config.sms_msg_low || '⚠️ ALERT: Water level is critically LOW at [Percent]%! (Below [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
+                config.sms_msg_high = config.sms_msg_high || '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
+                config.sms_msg_normal = config.sms_msg_normal || 'ℹ️ RECOVERY: Water level is back to NORMAL range: [Percent]%. Device ID: [Device]. Time: [Timestamp]';
+                sendJSON(res, { success: true, config });
             } else {
                 sendJSON(res, {
                     success: true,
@@ -776,7 +781,10 @@ const server = http.createServer(async (req, res) => {
                         sms_recipient_numbers: '',
                         sms_alert_enabled: false,
                         alert_min: 20.0,
-                        alert_max: 90.0
+                        alert_max: 90.0,
+                        sms_msg_low: '⚠️ ALERT: Water level is critically LOW at [Percent]%! (Below [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]',
+                        sms_msg_high: '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]',
+                        sms_msg_normal: 'ℹ️ RECOVERY: Water level is back to NORMAL range: [Percent]%. Device ID: [Device]. Time: [Timestamp]'
                     }
                 });
             }
@@ -794,7 +802,7 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                const { device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled } = data;
+                const { device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, sms_msg_low, sms_msg_high, sms_msg_normal } = data;
                 
                 if (!device_id) {
                     sendJSON(res, { success: false, error: 'device_id is required' }, 400);
@@ -805,8 +813,8 @@ const server = http.createServer(async (req, res) => {
 
                 await pool.query(
                     `INSERT INTO w_device_config (
-                        device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled
-                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                        device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, sms_msg_low, sms_msg_high, sms_msg_normal
+                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                      ON CONFLICT (device_id) DO UPDATE SET
                         sms_api_mode = EXCLUDED.sms_api_mode,
                         sms_oauth_endpoint = EXCLUDED.sms_oauth_endpoint,
@@ -815,6 +823,9 @@ const server = http.createServer(async (req, res) => {
                         sms_sender_id = EXCLUDED.sms_sender_id,
                         sms_recipient_numbers = EXCLUDED.sms_recipient_numbers,
                         sms_alert_enabled = EXCLUDED.sms_alert_enabled,
+                        sms_msg_low = COALESCE(EXCLUDED.sms_msg_low, w_device_config.sms_msg_low),
+                        sms_msg_high = COALESCE(EXCLUDED.sms_msg_high, w_device_config.sms_msg_high),
+                        sms_msg_normal = COALESCE(EXCLUDED.sms_msg_normal, w_device_config.sms_msg_normal),
                         updated_at = CURRENT_TIMESTAMP`,
                     [
                         device_id,
@@ -824,7 +835,10 @@ const server = http.createServer(async (req, res) => {
                         sms_api_token || '5812|zSz889GfK4tAKEJO3PaYaPOyw3kUW86LRgLbu7JSd908c821',
                         sms_sender_id || 'TextLK',
                         sms_recipient_numbers || '',
-                        smsAlertEnabled
+                        smsAlertEnabled,
+                        sms_msg_low || '',
+                        sms_msg_high || '',
+                        sms_msg_normal || ''
                     ]
                 );
 
@@ -842,7 +856,7 @@ const server = http.createServer(async (req, res) => {
         try {
             const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
             const result = await pool.query(
-                `SELECT id, device_id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, days_of_week, message_template, is_enabled
+                `SELECT id, device_id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, days_of_week, message_template, is_enabled, timezone_offset
                  FROM w_sms_schedules
                  WHERE device_id = $1
                  ORDER BY scheduled_time ASC`,
@@ -863,7 +877,7 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                const { id, device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week, message_template, is_enabled } = data;
+                const { id, device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week, message_template, is_enabled, timezone_offset } = data;
 
                 if (!device_id || !schedule_type || !recipient_numbers || !scheduled_time) {
                     sendJSON(res, { success: false, error: 'Missing required schedule fields' }, 400);
@@ -871,6 +885,7 @@ const server = http.createServer(async (req, res) => {
                 }
 
                 const isEnabled = is_enabled !== false;
+                const tzOffset = timezone_offset !== undefined ? parseInt(timezone_offset, 10) : 0;
 
                 if (id) {
                     await pool.query(
@@ -880,17 +895,18 @@ const server = http.createServer(async (req, res) => {
                             scheduled_time = $3,
                             days_of_week = $4,
                             message_template = $5,
-                            is_enabled = $6
-                         WHERE id = $7 AND device_id = $8`,
-                        [schedule_type, recipient_numbers, scheduled_time, days_of_week || '1,2,3,4,5,6,0', message_template || '', isEnabled, id, device_id]
+                            is_enabled = $6,
+                            timezone_offset = $7
+                         WHERE id = $8 AND device_id = $9`,
+                        [schedule_type, recipient_numbers, scheduled_time, days_of_week || '1,2,3,4,5,6,0', message_template || '', isEnabled, tzOffset, id, device_id]
                     );
                     sendJSON(res, { success: true, message: 'Schedule updated successfully.' });
                 } else {
                     await pool.query(
                         `INSERT INTO w_sms_schedules (
-                            device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week, message_template, is_enabled
-                         ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-                        [device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week || '1,2,3,4,5,6,0', message_template || '', isEnabled]
+                            device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week, message_template, is_enabled, timezone_offset
+                         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                        [device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week || '1,2,3,4,5,6,0', message_template || '', isEnabled, tzOffset]
                     );
                     sendJSON(res, { success: true, message: 'Schedule created successfully.' });
                 }
@@ -1174,7 +1190,7 @@ async function sendSmsMessageDirectly(config, recipient, messageText) {
 async function checkDeviceThresholdAlerts(deviceId, level, volume) {
     try {
         const configRes = await pool.query(
-            `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max
+            `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal
              FROM w_device_config WHERE device_id = $1`,
             [deviceId]
         );
@@ -1212,15 +1228,25 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
         if (currentState !== prevState) {
             lastDeviceSmsStates[deviceId] = currentState;
 
-            let message = '';
-            const timestamp = new Date().toLocaleString();
+            let template = '';
+            let thresholdValue = '';
             if (currentState === 'LOW') {
-                message = `⚠️ ALERT: Water level is critically LOW at ${percent.toFixed(0)}%! (Below ${alertMin}% threshold). Device ID: ${deviceId}. Time: ${timestamp}`;
+                template = config.sms_msg_low || '⚠️ ALERT: Water level is critically LOW at [Percent]%! (Below [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
+                thresholdValue = alertMin.toFixed(0);
             } else if (currentState === 'HIGH') {
-                message = `⚠️ ALERT: Water level is critically HIGH at ${percent.toFixed(0)}%! (Above ${alertMax}% threshold). Device ID: ${deviceId}. Time: ${timestamp}`;
+                template = config.sms_msg_high || '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
+                thresholdValue = alertMax.toFixed(0);
             } else {
-                message = `ℹ️ RECOVERY: Water level is back to NORMAL range: ${percent.toFixed(0)}%. Device ID: ${deviceId}. Time: ${timestamp}`;
+                template = config.sms_msg_normal || 'ℹ️ RECOVERY: Water level is back to NORMAL range: [Percent]%. Device ID: [Device]. Time: [Timestamp]';
+                thresholdValue = `${alertMin.toFixed(0)}-${alertMax.toFixed(0)}`;
             }
+
+            const timestamp = new Date().toLocaleString();
+            let message = template
+                .replace(/\[Percent\]/g, percent.toFixed(0))
+                .replace(/\[Threshold\]/g, thresholdValue)
+                .replace(/\[Device\]/g, deviceId)
+                .replace(/\[Timestamp\]/g, timestamp);
 
             const recipients = config.sms_recipient_numbers.split(',').map(n => n.trim()).filter(Boolean);
             console.log(`[SMS Threshold Alert] State changed ${prevState} -> ${currentState} for ${deviceId}. Sending to ${recipients.length} numbers...`);
@@ -1241,16 +1267,19 @@ async function runScheduleCheck() {
     let checkedCount = 0;
     try {
         const now = new Date();
-        const currentHHMM = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-        const currentDay = now.getDay().toString();
 
         const result = await pool.query(
-            `SELECT id, device_id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, days_of_week, message_template, last_run
+            `SELECT id, device_id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, days_of_week, message_template, last_run, timezone_offset
              FROM w_sms_schedules
              WHERE is_enabled = TRUE`
         );
 
         for (const schedule of result.rows) {
+            const tzOffset = schedule.timezone_offset !== null && schedule.timezone_offset !== undefined ? parseInt(schedule.timezone_offset, 10) : 0;
+            const localTime = new Date(now.getTime() - (tzOffset * 60000));
+            const currentHHMM = `${localTime.getHours().toString().padStart(2, '0')}:${localTime.getMinutes().toString().padStart(2, '0')}`;
+            const currentDay = localTime.getDay().toString();
+
             const schedParts = schedule.scheduled_time.split(':');
             const schedHHMM = `${schedParts[0].padStart(2, '0')}:${schedParts[1].padStart(2, '0')}`;
 

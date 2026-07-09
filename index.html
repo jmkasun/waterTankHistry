@@ -638,6 +638,25 @@
                                     <input id="sms_alert_max" type="number" min="55" max="98" value="90" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-cyan-500/80">
                                 </div>
                             </div>
+
+                            <div class="flex flex-col gap-3 pt-2.5 border-t border-slate-800/50">
+                                <span class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Custom Alert Message Templates</span>
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-[9px] font-bold text-slate-500 uppercase">Low Level Alert Message</label>
+                                    <textarea id="sms_msg_low" rows="2" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 text-[11px] text-white focus:outline-none focus:border-cyan-500/80 resize-none font-sans leading-normal"></textarea>
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-[9px] font-bold text-slate-500 uppercase">High Level Alert Message</label>
+                                    <textarea id="sms_msg_high" rows="2" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 text-[11px] text-white focus:outline-none focus:border-cyan-500/80 resize-none font-sans leading-normal"></textarea>
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-[9px] font-bold text-slate-500 uppercase">Recovery Message (Back to Normal)</label>
+                                    <textarea id="sms_msg_normal" rows="2" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 text-[11px] text-white focus:outline-none focus:border-cyan-500/80 resize-none font-sans leading-normal"></textarea>
+                                </div>
+                                <span class="text-[9px] text-slate-500 font-medium leading-relaxed">
+                                    Use variables: <strong class="text-cyan-400 font-semibold">[Percent]</strong>, <strong class="text-cyan-400 font-semibold">[Threshold]</strong>, <strong class="text-cyan-400 font-semibold">[Device]</strong>, and <strong class="text-cyan-400 font-semibold">[Timestamp]</strong>.
+                                </span>
+                            </div>
                         </div>
 
                         <button type="submit" class="w-full bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs tracking-wider uppercase py-3 rounded-xl transition shadow-lg shadow-cyan-600/10">
@@ -3734,6 +3753,10 @@
                     document.getElementById('sms_alert_enabled').checked = !!cfg.sms_alert_enabled;
                     document.getElementById('sms_alert_min').value = Math.round(parseFloat(cfg.alert_min) || 20);
                     document.getElementById('sms_alert_max').value = Math.round(parseFloat(cfg.alert_max) || 90);
+                    
+                    document.getElementById('sms_msg_low').value = cfg.sms_msg_low || '⚠️ ALERT: Water level is critically LOW at [Percent]%! (Below [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
+                    document.getElementById('sms_msg_high').value = cfg.sms_msg_high || '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
+                    document.getElementById('sms_msg_normal').value = cfg.sms_msg_normal || 'ℹ️ RECOVERY: Water level is back to NORMAL range: [Percent]%. Device ID: [Device]. Time: [Timestamp]';
 
                     toggleSmsEndpointInputs();
                 }
@@ -3757,6 +3780,10 @@
                 const alertEnabled = document.getElementById('sms_alert_enabled').checked;
                 const alertMin = parseFloat(document.getElementById('sms_alert_min').value) || 20;
                 const alertMax = parseFloat(document.getElementById('sms_alert_max').value) || 90;
+                
+                const msgLow = document.getElementById('sms_msg_low').value.trim();
+                const msgHigh = document.getElementById('sms_msg_high').value.trim();
+                const msgNormal = document.getElementById('sms_msg_normal').value.trim();
 
                 if (!token) {
                     showToast('API token is required.', 'error');
@@ -3774,7 +3801,10 @@
                         sms_oauth_endpoint: oauthUrl,
                         sms_http_endpoint: httpUrl,
                         sms_recipient_numbers: recipients,
-                        sms_alert_enabled: alertEnabled
+                        sms_alert_enabled: alertEnabled,
+                        sms_msg_low: msgLow,
+                        sms_msg_high: msgHigh,
+                        sms_msg_normal: msgNormal
                     })
                 });
 
@@ -3927,6 +3957,27 @@
 
                     container.innerHTML = '';
                     result.schedules.forEach(sched => {
+                        // Self-heal: If schedule timezone_offset is missing, update it to match user's timezone offset
+                        const currentBrowserOffset = new Date().getTimezoneOffset();
+                        if (sched.timezone_offset === null || sched.timezone_offset === undefined || (sched.timezone_offset === 0 && currentBrowserOffset !== 0)) {
+                            sched.timezone_offset = currentBrowserOffset;
+                            fetch('/api/sms/schedules', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    id: sched.id,
+                                    device_id: sched.device_id,
+                                    schedule_type: sched.schedule_type,
+                                    recipient_numbers: sched.recipient_numbers,
+                                    scheduled_time: sched.scheduled_time,
+                                    days_of_week: sched.days_of_week,
+                                    message_template: sched.message_template,
+                                    is_enabled: sched.is_enabled,
+                                    timezone_offset: currentBrowserOffset
+                                })
+                            }).catch(e => console.error('[SMS UI] Auto-heal offset error:', e));
+                        }
+
                         const card = document.createElement('div');
                         card.className = "bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition hover:border-slate-700/60 w-full";
 
@@ -4013,7 +4064,8 @@
                     scheduled_time: time + ':00',
                     days_of_week: selectedDays.join(','),
                     message_template: template,
-                    is_enabled: true
+                    is_enabled: true,
+                    timezone_offset: new Date().getTimezoneOffset()
                 };
 
                 const response = await fetch('/api/sms/schedules', {
@@ -4050,7 +4102,8 @@
                     scheduled_time: s.scheduled_time,
                     days_of_week: s.days_of_week,
                     message_template: s.message_template,
-                    is_enabled: isChecked
+                    is_enabled: isChecked,
+                    timezone_offset: s.timezone_offset !== undefined ? s.timezone_offset : new Date().getTimezoneOffset()
                 };
 
                 const response = await fetch('/api/sms/schedules', {

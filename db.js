@@ -113,6 +113,17 @@ async function initDb() {
       ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS sms_alert_enabled BOOLEAN DEFAULT FALSE;
     `);
 
+    // Ensure custom SMS templates exist on w_device_config
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS sms_msg_low TEXT DEFAULT '⚠️ ALERT: Water level is critically LOW at [Percent]%! (Below [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS sms_msg_high TEXT DEFAULT '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS sms_msg_normal TEXT DEFAULT 'ℹ️ RECOVERY: Water level is back to NORMAL range: [Percent]%. Device ID: [Device]. Time: [Timestamp]';
+    `);
+
     // Create w_sms_schedules table
     await client.query(`
       CREATE TABLE IF NOT EXISTS w_sms_schedules (
@@ -125,8 +136,14 @@ async function initDb() {
         message_template TEXT DEFAULT '',
         is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
         last_run TIMESTAMPTZ,
+        timezone_offset INT DEFAULT 0,
         created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    // Ensure timezone_offset column exists in w_sms_schedules table
+    await client.query(`
+      ALTER TABLE w_sms_schedules ADD COLUMN IF NOT EXISTS timezone_offset INT DEFAULT 0;
     `);
 
     // Create w_sms_logs table to track SMS transmission status

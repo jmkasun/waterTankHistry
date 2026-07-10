@@ -1079,7 +1079,7 @@ async function saveSmsLog(deviceId, recipient, message, status, errorMessage = n
     }
 }
 
-async function sendSmsMessageDirectly(config, recipient, messageText) {
+async function sendSmsMessageDirectlyRaw(config, recipient, messageText) {
     return new Promise((resolve) => {
         try {
             const mode = config.sms_api_mode || 'v3';
@@ -1195,6 +1195,32 @@ async function sendSmsMessageDirectly(config, recipient, messageText) {
             resolve({ success: false, error: err.message });
         }
     });
+}
+
+async function sendSmsMessageDirectly(config, recipient, messageText) {
+    let lastResult = { success: false, error: 'Unknown error' };
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            if (attempt > 1) {
+                console.log(`[SMS Retry] Retrying transmission to ${recipient}. Attempt ${attempt} of ${maxAttempts}...`);
+                // Wait for a brief period before retrying
+                await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt - 1)));
+            }
+            lastResult = await sendSmsMessageDirectlyRaw(config, recipient, messageText);
+            if (lastResult.success) {
+                if (attempt > 1) {
+                    console.log(`[SMS Retry] Transmission to ${recipient} succeeded on attempt ${attempt}.`);
+                }
+                return lastResult;
+            }
+            console.warn(`[SMS Retry] Attempt ${attempt} failed with error: ${lastResult.error || 'Gateway error'}`);
+        } catch (err) {
+            lastResult = { success: false, error: err.message };
+            console.warn(`[SMS Retry] Attempt ${attempt} exception:`, err);
+        }
+    }
+    return lastResult;
 }
 
 function getFormattedLocalTimestamp(offsetInMinutes) {
@@ -1364,6 +1390,11 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
 
         if (currentState !== prevState) {
             lastDeviceSmsStates[deviceId] = currentState;
+
+            if (currentState === 'NORMAL') {
+                console.log(`[SMS Threshold Alert] State changed ${prevState} -> NORMAL for ${deviceId}. Recovery message is disabled, skipping SMS dispatch.`);
+                return;
+            }
 
             let template = '';
             let thresholdValue = '';

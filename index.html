@@ -653,7 +653,7 @@
                                     <label class="text-[9px] font-bold text-slate-500 uppercase">High Level Alert Message</label>
                                     <textarea id="sms_msg_high" rows="2" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 text-[11px] text-white focus:outline-none focus:border-cyan-500/80 resize-none font-sans leading-normal"></textarea>
                                 </div>
-                                <div class="flex flex-col gap-1">
+                                <div class="flex flex-col gap-1 hidden">
                                     <label class="text-[9px] font-bold text-slate-500 uppercase">Recovery Message (Back to Normal)</label>
                                     <textarea id="sms_msg_normal" rows="2" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 text-[11px] text-white focus:outline-none focus:border-cyan-500/80 resize-none font-sans leading-normal"></textarea>
                                 </div>
@@ -4047,6 +4047,11 @@
                                     <input type="checkbox" ${sched.is_enabled ? 'checked' : ''} onchange="toggleScheduleActive(${sched.id}, this.checked)" class="rounded text-indigo-500 bg-slate-900 border-slate-800">
                                     <span class="text-[10px] font-bold text-slate-400 uppercase">Active</span>
                                 </label>
+                                <button onclick="editSmsSchedule(${sched.id})" class="p-2 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 rounded-xl text-indigo-400 transition" title="Edit Schedule">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                    </svg>
+                                </button>
                                 <button onclick="deleteSmsSchedule(${sched.id})" class="p-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl text-rose-400 transition" title="Delete Schedule">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -4059,6 +4064,72 @@
                 }
             } catch (err) {
                 console.error('[SMS UI] Failed to load schedules list:', err);
+            }
+        }
+
+        async function editSmsSchedule(id) {
+            if (!window.activeSchedules) return;
+            const sched = window.activeSchedules.find(s => s.id === id);
+            if (!sched) return;
+
+            window.editingScheduleId = id;
+
+            document.getElementById('sched_type').value = sched.schedule_type;
+            const timeHHMM = sched.scheduled_time.substring(0, 5);
+            document.getElementById('sched_time').value = timeHHMM;
+            document.getElementById('sched_recipients').value = sched.recipient_numbers;
+            document.getElementById('sched_template').value = sched.message_template;
+
+            const days = sched.days_of_week.split(',').map(d => d.trim());
+            const daysChks = document.getElementsByName('sched_days');
+            for (const c of daysChks) {
+                c.checked = days.includes(c.value);
+            }
+
+            const btn = document.querySelector('button[onclick="createSmsSchedule()"]');
+            if (btn) {
+                btn.innerText = "Update Schedule Task";
+                btn.className = "bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs tracking-wider uppercase py-2.5 rounded-xl transition mt-1 flex-grow";
+                
+                let cancelBtn = document.getElementById('cancel_edit_sched_btn');
+                if (!cancelBtn) {
+                    cancelBtn = document.createElement('button');
+                    cancelBtn.id = 'cancel_edit_sched_btn';
+                    cancelBtn.type = 'button';
+                    cancelBtn.innerText = 'Cancel Edit';
+                    cancelBtn.className = 'bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs tracking-wider uppercase py-2.5 px-4 rounded-xl transition mt-1';
+                    cancelBtn.onclick = cancelEditSchedule;
+                    btn.parentNode.insertBefore(cancelBtn, btn);
+                    btn.parentNode.classList.add('flex', 'gap-3');
+                }
+            }
+
+            document.getElementById('sched_type').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function cancelEditSchedule() {
+            window.editingScheduleId = null;
+            
+            document.getElementById('sched_type').selectedIndex = 0;
+            document.getElementById('sched_time').value = "08:30";
+            document.getElementById('sched_recipients').value = "";
+            onScheduleTypeChange();
+            
+            const daysChks = document.getElementsByName('sched_days');
+            for (const c of daysChks) {
+                c.checked = true;
+            }
+
+            const btn = document.querySelector('button[onclick="createSmsSchedule()"]');
+            if (btn) {
+                btn.innerText = "Add Schedule Task";
+                btn.className = "bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs tracking-wider uppercase py-2.5 rounded-xl transition mt-1";
+            }
+
+            const cancelBtn = document.getElementById('cancel_edit_sched_btn');
+            if (cancelBtn) {
+                cancelBtn.parentNode.classList.remove('flex', 'gap-3');
+                cancelBtn.remove();
             }
         }
 
@@ -4101,6 +4172,14 @@
                     timezone_offset: new Date().getTimezoneOffset()
                 };
 
+                if (window.editingScheduleId) {
+                    payload.id = window.editingScheduleId;
+                    const original = window.activeSchedules.find(s => s.id === window.editingScheduleId);
+                    if (original) {
+                        payload.is_enabled = original.is_enabled;
+                    }
+                }
+
                 const response = await fetch('/api/sms/schedules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -4109,15 +4188,19 @@
 
                 const result = await response.json();
                 if (result.success) {
-                    showToast('Schedule created successfully!', 'success');
-                    document.getElementById('sched_recipients').value = '';
+                    showToast(window.editingScheduleId ? 'Schedule updated successfully!' : 'Schedule created successfully!', 'success');
+                    if (window.editingScheduleId) {
+                        cancelEditSchedule();
+                    } else {
+                        document.getElementById('sched_recipients').value = '';
+                    }
                     loadSmsSchedules();
                 } else {
-                    showToast(result.error || 'Failed to create schedule.', 'error');
+                    showToast(result.error || 'Failed to process schedule task.', 'error');
                 }
             } catch (err) {
-                console.error('[SMS UI] Create schedule error:', err);
-                showToast('Failed to create new scheduled task.', 'error');
+                console.error('[SMS UI] Create/Update schedule error:', err);
+                showToast('Failed to process scheduled task.', 'error');
             }
         }
 

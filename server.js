@@ -649,6 +649,10 @@ const server = http.createServer(async (req, res) => {
             const motor1_rate = parseFloat(reqUrl.searchParams.get('motor1_rate')) || 1000.0;
             const motor2_rate = parseFloat(reqUrl.searchParams.get('motor2_rate')) || 5000.0;
             const threshold = parseFloat(reqUrl.searchParams.get('threshold')) || 2500.0;
+            let tz = reqUrl.searchParams.get('tz') || 'UTC';
+            if (!/^[a-zA-Z0-9_\-\/]+$/.test(tz)) {
+                tz = 'UTC';
+            }
 
             // Calculate daily usage using the robust window function or Method 1 flow-rate correction
             const result = await pool.query(
@@ -678,7 +682,7 @@ const server = http.createServer(async (req, res) => {
                 ),
                 deltas AS (
                     SELECT
-                        timestamp::date as usage_date,
+                        (timestamp AT TIME ZONE $8)::date as usage_date,
                         CASE 
                             -- Method 1: Flow Rate Correction
                             WHEN $4 = 'method_1' THEN
@@ -722,7 +726,7 @@ const server = http.createServer(async (req, res) => {
                 FROM deltas
                 GROUP BY usage_date
                 ORDER BY usage_date ASC`,
-                [deviceId, startDate, endDate, method, motor1_rate, motor2_rate, threshold]
+                [deviceId, startDate, endDate, method, motor1_rate, motor2_rate, threshold, tz]
             );
 
             sendJSON(res, { success: true, data: result.rows });

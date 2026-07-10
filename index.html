@@ -459,9 +459,10 @@
                                 <option value="24H" class="bg-slate-950 text-slate-300">24 Hours</option>
                                 <option value="today" class="bg-slate-950 text-slate-300">Today</option>
                                 <option value="yesterday" class="bg-slate-950 text-slate-300">Yesterday</option>
+                                <option value="2d" class="bg-slate-950 text-cyan-400" selected>2 Days</option>
                                 <option value="3d" class="bg-slate-950 text-slate-300">3 Days</option>
                                 <option value="7d" class="bg-slate-950 text-slate-300">7 Days</option>
-                                <option value="14d" class="bg-slate-950 text-cyan-400" selected>14 Days</option>
+                                <option value="14d" class="bg-slate-950 text-slate-300">14 Days</option>
                                 <option value="30d" class="bg-slate-950 text-slate-300">30 Days</option>
                                 <option value="month" class="bg-slate-950 text-slate-300">This Month</option>
                                 <option value="90d" class="bg-slate-950 text-slate-300">90 Days</option>
@@ -628,7 +629,7 @@
                                 </div>
                             </label>
 
-                            <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800/50">
+                            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/50">
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[9px] uppercase tracking-wider font-bold text-slate-500" title="Low Threshold Trigger">Low Trigger (%)</label>
                                     <input id="sms_alert_min" type="number" min="5" max="45" value="20" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-cyan-500/80">
@@ -636,10 +637,6 @@
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[9px] uppercase tracking-wider font-bold text-slate-500" title="High Threshold Trigger">High Trigger (%)</label>
                                     <input id="sms_alert_max" type="number" min="55" max="98" value="90" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-cyan-500/80">
-                                </div>
-                                <div class="flex flex-col gap-1">
-                                    <label class="text-[9px] uppercase tracking-wider font-bold text-slate-500" title="Hysteresis margin to prevent recovery message toggle storms">Recovery Margin (%)</label>
-                                    <input id="sms_recovery_margin" type="number" min="1" max="25" value="5" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-cyan-500/80">
                                 </div>
                             </div>
 
@@ -2410,11 +2407,11 @@
             return `${yyyy}-${mm}-${dd}`;
         }
 
-        // Initialize default dates in date pickers (last 14 days)
+        // Initialize default dates in date pickers (last 2 days)
         function initAnalyticsDates() {
             const end = new Date();
             const start = new Date();
-            start.setDate(end.getDate() - 13); // Default to last 14 days inclusive
+            start.setDate(end.getDate() - 1); // Default to last 2 days inclusive
 
             document.getElementById('historyEndDate').value = getLocalYYYYMMDD(end);
             document.getElementById('historyStartDate').value = getLocalYYYYMMDD(start);
@@ -2450,6 +2447,10 @@
                 start.setDate(end.getDate() - 1);
                 start.setHours(0, 0, 0, 0);
                 end.setDate(end.getDate() - 1);
+                analyticsResolution = '30m';
+            } else if (preset === '2d') {
+                start.setDate(end.getDate() - 1);
+                start.setHours(0, 0, 0, 0);
                 analyticsResolution = '30m';
             } else if (preset === '3d') {
                 start.setDate(end.getDate() - 2);
@@ -2685,7 +2686,7 @@
             const deviceId = select ? select.value : 'mytank123';
             
             let startISO, endISO;
-            const preset = document.getElementById('selPreset') ? document.getElementById('selPreset').value : '14d';
+            const preset = document.getElementById('selPreset') ? document.getElementById('selPreset').value : '2d';
             
             if (preset && preset !== 'custom') {
                 const end = new Date();
@@ -2709,6 +2710,9 @@
                     start.setDate(end.getDate() - 1);
                     start.setHours(0, 0, 0, 0);
                     end.setDate(end.getDate() - 1);
+                } else if (preset === '2d') {
+                    start.setDate(end.getDate() - 1);
+                    start.setHours(0, 0, 0, 0);
                 } else if (preset === '3d') {
                     start.setDate(end.getDate() - 2);
                     start.setHours(0, 0, 0, 0);
@@ -2730,7 +2734,7 @@
                 }
                 
                 // For day-based presets, go from start of day of start, to end of day of end
-                if (['today', 'yesterday', '3d', '7d', '14d', '30d', 'month', '90d'].includes(preset)) {
+                if (['today', 'yesterday', '2d', '3d', '7d', '14d', '30d', 'month', '90d'].includes(preset)) {
                     startISO = new Date(getLocalYYYYMMDD(start) + 'T00:00:00').toISOString();
                     endISO = new Date(getLocalYYYYMMDD(end) + 'T23:59:59').toISOString();
                 } else {
@@ -2771,7 +2775,7 @@
 
             try {
                 const [usageRes, historyRes] = await Promise.all([
-                    fetch(`/api/usage?device_id=${encodeURIComponent(deviceId)}&start_date=${startISO}&end_date=${endISO}&method=${encodeURIComponent(method)}&motor1_rate=${encodeURIComponent(motor1_rate)}&motor2_rate=${encodeURIComponent(motor2_rate)}&threshold=${encodeURIComponent(threshold)}`),
+                    fetch(`/api/usage?device_id=${encodeURIComponent(deviceId)}&start_date=${startISO}&end_date=${endISO}&method=${encodeURIComponent(method)}&motor1_rate=${encodeURIComponent(motor1_rate)}&motor2_rate=${encodeURIComponent(motor2_rate)}&threshold=${encodeURIComponent(threshold)}&tz=${encodeURIComponent(tz)}`),
                     fetch(`/api/history?device_id=${encodeURIComponent(deviceId)}&start_date=${startISO}&end_date=${endISO}&tz=${encodeURIComponent(tz)}&resolution=${analyticsResolution}`)
                 ]);
 
@@ -3757,7 +3761,6 @@
                     document.getElementById('sms_alert_enabled').checked = !!cfg.sms_alert_enabled;
                     document.getElementById('sms_alert_min').value = Math.round(parseFloat(cfg.alert_min) || 20);
                     document.getElementById('sms_alert_max').value = Math.round(parseFloat(cfg.alert_max) || 90);
-                    document.getElementById('sms_recovery_margin').value = Math.round(parseFloat(cfg.recovery_margin) || 5);
                     
                     document.getElementById('sms_msg_low').value = cfg.sms_msg_low || '⚠️ ALERT: Water level is critically LOW at [Percent]%! (Below [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
                     document.getElementById('sms_msg_high').value = cfg.sms_msg_high || '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
@@ -3810,7 +3813,7 @@
                 const alertEnabled = document.getElementById('sms_alert_enabled').checked;
                 const alertMin = parseFloat(document.getElementById('sms_alert_min').value) || 20;
                 const alertMax = parseFloat(document.getElementById('sms_alert_max').value) || 90;
-                const recoveryMargin = parseFloat(document.getElementById('sms_recovery_margin').value) || 5;
+                const recoveryMargin = 5;
                 
                 const msgLow = document.getElementById('sms_msg_low').value.trim();
                 const msgHigh = document.getElementById('sms_msg_high').value.trim();

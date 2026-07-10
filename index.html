@@ -640,6 +640,25 @@
                                 </div>
                             </div>
 
+                            <!-- Smart Hysteresis & Bouncing Protection Settings -->
+                            <div class="pt-2 border-t border-slate-800/50 flex flex-col gap-2">
+                                <span class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Smart Hysteresis (Bouncing Protection)</span>
+                                <div class="grid grid-cols-3 gap-1.5">
+                                    <div class="flex flex-col gap-1">
+                                        <label class="text-[8px] uppercase tracking-wider font-bold text-slate-500" title="Recovery Margin (%)">Recovery margin (%)</label>
+                                        <input id="sms_recovery_margin" type="number" min="1" max="15" value="5" class="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-cyan-500/80" placeholder="5">
+                                    </div>
+                                    <div class="flex flex-col gap-1">
+                                        <label class="text-[8px] uppercase tracking-wider font-bold text-slate-500" title="Suppression Cooldown Window (Minutes)">Cooldown (Mins)</label>
+                                        <input id="sms_cooldown_min" type="number" min="1" max="180" value="15" class="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-cyan-500/80" placeholder="15">
+                                    </div>
+                                    <div class="flex flex-col gap-1">
+                                        <label class="text-[8px] uppercase tracking-wider font-bold text-slate-500" title="Required Consistent Consecutive Readings">Consec Readings</label>
+                                        <input id="sms_debounce_readings" type="number" min="1" max="10" value="3" class="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-cyan-500/80" placeholder="3">
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="flex flex-col gap-3 pt-2.5 border-t border-slate-800/50">
                                 <span class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Custom Alert Message Templates</span>
                                 <div class="flex flex-col gap-1">
@@ -3762,6 +3781,10 @@
                     document.getElementById('sms_alert_min').value = Math.round(parseFloat(cfg.alert_min) || 20);
                     document.getElementById('sms_alert_max').value = Math.round(parseFloat(cfg.alert_max) || 90);
                     
+                    document.getElementById('sms_recovery_margin').value = cfg.recovery_margin !== undefined && cfg.recovery_margin !== null ? parseFloat(cfg.recovery_margin) : 5;
+                    document.getElementById('sms_cooldown_min').value = cfg.sms_cooldown_min !== undefined && cfg.sms_cooldown_min !== null ? parseInt(cfg.sms_cooldown_min, 10) : 15;
+                    document.getElementById('sms_debounce_readings').value = cfg.debounce_readings !== undefined && cfg.debounce_readings !== null ? parseInt(cfg.debounce_readings, 10) : 3;
+                    
                     document.getElementById('sms_msg_low').value = cfg.sms_msg_low || '⚠️ ALERT: Water level is critically LOW at [Percent]%! (Below [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
                     document.getElementById('sms_msg_high').value = cfg.sms_msg_high || '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
                     document.getElementById('sms_msg_normal').value = cfg.sms_msg_normal || 'ℹ️ RECOVERY: Water level is back to NORMAL range: [Percent]%. Device ID: [Device]. Time: [Timestamp]';
@@ -3786,7 +3809,9 @@
                                 sms_msg_high: cfg.sms_msg_high,
                                 sms_msg_normal: cfg.sms_msg_normal,
                                 timezone_offset: currentBrowserOffset,
-                                recovery_margin: cfg.recovery_margin !== undefined && cfg.recovery_margin !== null ? parseFloat(cfg.recovery_margin) : 5
+                                recovery_margin: cfg.recovery_margin !== undefined && cfg.recovery_margin !== null ? parseFloat(cfg.recovery_margin) : 5,
+                                sms_cooldown_min: cfg.sms_cooldown_min !== undefined && cfg.sms_cooldown_min !== null ? parseInt(cfg.sms_cooldown_min, 10) : 15,
+                                debounce_readings: cfg.debounce_readings !== undefined && cfg.debounce_readings !== null ? parseInt(cfg.debounce_readings, 10) : 3
                             })
                         }).catch(e => console.error('[SMS UI] Auto-heal config offset error:', e));
                     }
@@ -3813,7 +3838,9 @@
                 const alertEnabled = document.getElementById('sms_alert_enabled').checked;
                 const alertMin = parseFloat(document.getElementById('sms_alert_min').value) || 20;
                 const alertMax = parseFloat(document.getElementById('sms_alert_max').value) || 90;
-                const recoveryMargin = 5;
+                const recoveryMargin = parseFloat(document.getElementById('sms_recovery_margin').value) || 5;
+                const smsCooldownMin = parseInt(document.getElementById('sms_cooldown_min').value, 10) || 15;
+                const debounceReadings = parseInt(document.getElementById('sms_debounce_readings').value, 10) || 3;
                 
                 const msgLow = document.getElementById('sms_msg_low').value.trim();
                 const msgHigh = document.getElementById('sms_msg_high').value.trim();
@@ -3840,7 +3867,9 @@
                         sms_msg_high: msgHigh,
                         sms_msg_normal: msgNormal,
                         timezone_offset: new Date().getTimezoneOffset(),
-                        recovery_margin: recoveryMargin
+                        recovery_margin: recoveryMargin,
+                        sms_cooldown_min: smsCooldownMin,
+                        debounce_readings: debounceReadings
                     })
                 });
 

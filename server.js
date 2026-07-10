@@ -101,6 +101,10 @@ mqttClient.on('message', async (topic, message) => {
             const dataUsageVal = cache.data_usage || 0;
             const versionVal = cache.version || '1.6';
 
+            // Clear cache immediately BEFORE the async db call to prevent concurrent/race condition inserts
+            cache.level = null;
+            cache.volume = null;
+
             await pool.query(
                 `INSERT INTO w_telemetry (device_id, level, volume, data_usage, version) VALUES ($1, $2, $3, $4, $5)`,
                 [deviceId, levelVal, volumeVal, dataUsageVal, versionVal]
@@ -111,10 +115,6 @@ mqttClient.on('message', async (topic, message) => {
             checkDeviceThresholdAlerts(deviceId, levelVal, volumeVal).catch(err => {
                 console.error('[SMS Trigger Error] Error checking threshold alerts:', err);
             });
-
-            // Clear cache after successful insertion to require both new readings in next transmission cycle
-            cache.level = null;
-            cache.volume = null;
         }
     } catch (err) {
         console.error('[MQTT Server Listener] Error processing packet:', err);
@@ -266,6 +266,19 @@ const server = http.createServer(async (req, res) => {
 
                 // Register device in memory set
                 registeredDevices.add(device_id);
+
+                // Update or create device cache so the MQTT listener is synchronized
+                if (!deviceCache[device_id]) {
+                    deviceCache[device_id] = {
+                        level: null,
+                        volume: null,
+                        data_usage: 0,
+                        version: '1.6',
+                        last_insert_time: 0
+                    };
+                }
+                deviceCache[device_id].last_insert_time = Date.now();
+                deviceCache[device_id].data_usage = dataUsageVal;
 
                 const levelVal = parseFloat(level);
                 const volumeVal = parseFloat(volume);
@@ -714,7 +727,11 @@ const server = http.createServer(async (req, res) => {
                         END as water_outflow,
                         CASE
                             WHEN prev_data_usage IS NOT NULL AND data_usage >= prev_data_usage THEN data_usage - prev_data_usage
-                            WHEN prev_data_usage IS NOT NULL AND data_usage < prev_data_usage THEN data_usage
+                            WHEN prev_data_usage IS NOT NULL AND data_usage < prev_data_usage THEN
+                                CASE
+                                    WHEN data_usage < (prev_data_usage / 2) OR data_usage < 5000 THEN data_usage
+                                    ELSE 0
+                                END
                             ELSE 0
                         END as data_increment
                     FROM smoothed_deltas
@@ -762,7 +779,7 @@ const server = http.createServer(async (req, res) => {
         try {
             const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
             const result = await pool.query(
-                `SELECT sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin
+                `SELECT sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin, sms_cooldown_min, debounce_readings
                  FROM w_device_config WHERE device_id = $1`,
                 [deviceId]
             );
@@ -774,6 +791,8 @@ const server = http.createServer(async (req, res) => {
                 config.sms_msg_normal = config.sms_msg_normal || 'ℹ️ RECOVERY: Water level is back to NORMAL range: [Percent]%. Device ID: [Device]. Time: [Timestamp]';
                 config.timezone_offset = config.timezone_offset !== undefined && config.timezone_offset !== null ? config.timezone_offset : 0;
                 config.recovery_margin = config.recovery_margin !== undefined && config.recovery_margin !== null ? parseFloat(config.recovery_margin) : 5.0;
+                config.sms_cooldown_min = config.sms_cooldown_min !== undefined && config.sms_cooldown_min !== null ? parseInt(config.sms_cooldown_min, 10) : 15;
+                config.debounce_readings = config.debounce_readings !== undefined && config.debounce_readings !== null ? parseInt(config.debounce_readings, 10) : 3;
                 sendJSON(res, { success: true, config });
             } else {
                 sendJSON(res, {
@@ -792,7 +811,9 @@ const server = http.createServer(async (req, res) => {
                         sms_msg_high: '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]',
                         sms_msg_normal: 'ℹ️ RECOVERY: Water level is back to NORMAL range: [Percent]%. Device ID: [Device]. Time: [Timestamp]',
                         timezone_offset: 0,
-                        recovery_margin: 5.0
+                        recovery_margin: 5.0,
+                        sms_cooldown_min: 15,
+                        debounce_readings: 3
                     }
                 });
             }
@@ -810,7 +831,7 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                const { device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin } = data;
+                const { device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin, sms_cooldown_min, debounce_readings } = data;
                 
                 if (!device_id) {
                     sendJSON(res, { success: false, error: 'device_id is required' }, 400);
@@ -820,11 +841,13 @@ const server = http.createServer(async (req, res) => {
                 const smsAlertEnabled = sms_alert_enabled === true || sms_alert_enabled === 'true';
                 const tzOffset = timezone_offset !== undefined && timezone_offset !== null ? parseInt(timezone_offset, 10) : 0;
                 const margin = recovery_margin !== undefined && recovery_margin !== null ? parseFloat(recovery_margin) : 5.0;
+                const cooldown = sms_cooldown_min !== undefined && sms_cooldown_min !== null ? parseInt(sms_cooldown_min, 10) : 15;
+                const debounce = debounce_readings !== undefined && debounce_readings !== null ? parseInt(debounce_readings, 10) : 3;
 
                 await pool.query(
                     `INSERT INTO w_device_config (
-                        device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin
-                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                        device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin, sms_cooldown_min, debounce_readings
+                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
                      ON CONFLICT (device_id) DO UPDATE SET
                         sms_api_mode = EXCLUDED.sms_api_mode,
                         sms_oauth_endpoint = EXCLUDED.sms_oauth_endpoint,
@@ -838,6 +861,8 @@ const server = http.createServer(async (req, res) => {
                         sms_msg_normal = COALESCE(EXCLUDED.sms_msg_normal, w_device_config.sms_msg_normal),
                         timezone_offset = COALESCE(EXCLUDED.timezone_offset, w_device_config.timezone_offset),
                         recovery_margin = COALESCE(EXCLUDED.recovery_margin, w_device_config.recovery_margin),
+                        sms_cooldown_min = COALESCE(EXCLUDED.sms_cooldown_min, w_device_config.sms_cooldown_min),
+                        debounce_readings = COALESCE(EXCLUDED.debounce_readings, w_device_config.debounce_readings),
                         updated_at = CURRENT_TIMESTAMP`,
                     [
                         device_id,
@@ -852,7 +877,9 @@ const server = http.createServer(async (req, res) => {
                         sms_msg_high || '',
                         sms_msg_normal || '',
                         tzOffset,
-                        margin
+                        margin,
+                        cooldown,
+                        debounce
                     ]
                 );
 
@@ -1070,6 +1097,7 @@ if (require.main === module || !process.env.VERCEL) {
 // --- Server-side SMS Gateway Helpers & Scheduler Daemon ---
 
 const lastDeviceSmsStates = {};
+const lastDeviceSmsTimestamps = {}; // Maps deviceId -> { LOW: ts, HIGH: ts, NORMAL: ts }
 
 async function saveSmsLog(deviceId, recipient, message, status, errorMessage = null) {
     try {
@@ -1333,7 +1361,7 @@ async function getTodayDeviceUsage(deviceId, offsetInMinutes, deviceConfig = nul
 async function checkDeviceThresholdAlerts(deviceId, level, volume) {
     try {
         const configRes = await pool.query(
-            `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin, motor1_rate, motor2_rate, pump_threshold
+            `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin, motor1_rate, motor2_rate, pump_threshold, sms_cooldown_min, debounce_readings
              FROM w_device_config WHERE device_id = $1`,
             [deviceId]
         );
@@ -1359,6 +1387,47 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
         const alertMin = parseFloat(config.alert_min) || 20.0;
         const alertMax = parseFloat(config.alert_max) || 90.0;
         const recoveryMargin = config.recovery_margin !== undefined && config.recovery_margin !== null ? parseFloat(config.recovery_margin) : 5.0;
+        const debounceReadings = config.debounce_readings !== undefined && config.debounce_readings !== null ? parseInt(config.debounce_readings, 10) : 3;
+
+        // 1. Database-backed Consecutive Readings Confirmation (Debounce Filter)
+        let isLowConfirmed = percent < alertMin;
+        let isHighConfirmed = percent > alertMax;
+        let isNormalConfirmed = percent >= (alertMin + recoveryMargin) && percent <= (alertMax - recoveryMargin);
+
+        if (debounceReadings > 1) {
+            const recentTelemetryRes = await pool.query(
+                `SELECT level, volume FROM w_telemetry WHERE device_id = $1 ORDER BY timestamp DESC, id DESC LIMIT $2`,
+                [deviceId, debounceReadings]
+            );
+            const rows = recentTelemetryRes.rows;
+            if (rows.length >= debounceReadings) {
+                let lowCount = 0;
+                let highCount = 0;
+                let normalCount = 0;
+
+                rows.forEach(r => {
+                    let rPercent = 0;
+                    const rLevel = parseFloat(r.level);
+                    const rVolume = parseFloat(r.volume);
+                    if (!isNaN(rLevel)) {
+                        rPercent = (rLevel / tankHeight) * 100;
+                    } else if (!isNaN(rVolume)) {
+                        const singleMaxVol = (Math.PI * Math.pow(tankDiameter / 2, 2) * tankHeight) / 1000;
+                        const totalMaxVol = singleMaxVol * numTanks;
+                        rPercent = (rVolume / totalMaxVol) * 100;
+                    }
+                    rPercent = Math.min(Math.max(rPercent, 0), 100);
+
+                    if (rPercent < alertMin) lowCount++;
+                    if (rPercent > alertMax) highCount++;
+                    if (rPercent >= (alertMin + recoveryMargin) && rPercent <= (alertMax - recoveryMargin)) normalCount++;
+                });
+
+                isLowConfirmed = (lowCount === debounceReadings);
+                isHighConfirmed = (highCount === debounceReadings);
+                isNormalConfirmed = (normalCount === debounceReadings);
+            }
+        }
 
         const prevState = lastDeviceSmsStates[deviceId] || 'NORMAL';
 
@@ -1366,39 +1435,65 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
         if (prevState === 'LOW') {
             // Only recover to NORMAL if percent has risen at least recoveryMargin above alertMin
             if (percent >= alertMin + recoveryMargin) {
-                currentState = 'NORMAL';
+                if (isNormalConfirmed) {
+                    currentState = 'NORMAL';
+                }
             } else if (percent > alertMax) {
-                currentState = 'HIGH';
-            } else {
-                currentState = 'LOW';
+                if (isHighConfirmed) {
+                    currentState = 'HIGH';
+                }
             }
         } else if (prevState === 'HIGH') {
             // Only recover to NORMAL if percent has dropped at least recoveryMargin below alertMax
             if (percent <= alertMax - recoveryMargin) {
-                currentState = 'NORMAL';
+                if (isNormalConfirmed) {
+                    currentState = 'NORMAL';
+                }
             } else if (percent < alertMin) {
-                currentState = 'LOW';
-            } else {
-                currentState = 'HIGH';
+                if (isLowConfirmed) {
+                    currentState = 'LOW';
+                }
             }
         } else {
             // prevState is NORMAL
             if (percent < alertMin) {
-                currentState = 'LOW';
+                if (isLowConfirmed) {
+                    currentState = 'LOW';
+                }
             } else if (percent > alertMax) {
-                currentState = 'HIGH';
-            } else {
-                currentState = 'NORMAL';
+                if (isHighConfirmed) {
+                    currentState = 'HIGH';
+                }
             }
         }
 
         if (currentState !== prevState) {
+            // 2. Time-based Cooldown Protection
+            const smsCooldownMin = parseInt(config.sms_cooldown_min, 10) || 15;
+            const nowMs = Date.now();
+
+            if (!lastDeviceSmsTimestamps[deviceId]) {
+                lastDeviceSmsTimestamps[deviceId] = {};
+            }
+
+            const lastSentTime = lastDeviceSmsTimestamps[deviceId][currentState];
+            if (currentState !== 'NORMAL' && lastSentTime && (nowMs - lastSentTime < smsCooldownMin * 60 * 1000)) {
+                const minsLeft = Math.ceil((smsCooldownMin * 60 * 1000 - (nowMs - lastSentTime)) / 60000);
+                console.log(`[Smart Hysteresis] Suppressed duplicate ${currentState} SMS for ${deviceId} to prevent bouncing. Within cooldown period (${minsLeft} mins left).`);
+                // UpdateprevState in-memory state so it stabilizes at currentState
+                lastDeviceSmsStates[deviceId] = currentState;
+                return;
+            }
+
             lastDeviceSmsStates[deviceId] = currentState;
 
             if (currentState === 'NORMAL') {
                 console.log(`[SMS Threshold Alert] State changed ${prevState} -> NORMAL for ${deviceId}. Recovery message is disabled, skipping SMS dispatch.`);
                 return;
             }
+
+            // Record the timestamp of this alert dispatch
+            lastDeviceSmsTimestamps[deviceId][currentState] = nowMs;
 
             let template = '';
             let thresholdValue = '';

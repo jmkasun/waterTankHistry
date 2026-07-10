@@ -658,7 +658,7 @@
                                     <textarea id="sms_msg_normal" rows="2" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 text-[11px] text-white focus:outline-none focus:border-cyan-500/80 resize-none font-sans leading-normal"></textarea>
                                 </div>
                                 <span class="text-[9px] text-slate-500 font-medium leading-relaxed">
-                                    Use variables: <strong class="text-cyan-400 font-semibold">[Percent]</strong>, <strong class="text-cyan-400 font-semibold">[Threshold]</strong>, <strong class="text-cyan-400 font-semibold">[Device]</strong>, and <strong class="text-cyan-400 font-semibold">[Timestamp]</strong>.
+                                    Use variables: <strong class="text-cyan-400 font-semibold">[Percent]</strong>, <strong class="text-cyan-400 font-semibold">[Threshold]</strong>, <strong class="text-cyan-400 font-semibold">[Device]</strong>, <strong class="text-cyan-400 font-semibold">[Timestamp]</strong>, and <strong class="text-cyan-400 font-semibold">[DailyUsage]</strong>.
                                 </span>
                             </div>
                         </div>
@@ -720,7 +720,7 @@
                         <div class="flex flex-col gap-1.5">
                             <label class="text-[9px] uppercase tracking-wider font-bold text-slate-400 flex justify-between items-center">
                                 <span>Message Template / Relay SMS payload</span>
-                                <span id="lblDynamicTip" class="text-[8px] text-cyan-400 font-semibold">Supports [Percent], [Volume], [Depth] tokens</span>
+                                <span id="lblDynamicTip" class="text-[8px] text-cyan-400 font-semibold">Supports [Percent], [Volume], [Depth], [DailyUsage] tokens</span>
                             </label>
                             <textarea id="sched_template" rows="2.5" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none" placeholder="Enter status message template or command payload..."></textarea>
                         </div>
@@ -3953,8 +3953,8 @@
             const lblTip = document.getElementById('lblDynamicTip');
 
             if (type === 'status_update') {
-                template.value = "HydroSync Status: [Device] is currently at [Percent] capacity ([Volume] / [Depth]). Sync: [Timestamp].";
-                if (lblTip) lblTip.innerText = "Supports [Percent], [Volume], [Depth] tokens";
+                template.value = "HydroSync Status: [Device] is currently at [Percent] capacity ([Volume] / [Depth]). Today's Usage: [DailyUsage]. Sync: [Timestamp].";
+                if (lblTip) lblTip.innerText = "Supports [Percent], [Volume], [Depth], [DailyUsage] tokens";
             } else if (type === 'motor_on') {
                 template.value = "MOTOR ON";
                 if (lblTip) lblTip.innerText = "Sent as command payload to the physical pump";

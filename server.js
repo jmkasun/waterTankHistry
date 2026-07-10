@@ -1204,19 +1204,106 @@ function getFormattedLocalTimestamp(offsetInMinutes) {
     const year = localTime.getUTCFullYear();
     const month = (localTime.getUTCMonth() + 1).toString().padStart(2, '0');
     const day = localTime.getUTCDate().toString().padStart(2, '0');
-    let hours = localTime.getUTCHours();
+    const hours = localTime.getUTCHours().toString().padStart(2, '0');
     const minutes = localTime.getUTCMinutes().toString().padStart(2, '0');
-    const seconds = localTime.getUTCSeconds().toString().padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds} ${ampm}`;
+    return `${year}-${month}-${day} ${hours}:${minutes}`;
+}
+
+async function getTodayDeviceUsage(deviceId, offsetInMinutes, deviceConfig = null) {
+    try {
+        const tzOffset = (offsetInMinutes !== undefined && offsetInMinutes !== null) ? parseInt(offsetInMinutes, 10) : 0;
+        const now = new Date();
+        const localTime = new Date(now.getTime() - (tzOffset * 60000));
+        const localYear = localTime.getUTCFullYear();
+        const localMonth = localTime.getUTCMonth();
+        const localDay = localTime.getUTCDate();
+        
+        const localMidnight = new Date(Date.UTC(localYear, localMonth, localDay));
+        const utcStart = new Date(localMidnight.getTime() + (tzOffset * 60000));
+        const queryStart = new Date(utcStart.getTime() - 2 * 60 * 60 * 1000);
+
+        let motor1 = 1000.0;
+        let motor2 = 5000.0;
+        let threshold = 2500.0;
+
+        if (deviceConfig) {
+            motor1 = parseFloat(deviceConfig.motor1_rate) || 1000.0;
+            motor2 = parseFloat(deviceConfig.motor2_rate) || 5000.0;
+            threshold = parseFloat(deviceConfig.pump_threshold) || 2500.0;
+        } else {
+            const cfgRes = await pool.query(
+                `SELECT motor1_rate, motor2_rate, pump_threshold FROM w_device_config WHERE device_id = $1`,
+                [deviceId]
+            );
+            if (cfgRes.rows.length > 0) {
+                const row = cfgRes.rows[0];
+                motor1 = parseFloat(row.motor1_rate) || 1000.0;
+                motor2 = parseFloat(row.motor2_rate) || 5000.0;
+                threshold = parseFloat(row.pump_threshold) || 2500.0;
+            }
+        }
+
+        const res = await pool.query(
+            `WITH ordered_telemetry AS (
+                SELECT 
+                    timestamp,
+                    volume,
+                    AVG(volume) OVER (
+                        ORDER BY timestamp 
+                        ROWS BETWEEN 20 PRECEDING AND CURRENT ROW
+                    ) as smoothed_volume,
+                    LAG(timestamp) OVER (ORDER BY timestamp) as prev_timestamp
+                FROM w_telemetry
+                WHERE device_id = $1 AND timestamp >= $2 AND timestamp <= $3
+            ),
+            smoothed_deltas AS (
+                SELECT
+                    timestamp,
+                    smoothed_volume,
+                    LAG(smoothed_volume) OVER (ORDER BY timestamp) as prev_smoothed_volume,
+                    prev_timestamp
+                FROM ordered_telemetry
+            ),
+            deltas AS (
+                SELECT
+                    timestamp,
+                    CASE 
+                        WHEN prev_timestamp IS NOT NULL AND prev_smoothed_volume IS NOT NULL AND timestamp > prev_timestamp THEN
+                            CASE
+                                WHEN smoothed_volume > prev_smoothed_volume THEN
+                                    CASE
+                                        WHEN ((smoothed_volume - prev_smoothed_volume) / (EXTRACT(EPOCH FROM (timestamp - prev_timestamp)) / 3600.0)) >= $6 THEN
+                                            GREATEST(0, ($5 * (EXTRACT(EPOCH FROM (timestamp - prev_timestamp)) / 3600.0)) - (smoothed_volume - prev_smoothed_volume))
+                                        ELSE
+                                            GREATEST(0, ($4 * (EXTRACT(EPOCH FROM (timestamp - prev_timestamp)) / 3600.0)) - (smoothed_volume - prev_smoothed_volume))
+                                    END
+                                ELSE
+                                    GREATEST(0, prev_smoothed_volume - smoothed_volume)
+                            END
+                        ELSE 0
+                    END as water_outflow
+                FROM smoothed_deltas
+            )
+            SELECT COALESCE(SUM(water_outflow), 0) as total_outflow
+            FROM deltas
+            WHERE timestamp >= $7`,
+            [deviceId, queryStart.toISOString(), now.toISOString(), motor1, motor2, threshold, utcStart.toISOString()]
+        );
+
+        if (res.rows.length > 0) {
+            return parseFloat(res.rows[0].total_outflow) || 0;
+        }
+        return 0;
+    } catch (err) {
+        console.error('[getTodayDeviceUsage Error]:', err);
+        return 0;
+    }
 }
 
 async function checkDeviceThresholdAlerts(deviceId, level, volume) {
     try {
         const configRes = await pool.query(
-            `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin
+            `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin, motor1_rate, motor2_rate, pump_threshold
              FROM w_device_config WHERE device_id = $1`,
             [deviceId]
         );
@@ -1292,11 +1379,14 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
             }
 
             const timestamp = getFormattedLocalTimestamp(config.timezone_offset);
+            const dailyUsage = await getTodayDeviceUsage(deviceId, config.timezone_offset, config);
             let message = template
                 .replace(/\[Percent\]/g, percent.toFixed(0))
                 .replace(/\[Threshold\]/g, thresholdValue)
                 .replace(/\[Device\]/g, deviceId)
-                .replace(/\[Timestamp\]/g, timestamp);
+                .replace(/\[Timestamp\]/g, timestamp)
+                .replace(/\[DailyUsage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`)
+                .replace(/\[Usage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`);
 
             const recipients = config.sms_recipient_numbers.split(',').map(n => n.trim()).filter(Boolean);
             console.log(`[SMS Threshold Alert] State changed ${prevState} -> ${currentState} for ${deviceId}. Sending to ${recipients.length} numbers...`);
@@ -1355,7 +1445,7 @@ async function runScheduleCheck() {
             await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP WHERE id = $1', [schedule.id]);
 
             const configRes = await pool.query(
-                `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id
+                `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, motor1_rate, motor2_rate, pump_threshold
                  FROM w_device_config WHERE device_id = $1`,
                 [schedule.device_id]
             );
@@ -1390,12 +1480,15 @@ async function runScheduleCheck() {
                 }
 
                 message = schedule.message_template || `HydroSync Status for Device [Device]: Level is [Percent], Volume is [Volume], Depth is [Depth].`;
+                const dailyUsage = await getTodayDeviceUsage(schedule.device_id, schedule.timezone_offset, config);
                 message = message
                     .replace(/\[Device\]/g, schedule.device_id)
                     .replace(/\[Percent\]/g, `${percent.toFixed(0)}%`)
                     .replace(/\[Volume\]/g, `${volume.toLocaleString()} L`)
                     .replace(/\[Depth\]/g, `${depth.toFixed(1)} cm`)
-                    .replace(/\[Timestamp\]/g, getFormattedLocalTimestamp(schedule.timezone_offset));
+                    .replace(/\[Timestamp\]/g, getFormattedLocalTimestamp(schedule.timezone_offset))
+                    .replace(/\[DailyUsage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`)
+                    .replace(/\[Usage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`);
             } else if (schedule.schedule_type === 'motor_on') {
                 message = schedule.message_template || 'MOTOR ON';
                 await publishMqttMessage(`${schedule.device_id}/cmd/motor`, 'ON', false);

@@ -135,6 +135,12 @@ async function initDb() {
     await client.query(`
       ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS last_alert_state VARCHAR(20) DEFAULT 'NORMAL';
     `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS last_low_alert_time TIMESTAMPTZ;
+    `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS last_high_alert_time TIMESTAMPTZ;
+    `);
 
     // Create w_sms_schedules table
     await client.query(`
@@ -156,6 +162,14 @@ async function initDb() {
     // Ensure timezone_offset column exists in w_sms_schedules table
     await client.query(`
       ALTER TABLE w_sms_schedules ADD COLUMN IF NOT EXISTS timezone_offset INT DEFAULT 0;
+    `);
+
+    // Ensure condition columns exist on w_sms_schedules
+    await client.query(`
+      ALTER TABLE w_sms_schedules ADD COLUMN IF NOT EXISTS condition_type VARCHAR(50) DEFAULT 'none';
+    `);
+    await client.query(`
+      ALTER TABLE w_sms_schedules ADD COLUMN IF NOT EXISTS condition_value NUMERIC(8, 2);
     `);
 
     // Create w_sms_logs table to track SMS transmission status

@@ -887,7 +887,7 @@ const server = http.createServer(async (req, res) => {
         try {
             const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
             const result = await pool.query(
-                `SELECT id, device_id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, days_of_week, message_template, is_enabled, timezone_offset
+                `SELECT id, device_id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, days_of_week, message_template, is_enabled, timezone_offset, condition_type, condition_value
                  FROM w_sms_schedules
                  WHERE device_id = $1
                  ORDER BY scheduled_time ASC`,
@@ -908,7 +908,7 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                const { id, device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week, message_template, is_enabled, timezone_offset } = data;
+                const { id, device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week, message_template, is_enabled, timezone_offset, condition_type, condition_value } = data;
 
                 if (!device_id || !schedule_type || !recipient_numbers || !scheduled_time) {
                     sendJSON(res, { success: false, error: 'Missing required schedule fields' }, 400);
@@ -917,6 +917,8 @@ const server = http.createServer(async (req, res) => {
 
                 const isEnabled = is_enabled !== false;
                 const tzOffset = timezone_offset !== undefined ? parseInt(timezone_offset, 10) : 0;
+                const condType = condition_type || 'none';
+                const condValue = condition_value !== undefined && condition_value !== null && condition_value !== '' ? parseFloat(condition_value) : null;
 
                 if (id) {
                     await pool.query(
@@ -927,17 +929,19 @@ const server = http.createServer(async (req, res) => {
                             days_of_week = $4,
                             message_template = $5,
                             is_enabled = $6,
-                            timezone_offset = $7
-                         WHERE id = $8 AND device_id = $9`,
-                        [schedule_type, recipient_numbers, scheduled_time, days_of_week || '1,2,3,4,5,6,0', message_template || '', isEnabled, tzOffset, id, device_id]
+                            timezone_offset = $7,
+                            condition_type = $8,
+                            condition_value = $9
+                         WHERE id = $10 AND device_id = $11`,
+                        [schedule_type, recipient_numbers, scheduled_time, days_of_week || '1,2,3,4,5,6,0', message_template || '', isEnabled, tzOffset, condType, condValue, id, device_id]
                     );
                     sendJSON(res, { success: true, message: 'Schedule updated successfully.' });
                 } else {
                     await pool.query(
                         `INSERT INTO w_sms_schedules (
-                            device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week, message_template, is_enabled, timezone_offset
-                         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-                        [device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week || '1,2,3,4,5,6,0', message_template || '', isEnabled, tzOffset]
+                            device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week, message_template, is_enabled, timezone_offset, condition_type, condition_value
+                         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+                        [device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week || '1,2,3,4,5,6,0', message_template || '', isEnabled, tzOffset, condType, condValue]
                     );
                     sendJSON(res, { success: true, message: 'Schedule created successfully.' });
                 }
@@ -1350,14 +1354,31 @@ async function getTodayDeviceUsage(deviceId, offsetInMinutes, deviceConfig = nul
 async function checkDeviceThresholdAlerts(deviceId, level, volume) {
     try {
         const configRes = await pool.query(
-            `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin, motor1_rate, motor2_rate, pump_threshold, last_alert_state
+            `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin, motor1_rate, motor2_rate, pump_threshold, last_alert_state, last_low_alert_time, last_high_alert_time
              FROM w_device_config WHERE device_id = $1`,
             [deviceId]
         );
         if (configRes.rows.length === 0) return;
         const config = configRes.rows[0];
 
-        if (!config.sms_alert_enabled || !config.sms_recipient_numbers) return;
+        const activeSchedulesRes = await pool.query(
+            `SELECT DISTINCT recipient_numbers FROM w_sms_schedules WHERE device_id = $1 AND is_enabled = TRUE`,
+            [deviceId]
+        );
+        const uniqueRecipients = new Set();
+        activeSchedulesRes.rows.forEach(row => {
+            if (row.recipient_numbers) {
+                row.recipient_numbers.split(',').forEach(num => {
+                    const cleanNum = num.trim();
+                    if (cleanNum) uniqueRecipients.add(cleanNum);
+                });
+            }
+        });
+
+        if (uniqueRecipients.size === 0) {
+            return;
+        }
+        const recipients = Array.from(uniqueRecipients);
 
         const tankHeight = parseFloat(config.tank_height) || 200.0;
         const tankDiameter = parseFloat(config.tank_diameter) || 228.0;
@@ -1410,6 +1431,24 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
         }
 
         if (currentState !== prevState) {
+            // Apply Cooldown Check to prevent duplicate alert spam (from sensor jitter, rapid state bounce, etc.)
+            const nowMs = Date.now();
+            const cooldownMs = 30 * 60 * 1000; // 30 minutes cooldown
+
+            if (currentState === 'LOW') {
+                const lastLowTime = config.last_low_alert_time ? new Date(config.last_low_alert_time).getTime() : 0;
+                if (nowMs - lastLowTime < cooldownMs) {
+                    console.log(`[SMS Threshold Alert] LOW alert triggered for ${deviceId}, but skipped due to 30-minute cooldown window. Last sent: ${config.last_low_alert_time}`);
+                    return;
+                }
+            } else if (currentState === 'HIGH') {
+                const lastHighTime = config.last_high_alert_time ? new Date(config.last_high_alert_time).getTime() : 0;
+                if (nowMs - lastHighTime < cooldownMs) {
+                    console.log(`[SMS Threshold Alert] HIGH alert triggered for ${deviceId}, but skipped due to 30-minute cooldown window. Last sent: ${config.last_high_alert_time}`);
+                    return;
+                }
+            }
+
             lastDeviceSmsStates[deviceId] = currentState;
             try {
                 await pool.query(
@@ -1423,6 +1462,23 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
             if (currentState === 'NORMAL') {
                 console.log(`[SMS Threshold Alert] State changed ${prevState} -> NORMAL for ${deviceId}. Recovery message is disabled, skipping SMS dispatch.`);
                 return;
+            }
+
+            // Update the alert timestamp in the DB when we actually dispatch/attempt the SMS
+            try {
+                if (currentState === 'LOW') {
+                    await pool.query(
+                        `UPDATE w_device_config SET last_low_alert_time = CURRENT_TIMESTAMP WHERE device_id = $1`,
+                        [deviceId]
+                    );
+                } else if (currentState === 'HIGH') {
+                    await pool.query(
+                        `UPDATE w_device_config SET last_high_alert_time = CURRENT_TIMESTAMP WHERE device_id = $1`,
+                        [deviceId]
+                    );
+                }
+            } catch (tsErr) {
+                console.error('[SMS Threshold DB Timestamp Update Error]:', tsErr);
             }
 
             let template = '';
@@ -1448,7 +1504,6 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
                 .replace(/\[DailyUsage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`)
                 .replace(/\[Usage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`);
 
-            const recipients = config.sms_recipient_numbers.split(',').map(n => n.trim()).filter(Boolean);
             console.log(`[SMS Threshold Alert] State changed ${prevState} -> ${currentState} for ${deviceId}. Sending to ${recipients.length} numbers...`);
 
             for (const rec of recipients) {
@@ -1469,7 +1524,7 @@ async function runScheduleCheck() {
         const now = new Date();
 
         const result = await pool.query(
-            `SELECT id, device_id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, days_of_week, message_template, last_run, timezone_offset
+            `SELECT id, device_id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, days_of_week, message_template, last_run, timezone_offset, condition_type, condition_value
              FROM w_sms_schedules
              WHERE is_enabled = TRUE`
         );
@@ -1480,32 +1535,40 @@ async function runScheduleCheck() {
             const currentHHMM = `${localTime.getHours().toString().padStart(2, '0')}:${localTime.getMinutes().toString().padStart(2, '0')}`;
             const currentDay = localTime.getDay().toString();
 
-            const schedParts = schedule.scheduled_time.split(':');
-            const schedHHMM = `${schedParts[0].padStart(2, '0')}:${schedParts[1].padStart(2, '0')}`;
-
-            if (schedHHMM !== currentHHMM) {
-                continue;
-            }
+            const isInstant = (schedule.condition_type === 'less_than' || schedule.condition_type === 'greater_than');
 
             const days = (schedule.days_of_week || '').split(',').map(d => d.trim());
             if (!days.includes(currentDay)) {
                 continue;
             }
 
-            if (schedule.last_run) {
-                const lastRunTime = new Date(schedule.last_run).getTime();
-                if (Date.now() - lastRunTime < 90000) {
+            if (isInstant) {
+                // Unscheduled real-time threshold conditions (run continuously but with cooldown)
+                if (schedule.last_run) {
+                    const lastRunTime = new Date(schedule.last_run).getTime();
+                    if (Date.now() - lastRunTime < 30 * 60 * 1000) { // 30-minute cooldown
+                        continue;
+                    }
+                }
+            } else {
+                // Scheduled time checks
+                const schedParts = schedule.scheduled_time.split(':');
+                const schedHHMM = `${schedParts[0].padStart(2, '0')}:${schedParts[1].padStart(2, '0')}`;
+
+                if (schedHHMM !== currentHHMM) {
                     continue;
+                }
+
+                if (schedule.last_run) {
+                    const lastRunTime = new Date(schedule.last_run).getTime();
+                    if (Date.now() - lastRunTime < 90000) {
+                        continue;
+                    }
                 }
             }
 
-            console.log(`[SMS Scheduler] Triggering schedule ID ${schedule.id} (${schedule.schedule_type}) for device ${schedule.device_id}...`);
-            checkedCount++;
-
-            await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP WHERE id = $1', [schedule.id]);
-
             const configRes = await pool.query(
-                `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, motor1_rate, motor2_rate, pump_threshold
+                `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, motor1_rate, motor2_rate, pump_threshold, alert_min, alert_max
                  FROM w_device_config WHERE device_id = $1`,
                 [schedule.device_id]
             );
@@ -1515,6 +1578,65 @@ async function runScheduleCheck() {
                 continue;
             }
             const config = configRes.rows[0];
+
+            // Evaluate condition if configured
+            const condType = schedule.condition_type || 'none';
+            if (condType !== 'none') {
+                const telRes = await pool.query(
+                    `SELECT level FROM w_telemetry WHERE device_id = $1 ORDER BY timestamp DESC LIMIT 1`,
+                    [schedule.device_id]
+                );
+                
+                let currentPct = null;
+                if (telRes.rows.length > 0) {
+                    const latestLvl = parseFloat(telRes.rows[0].level) || 0;
+                    const tankHeight = parseFloat(config.tank_height) || 200.0;
+                    currentPct = (latestLvl / tankHeight) * 100;
+                    currentPct = Math.min(Math.max(currentPct, 0), 100);
+                }
+
+                if (currentPct === null) {
+                    console.log(`[SMS Scheduler] Schedule ID ${schedule.id} has condition ${condType} but no telemetry data is available for device ${schedule.device_id}. Skipping.`);
+                    continue;
+                }
+
+                let conditionMet = false;
+                let conditionDesc = '';
+                
+                if (condType === 'less_than') {
+                    const thresholdVal = parseFloat(schedule.condition_value) || 0;
+                    conditionMet = currentPct < thresholdVal;
+                    conditionDesc = `Water Level (${currentPct.toFixed(1)}%) < ${thresholdVal}%`;
+                } else if (condType === 'greater_than') {
+                    const thresholdVal = parseFloat(schedule.condition_value) || 0;
+                    conditionMet = currentPct > thresholdVal;
+                    conditionDesc = `Water Level (${currentPct.toFixed(1)}%) > ${thresholdVal}%`;
+                } else if (condType === 'low_alert') {
+                    const alertMin = parseFloat(config.alert_min) || 20.0;
+                    conditionMet = currentPct < alertMin;
+                    conditionDesc = `Water Level (${currentPct.toFixed(1)}%) < Low Margin (${alertMin}%)`;
+                } else if (condType === 'high_alert') {
+                    const alertMax = parseFloat(config.alert_max) || 90.0;
+                    conditionMet = currentPct > alertMax;
+                    conditionDesc = `Water Level (${currentPct.toFixed(1)}%) > High Margin (${alertMax}%)`;
+                }
+
+                if (!conditionMet) {
+                    console.log(`[SMS Scheduler] Schedule ID ${schedule.id} skipped because condition was not met: ${conditionDesc}`);
+                    const recipients = schedule.recipient_numbers.split(',').map(n => n.trim()).filter(Boolean);
+                    const skipMsg = `[Automation Skipped] Condition not met: ${conditionDesc}`;
+                    for (const rec of recipients) {
+                        await saveSmsLog(schedule.device_id, rec, skipMsg, 'SKIPPED', `Condition not met: ${conditionDesc}`);
+                    }
+                    await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP WHERE id = $1', [schedule.id]);
+                    continue;
+                }
+            }
+
+            console.log(`[SMS Scheduler] Triggering schedule ID ${schedule.id} (${schedule.schedule_type}) for device ${schedule.device_id}...`);
+            checkedCount++;
+
+            await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP WHERE id = $1', [schedule.id]);
 
             let message = '';
             
@@ -1571,8 +1693,151 @@ async function runScheduleCheck() {
     return checkedCount;
 }
 
+async function runApiUrlBackgroundPolling() {
+    try {
+        // Query all device configs with a non-empty api_url
+        const res = await pool.query(
+            `SELECT device_id, api_url, tank_height, tank_diameter, num_tanks FROM w_device_config 
+             WHERE api_url IS NOT NULL AND api_url != ''`
+        );
+        
+        for (const config of res.rows) {
+            const { device_id, api_url, tank_height, tank_diameter, num_tanks } = config;
+            
+            let targetUrl = api_url.trim();
+            if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+                targetUrl = 'https://' + targetUrl;
+            }
+
+            let parsedUrl;
+            try {
+                parsedUrl = new URL(targetUrl);
+            } catch (err) {
+                console.warn(`[Background API Polling] Invalid API URL configured for ${device_id}: ${api_url}`);
+                continue;
+            }
+
+            // If it's just the domain or does not include /api/telemetry, we should build the correct endpoint
+            if (!targetUrl.includes('/api/telemetry')) {
+                // Remove trailing slash if present
+                if (targetUrl.endsWith('/')) {
+                    targetUrl = targetUrl.slice(0, -1);
+                }
+                targetUrl = `${targetUrl}/api/telemetry?device_id=${encodeURIComponent(device_id)}`;
+                try {
+                    parsedUrl = new URL(targetUrl);
+                } catch (e) {
+                    continue;
+                }
+            } else if (!targetUrl.includes('device_id=')) {
+                // If it already has /api/telemetry but no device_id param, append it
+                const separator = targetUrl.includes('?') ? '&' : '?';
+                targetUrl = `${targetUrl}${separator}device_id=${encodeURIComponent(device_id)}`;
+                try {
+                    parsedUrl = new URL(targetUrl);
+                } catch (e) {
+                    continue;
+                }
+            }
+
+            // Avoid self-referencing to prevent infinite loop / duplicate logging loops
+            const targetHostname = parsedUrl.hostname;
+            const ourHost = process.env.APP_URL ? new URL(process.env.APP_URL).hostname : null;
+            if (targetHostname === 'localhost' || targetHostname === '127.0.0.1' || (ourHost && targetHostname === ourHost)) {
+                continue;
+            }
+            
+            console.log(`[Background API Polling] Querying logger API for device ${device_id} at: ${targetUrl}`);
+            
+            try {
+                const response = await fetch(targetUrl, {
+                    headers: { 'Accept': 'application/json' },
+                    signal: AbortSignal.timeout(10000) // 10 seconds timeout
+                });
+                
+                if (!response.ok) {
+                    console.warn(`[Background API Polling] API returned status ${response.status} for ${device_id}`);
+                    continue;
+                }
+                
+                const contentType = response.headers.get('content-type') || '';
+                if (!contentType.includes('application/json')) {
+                    console.warn(`[Background API Polling] API response from ${targetUrl} was not JSON (Content-Type: ${contentType}). Skipping.`);
+                    continue;
+                }
+                
+                let data;
+                try {
+                    data = await response.json();
+                } catch (jsonErr) {
+                    console.warn(`[Background API Polling] Failed to parse JSON response from ${targetUrl}: ${jsonErr.message}`);
+                    continue;
+                }
+                
+                let level = null;
+                let volume = null;
+                let dataUsage = 0;
+                let version = '1.6';
+                
+                const telObj = data.telemetry || data;
+                
+                if (telObj) {
+                    if (telObj.level !== undefined && telObj.level !== null) {
+                        level = parseFloat(telObj.level);
+                    }
+                    if (telObj.volume !== undefined && telObj.volume !== null) {
+                        volume = parseFloat(telObj.volume);
+                    } else if (level !== null) {
+                        // Calculate volume based on level
+                        const height = parseFloat(tank_height) || 200.0;
+                        const diameter = parseFloat(tank_diameter) || 228.0;
+                        const tanks = parseInt(num_tanks, 10) || 1;
+                        const radius = diameter / 2.0;
+                        const maxVol = (Math.PI * Math.pow(radius, 2) * height) / 1000.0;
+                        const pct = level / height;
+                        volume = maxVol * pct * tanks;
+                    }
+                    
+                    if (telObj.data_usage !== undefined && telObj.data_usage !== null) {
+                        dataUsage = parseInt(telObj.data_usage, 10);
+                    } else if (telObj.dataUsage !== undefined && telObj.dataUsage !== null) {
+                        dataUsage = parseInt(telObj.dataUsage, 10);
+                    }
+                    
+                    if (telObj.version) {
+                        version = String(telObj.version);
+                    }
+                }
+                
+                if (level !== null && !isNaN(level)) {
+                    console.log(`[Background API Polling] Successfully fetched level=${level} cm, volume=${volume?.toFixed(1)} L for ${device_id}. Logging to DB...`);
+                    
+                    // Insert into w_telemetry
+                    await pool.query(
+                        `INSERT INTO w_telemetry (device_id, level, volume, data_usage, version)
+                         VALUES ($1, $2, $3, $4, $5)`,
+                        [device_id, level, volume, dataUsage, version]
+                    );
+                    
+                    // Check SMS alerts
+                    await checkDeviceThresholdAlerts(device_id, level, volume);
+                } else {
+                    console.warn(`[Background API Polling] Failed to extract valid water level from API response:`, data);
+                }
+            } catch (fetchErr) {
+                console.error(`[Background API Polling Error] Failed to fetch from ${targetUrl} for ${device_id}:`, fetchErr.message || fetchErr);
+            }
+        }
+    } catch (err) {
+        console.error('[Background API Polling Main Error]:', err);
+    }
+}
+
 // Background scheduler daemon check loop (runs every 30 seconds for self-hosted instances)
 setInterval(runScheduleCheck, 30000);
+
+// Background API polling check loop (runs every 15 seconds)
+setInterval(runApiUrlBackgroundPolling, 15000);
 
 // Graceful shutdown to instantly release database and MQTT client resources on server restarts/stops
 async function gracefulShutdown(signal) {

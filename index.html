@@ -96,7 +96,7 @@
                 </div>
 
                 <!-- Settings Button (Gear Icon) -->
-                <button onclick="toggleSettingsDrawer(true)" class="btn-settings-hover flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all shadow-md shadow-slate-950/20">
+                <button onclick="switchMainTab('settings')" class="btn-settings-hover flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all shadow-md shadow-slate-950/20">
                     <svg class="w-4 h-4 text-slate-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
@@ -139,11 +139,11 @@
                 </svg>
                 Historical Analytics
             </button>
-            <button onclick="switchMainTab('sms_automation')" id="btnMainTabSmsAutomation" class="flex items-center gap-2 px-5 py-3 border-b-2 border-transparent hover:border-slate-800 text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition">
+            <button onclick="switchMainTab('settings')" id="btnMainTabSettings" class="flex items-center gap-2 px-5 py-3 border-b-2 border-transparent hover:border-slate-800 text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
                 </svg>
-                SMS Automation
+                Settings
             </button>
         </div>
 
@@ -546,9 +546,378 @@
             </div>
         </section>
 
-        <!-- SMS Automation & Scheduler Tab Content -->
-        <section id="tabContentSmsAutomation" class="w-full flex flex-col gap-6 hidden">
-            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Settings & SMS Automation Tab Content -->
+        <section id="tabContentSettings" class="w-full flex flex-col gap-6 hidden">
+            <!-- Sub-tabs header -->
+            <div class="flex items-center gap-1.5 bg-slate-900/60 border border-slate-800 p-1.5 rounded-2xl w-fit">
+                <button onclick="switchSettingsSubTab('device_config')" id="btnSubTabDeviceConfig" class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all bg-cyan-500 text-slate-950">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+                    </svg>
+                    Device Settings
+                </button>
+                <button onclick="switchSettingsSubTab('sms_automation')" id="btnSubTabSmsAutomation" class="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all text-slate-400 hover:text-slate-200">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                    </svg>
+                    SMS Automation
+                </button>
+            </div>
+
+            <!-- Sub-Tab Content: Device Settings & Calibration -->
+            <div id="subTabContentDeviceConfig" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Column 1: Calibration & Consumption -->
+                <div class="flex flex-col gap-6">
+                    <!-- Physical Calibration Card -->
+                    <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/30">
+                                <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-white tracking-tight">Physical Calibration</h3>
+                                <p class="text-[11px] text-slate-400">Stored inside ESP32 Non-Volatile Memory (NVS)</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Max Water Height (cm)</label>
+                                <div class="relative">
+                                    <input type="number" id="heightInput" placeholder="200.0" value="200" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                                    <span class="absolute right-4 top-3 text-xs text-slate-500">cm</span>
+                                </div>
+                                <p class="text-[10px] text-slate-500 mt-1">The maximum depth of water the tank can contain when 100% full (e.g. 200cm).</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Sensor Height Offset (cm)</label>
+                                <div class="relative">
+                                    <input type="number" id="sensorHeightInput" placeholder="45.0" value="45" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                                    <span class="absolute right-4 top-3 text-xs text-slate-500">cm</span>
+                                </div>
+                                <p class="text-[10px] text-slate-500 mt-1">Height from the Max Water Height (100% level) up to the physical sensor face (e.g. 45cm).</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Inner Tank Diameter (cm)</label>
+                                <div class="relative">
+                                    <input type="number" id="diameterInput" placeholder="228.0" value="228" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                                    <span class="absolute right-4 top-3 text-xs text-slate-500">cm</span>
+                                </div>
+                                <p class="text-[10px] text-slate-500 mt-1">Used to calculate the volume & liters dynamically inside the dashboard and ESP32 (Arpico 10K L is ~228cm).</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Number of Tanks Connected</label>
+                                <div class="relative">
+                                    <input type="number" id="tankCountInput" min="1" step="1" placeholder="1" value="1" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                                    <span class="absolute right-4 top-3 text-xs text-slate-500 font-medium">tanks</span>
+                                </div>
+                                <p class="text-[10px] text-slate-500 mt-1">Defines how many identical, parallel-connected tanks are in use. This scales the total volume shown on the dashboard.</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Telemetry Logging Interval (seconds)</label>
+                                <div class="relative">
+                                    <input type="number" id="telemetryIntervalInput" min="5" step="1" placeholder="15" value="15" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                                    <span class="absolute right-4 top-3 text-xs text-slate-500 font-medium">seconds</span>
+                                </div>
+                                <p class="text-[10px] text-slate-500 mt-1">Configures how frequently (in seconds) the ESP32 publishes MQTT telemetry and performs HTTP Background Logging.</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Background Logging Server HTTP URL (api_url)</label>
+                                <div class="relative">
+                                    <input type="text" id="apiUrlInput" placeholder="https://your-app.vercel.app" class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-20 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                                    <button onclick="document.getElementById('apiUrlInput').value = window.location.origin" type="button" class="absolute right-3 top-2.5 px-2 py-1 text-[9px] uppercase font-bold text-cyan-400 hover:text-white bg-slate-900 hover:bg-slate-800 rounded border border-slate-800/80 transition" title="Use current domain">
+                                        Current
+                                    </button>
+                                </div>
+                                <p class="text-[10px] text-slate-500 mt-1">Configures the HTTP POST URL on the ESP32. Set this to keep your database updating 24/7 in the background.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Water Consumption Calculation Card -->
+                    <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/30">
+                                <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-white tracking-tight">Consumption Calculation</h3>
+                                <p class="text-[11px] text-slate-400">Configure how daily water usage is computed</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Calculation Method</label>
+                                <select id="calcMethodSelect" onchange="toggleMethodFields()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white transition">
+                                    <option value="method_1" selected>Method 1: Flow-Rate Correction during Rise (Robust)</option>
+                                    <option value="method_0">Method 0: Standard Net Delta Only</option>
+                                </select>
+                                <p class="text-[10px] text-slate-500 mt-1">Method 1 estimates consumption during tank filling by correcting with expected pump flow rates. Method 0 only calculates consumption when water level drops.</p>
+                            </div>
+
+                            <div id="method1Fields" class="space-y-4">
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">Motor 1 (1-inch) Pump Flow Rate (L/hr)</label>
+                                    <div class="relative">
+                                        <input type="number" id="motor1RateInput" placeholder="1000.0" value="1000" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                                        <span class="absolute right-4 top-3 text-xs text-slate-500">L/hr</span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-500 mt-1">Estimated flow rate for the 1-inch pipe filling motor (normally takes ~10 hours).</p>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">Motor 2 (2-inch) Pump Flow Rate (L/hr)</label>
+                                    <div class="relative">
+                                        <input type="number" id="motor2RateInput" placeholder="5000.0" value="5000" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                                        <span class="absolute right-4 top-3 text-xs text-slate-500">L/hr</span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-500 mt-1">Estimated flow rate for the 2-inch pipe filling motor (normally takes ~2 hours).</p>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">Pump Detection Threshold (L/hr)</label>
+                                    <div class="relative">
+                                        <input type="number" id="pumpThresholdInput" placeholder="2500.0" value="2500" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                                        <span class="absolute right-4 top-3 text-xs text-slate-500">L/hr</span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-500 mt-1">The rise-rate threshold in Liters per hour. Rise rates above this will classify the filling motor as Motor 2, and below as Motor 1.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Column 2: Identification, Guides & Operations -->
+                <div class="flex flex-col gap-6">
+                    <!-- Device Identification Card -->
+                    <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-blue-500/10 rounded-lg border border-blue-500/30">
+                                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-white tracking-tight">Device Identification</h3>
+                                <p class="text-[11px] text-slate-400">Match active hardware identifier</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3 text-xs">
+                            <div class="flex flex-col gap-1.5">
+                                <label class="font-semibold text-slate-400">Active Device ID</label>
+                                <input id="topicPrefix" type="text" value="mytank123" onchange="onDeviceIdChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 font-mono focus:outline-none focus:border-cyan-500">
+                                <p class="text-[10px] text-slate-500">This must match the <code>DEVICE_ID</code> constant compiled inside the ESP32 hardware firmware.</p>
+                            </div>
+
+                            <!-- Hidden inputs to prevent JS failures -->
+                            <input id="brokerInput" type="hidden" value="wss://broker.hivemq.com:8884/mqtt">
+                            <input id="clientIdInput" type="hidden" value="hydrosync-dashboard">
+                        </div>
+                    </div>
+
+                    <!-- Water Level Threshold Alerts Sub-section -->
+                    <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-rose-500/10 rounded-lg border border-rose-500/30">
+                                <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-white tracking-tight">Water Level Alerts</h3>
+                                <p class="text-[11px] text-slate-400">Configure safety thresholds</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4 text-xs">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Min Alert Level (%)</label>
+                                <div class="relative">
+                                    <input type="number" id="alertMinLevelInput" placeholder="20" min="0" max="100" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-rose-500 text-white placeholder-slate-600 transition">
+                                    <span class="absolute right-4 top-3 text-xs text-slate-500">%</span>
+                                </div>
+                                <p class="text-[10px] text-slate-500 mt-1">Triggers alert if level falls below this %.</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1.5">Max Alert Level (%)</label>
+                                <div class="relative">
+                                    <input type="number" id="alertMaxLevelInput" placeholder="90" min="0" max="100" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-rose-500 text-white placeholder-slate-600 transition">
+                                    <span class="absolute right-4 top-3 text-xs text-slate-500">%</span>
+                                </div>
+                                <p class="text-[10px] text-slate-500 mt-1">Triggers alert if level rises above this %.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- GSM Module & SMS Alerts Card -->
+                    <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-pink-500/10 rounded-lg border border-pink-500/30">
+                                <svg class="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-white tracking-tight">GSM Missed Call Alerts</h3>
+                                <p class="text-[11px] text-slate-400">Manage phone numbers authorized for missed-call status retrieval</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between items-center">
+                                    <span>Authorized Phone Numbers</span>
+                                    <span id="gsmCount" class="text-[10px] text-slate-500 font-normal">0 / 10 saved</span>
+                                </label>
+                                <div id="gsmNumbersList" class="space-y-2 max-h-40 overflow-y-auto pr-1">
+                                    <div class="text-[11px] text-slate-500 italic p-3 bg-slate-950/40 rounded-xl text-center border border-dashed border-slate-800">No saved phone numbers. Add one below.</div>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-2">
+                                <input type="text" id="gsmNewNumberInput" placeholder="e.g. +94771234567" class="flex-1 bg-slate-950 border border-slate-850 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-cyan-500 text-white placeholder-slate-705 transition">
+                                <button onclick="addGsmNumber()" class="bg-pink-600 hover:bg-pink-500 text-white px-4 rounded-xl font-bold text-xs tracking-wide transition shadow-lg shadow-pink-500/10">
+                                    Add
+                                </button>
+                            </div>
+                            <p class="text-[10px] text-slate-500 leading-normal">
+                                When any authorized number makes a missed call, the ESP32 hangs up and automatically triggers a status update SMS.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- OTA (Over-The-Air) Updates Card -->
+                    <div id="ota-card" class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-purple-500/10 rounded-lg border border-purple-500/30">
+                                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-white tracking-tight">OTA Firmware Updates</h3>
+                                <p class="text-[11px] text-slate-400">Wireless firmware flashing</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4 text-xs">
+                            <div class="flex items-center justify-between bg-slate-950/40 p-3 rounded-xl border border-slate-800/80">
+                                <span class="font-bold text-slate-400 text-xs">Device Firmware Version</span>
+                                <span id="txtDeviceVersion" class="text-[11px] font-mono font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2.5 py-1 rounded-lg">Awaiting...</span>
+                            </div>
+
+                            <div class="bg-slate-950/40 p-3.5 rounded-xl border border-slate-800/80 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="font-bold text-purple-400 text-xs">Remote URL Update</span>
+                                    <span class="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 border border-purple-500/20 uppercase font-semibold">Over MQTT</span>
+                                </div>
+                                <div class="space-y-2">
+                                    <input type="url" id="otaBinUrl" placeholder="https://example.com/firmware.bin" class="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-[11px] font-mono focus:outline-none focus:border-purple-500 text-slate-300 placeholder-slate-600 transition">
+                                    <button id="otaTriggerBtn" onclick="triggerRemoteOta()" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-2 px-3 rounded-lg transition text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-purple-600/15">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                        </svg>
+                                        Trigger OTA Firmware Update
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- WiFi Network Config Card (Setup Guide) -->
+                    <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/30">
+                                <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071a9 9 0 0112.14 0M1.929 8.929a13 13 0 0118.142 0"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-white tracking-tight">WiFi Setup Guide</h3>
+                                <p class="text-[11px] text-slate-400">Configure local network credentials over-the-air safely</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3 text-xs">
+                            <div class="flex gap-3 items-start bg-slate-950/40 p-3 rounded-xl border border-slate-800/50">
+                                <span class="flex items-center justify-center w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold text-[10px] shrink-0 mt-0.5">1</span>
+                                <div>
+                                    <p class="font-semibold text-slate-200">Connect to Module AP</p>
+                                    <p class="text-[11px] text-slate-400 mt-0.5">Connect your device to offline Wi-Fi: <strong class="text-cyan-400 select-all">ESP32_HydroSync_AP</strong></p>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-3 items-start bg-slate-950/40 p-3 rounded-xl border border-slate-800/50">
+                                <span class="flex items-center justify-center w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold text-[10px] shrink-0 mt-0.5">2</span>
+                                <div>
+                                    <p class="font-semibold text-slate-200">Open Setup Portal</p>
+                                    <p class="text-[11px] text-slate-400 mt-0.5">In your web browser, open: <a href="http://192.168.4.1" target="_blank" class="text-cyan-400 hover:underline font-semibold font-mono">http://192.168.4.1/</a></p>
+                                </div>
+                            </div>
+
+                            <div class="flex gap-3 items-start bg-slate-950/40 p-3 rounded-xl border border-slate-800/50">
+                                <span class="flex items-center justify-center w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold text-[10px] shrink-0 mt-0.5">3</span>
+                                <div>
+                                    <p class="font-semibold text-slate-200">Save & Reboot</p>
+                                    <p class="text-[11px] text-slate-400 mt-0.5">Fill in credentials and click <strong class="text-slate-200">Connect & Sync</strong>.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Database & History Management -->
+                    <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="p-2 bg-rose-500/10 rounded-lg border border-rose-500/30">
+                                <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-white tracking-tight">Database Management</h3>
+                                <p class="text-[11px] text-slate-400">Manage saved historical analytics and logs</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-3">
+                            <p class="text-[11px] text-slate-400 leading-normal">
+                                Permanently clear saved historical telemetry data points. This is useful for resetting telemetry history.
+                            </p>
+                            <button id="btnClearData" onclick="clearHistoricalData()" class="w-full bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 hover:border-rose-500 text-rose-400 hover:text-white font-bold py-3 px-4 rounded-xl text-xs tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-rose-500/5">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                </svg>
+                                Clear Telemetry History Data
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Shared Submit Button for Calibration Settings -->
+                <div class="md:col-span-2 pt-4">
+                    <button onclick="updateSettings()" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 py-4 px-6 rounded-2xl font-bold text-sm tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/10">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
+                        </svg>
+                        Transmit & Save Configurations
+                    </button>
+                </div>
+            </div>
+
+            <!-- Sub-Tab Content: SMS Automation (Old section contents) -->
+            <div id="subTabContentSmsAutomation" class="grid grid-cols-1 lg:grid-cols-12 gap-6 hidden">
                 <!-- Left Panel: Gateway Settings -->
                 <div class="lg:col-span-5 bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-6">
                     <div>
@@ -612,51 +981,15 @@
                             <input id="sms_http_endpoint" type="url" value="https://app.text.lk/api/http/" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
                         </div>
 
-                        <!-- Recipient Mobile Numbers -->
-                        <div class="flex flex-col gap-1.5">
-                            <label class="text-[10px] uppercase tracking-wider font-bold text-slate-400">Alert Recipients (comma-separated)</label>
-                            <input id="sms_recipient_numbers" type="text" placeholder="+94771234567, +94711234567" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
-                            <span class="text-[9px] text-slate-500">Provide international format starting with country prefix (e.g., +94 for Sri Lanka).</span>
-                        </div>
-
-                        <!-- Checkbox and limits -->
-                        <div class="bg-slate-950/30 border border-slate-800/80 rounded-2xl p-4 flex flex-col gap-3.5">
-                            <label class="flex items-start gap-2.5 cursor-pointer">
-                                <input id="sms_alert_enabled" type="checkbox" class="mt-0.5 rounded text-cyan-500 focus:ring-cyan-500 bg-slate-950 border-slate-800">
-                                <div>
-                                    <span class="block text-xs text-slate-200 font-semibold">Enable Water Level alerts</span>
-                                    <span class="block text-[10px] text-slate-400">Triggers auto-alerts on critical low/high thresholds 24/7.</span>
-                                </div>
-                            </label>
-
-                            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/50">
-                                <div class="flex flex-col gap-1">
-                                    <label class="text-[9px] uppercase tracking-wider font-bold text-slate-500" title="Low Threshold Trigger">Low Trigger (%)</label>
-                                    <input id="sms_alert_min" type="number" min="5" max="45" value="20" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-cyan-500/80">
-                                </div>
-                                <div class="flex flex-col gap-1">
-                                    <label class="text-[9px] uppercase tracking-wider font-bold text-slate-500" title="High Threshold Trigger">High Trigger (%)</label>
-                                    <input id="sms_alert_max" type="number" min="55" max="98" value="90" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-cyan-500/80">
-                                </div>
+                        <!-- Alert Thresholds -->
+                        <div class="grid grid-cols-2 gap-4 border-t border-slate-800/40 pt-4">
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-[10px] uppercase tracking-wider font-bold text-slate-400" title="Low Threshold Trigger">Low Trigger (%)</label>
+                                <input id="sms_alert_min" type="number" min="5" max="45" value="20" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
                             </div>
-
-                            <div class="flex flex-col gap-3 pt-2.5 border-t border-slate-800/50">
-                                <span class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Custom Alert Message Templates</span>
-                                <div class="flex flex-col gap-1">
-                                    <label class="text-[9px] font-bold text-slate-500 uppercase">Low Level Alert Message</label>
-                                    <textarea id="sms_msg_low" rows="2" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 text-[11px] text-white focus:outline-none focus:border-cyan-500/80 resize-none font-sans leading-normal"></textarea>
-                                </div>
-                                <div class="flex flex-col gap-1">
-                                    <label class="text-[9px] font-bold text-slate-500 uppercase">High Level Alert Message</label>
-                                    <textarea id="sms_msg_high" rows="2" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 text-[11px] text-white focus:outline-none focus:border-cyan-500/80 resize-none font-sans leading-normal"></textarea>
-                                </div>
-                                <div class="flex flex-col gap-1 hidden">
-                                    <label class="text-[9px] font-bold text-slate-500 uppercase">Recovery Message (Back to Normal)</label>
-                                    <textarea id="sms_msg_normal" rows="2" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl p-2.5 text-[11px] text-white focus:outline-none focus:border-cyan-500/80 resize-none font-sans leading-normal"></textarea>
-                                </div>
-                                <span class="text-[9px] text-slate-500 font-medium leading-relaxed">
-                                    Use variables: <strong class="text-cyan-400 font-semibold">[Percent]</strong>, <strong class="text-cyan-400 font-semibold">[Threshold]</strong>, <strong class="text-cyan-400 font-semibold">[Device]</strong>, <strong class="text-cyan-400 font-semibold">[Timestamp]</strong>, and <strong class="text-cyan-400 font-semibold">[DailyUsage]</strong>.
-                                </span>
+                            <div class="flex flex-col gap-1.5">
+                                <label class="text-[10px] uppercase tracking-wider font-bold text-slate-400" title="High Threshold Trigger">High Trigger (%)</label>
+                                <input id="sms_alert_max" type="number" min="55" max="98" value="90" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
                             </div>
                         </div>
 
@@ -694,22 +1027,40 @@
                     <div class="bg-slate-950/40 border border-slate-800/80 rounded-2xl p-5 flex flex-col gap-4">
                         <span class="text-xs font-bold text-white uppercase tracking-wider">Create Automation Task</span>
                         
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Task Type</label>
+                            <select id="sched_type" onchange="onScheduleTypeChange()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200">
+                                <option value="status_update">📊 Daily Water Status Update SMS</option>
+                                <option value="motor_on">🔌 Motor ON Relay SMS (Command)</option>
+                                <option value="motor_off">🔌 Motor OFF Relay SMS (Command)</option>
+                            </select>
+                        </div>
+
+                        <!-- Trigger Condition Section -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-800/40 pt-4 pb-1">
                             <div class="flex flex-col gap-1.5">
-                                <label class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Task Type</label>
-                                <select id="sched_type" onchange="onScheduleTypeChange()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200">
-                                    <option value="status_update">📊 Daily Water Status Update SMS</option>
-                                    <option value="motor_on">🔌 Motor ON Relay SMS (Command)</option>
-                                    <option value="motor_off">🔌 Motor OFF Relay SMS (Command)</option>
+                                <label class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Trigger Condition</label>
+                                <select id="sched_cond_type" onchange="toggleConditionValueInput()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none">
+                                    <option value="none">⏱️ Run Always at Scheduled Time</option>
+                                    <option value="less_than">📉 Run Instantly when Water % &lt;</option>
+                                    <option value="greater_than">📈 Run Instantly when Water % &gt;</option>
+                                    <option value="low_alert">⚠️ Run at Scheduled Time if Low Alert is Active</option>
+                                    <option value="high_alert">🚨 Run at Scheduled Time if High Alert is Active</option>
                                 </select>
                             </div>
-                            <div class="flex flex-col gap-1.5">
-                                <label class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Scheduled Time</label>
-                                <input id="sched_time" type="time" value="08:30" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200">
+                            <div id="sched_params_wrapper" class="grid grid-cols-1 gap-3">
+                                <div id="sched_time_wrapper" class="flex flex-col gap-1.5">
+                                    <label class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Scheduled Time</label>
+                                    <input id="sched_time" type="time" value="08:30" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200">
+                                </div>
+                                <div id="sched_cond_val_wrapper" class="flex flex-col gap-1.5 hidden">
+                                    <label class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Threshold (%)</label>
+                                    <input id="sched_cond_value" type="number" min="0" max="100" value="30" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none">
+                                </div>
                             </div>
                         </div>
 
-                        <div class="flex flex-col gap-1.5">
+                        <div class="flex flex-col gap-1.5 border-t border-slate-800/40 pt-4">
                             <label class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Recipients (comma-separated)</label>
                             <input id="sched_recipients" type="text" placeholder="e.g. +94771234567, +94711234567" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-200 focus:outline-none">
                         </div>
@@ -757,7 +1108,12 @@
 
                     <!-- Active Schedules list -->
                     <div class="flex flex-col gap-3">
-                        <span class="text-xs font-bold text-white uppercase tracking-wider">Active Schedules & Triggers</span>
+                        <button onclick="toggleSection('smsSchedulesContainer', 'schedulesChevron')" class="flex items-center justify-between w-full text-left focus:outline-none group">
+                            <span class="text-xs font-bold text-white group-hover:text-cyan-400 transition uppercase tracking-wider">Active Schedules & Triggers</span>
+                            <svg id="schedulesChevron" class="w-4 h-4 text-slate-400 group-hover:text-cyan-400 transition-transform duration-200 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
                         <div id="smsSchedulesContainer" class="flex flex-col gap-2.5 max-h-[400px] overflow-y-auto pr-1">
                             <!-- Populated dynamically via JS -->
                             <div class="text-center py-8 text-xs text-slate-500">Loading schedules...</div>
@@ -767,12 +1123,17 @@
                     <!-- SMS Dispatch History Logs -->
                     <div class="flex flex-col gap-3 border-t border-slate-800/60 pt-5">
                         <div class="flex items-center justify-between">
-                            <span class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                                <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                            <button onclick="toggleSection('smsLogsContainer', 'logsChevron')" class="flex items-center gap-1.5 focus:outline-none text-left flex-grow group">
+                                <span class="text-xs font-bold text-white group-hover:text-cyan-400 transition uppercase tracking-wider flex items-center gap-1.5">
+                                    <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                                    </svg>
+                                    SMS Transmission Logs
+                                </span>
+                                <svg id="logsChevron" class="w-4 h-4 text-slate-400 group-hover:text-cyan-400 transition-transform duration-200 transform rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
                                 </svg>
-                                SMS Transmission Logs
-                            </span>
+                            </button>
                             <button onclick="loadSmsLogs()" class="text-cyan-400 hover:text-cyan-300 text-xs font-semibold flex items-center gap-1">
                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 3v3H16" />
@@ -876,390 +1237,7 @@
         </div>
     </div>
 
-    <!-- Settings Drawer Backdrop -->
-    <div id="settingsDrawerBackdrop" onclick="toggleSettingsDrawer(false)" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 hidden transition-opacity duration-300 opacity-0 animate-fade-in"></div>
 
-    <!-- Settings Drawer Content -->
-    <div id="settingsDrawer" class="fixed top-0 right-0 h-full w-full max-w-md bg-slate-950/95 border-l border-slate-800 shadow-[0_0_50px_rgba(0,0,0,0.8)] z-50 transform translate-x-full transition-all duration-300 ease-in-out flex flex-col">
-        <!-- Drawer Header -->
-        <div class="px-6 py-5 border-b border-slate-800/80 flex justify-between items-center bg-slate-900/10">
-            <div class="flex items-center gap-3">
-                <div class="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
-                    <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    </svg>
-                </div>
-                <div>
-                    <h2 class="text-base font-bold text-white tracking-tight">System Configuration</h2>
-                    <p class="text-xs text-slate-400">Physical calibration and connectivity</p>
-                </div>
-            </div>
-            <button onclick="toggleSettingsDrawer(false)" class="p-2 hover:bg-slate-800 rounded-xl text-slate-400 hover:text-white transition">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-            </button>
-        </div>
-
-        <!-- Scrollable Drawer Body -->
-        <div class="flex-grow overflow-y-auto p-6 space-y-6">
-            <!-- Hardware Calibration Card -->
-            <div class="bg-slate-900/30 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
-                <div class="flex items-center gap-3">
-                    <div class="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/30">
-                        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-bold text-white tracking-tight">Physical Calibration</h3>
-                        <p class="text-[11px] text-slate-400">Stored inside ESP32 Non-Volatile Memory (NVS)</p>
-                    </div>
-                </div>
-
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Max Water Height (cm)</label>
-                        <div class="relative">
-                            <input type="number" id="heightInput" placeholder="200.0" value="200" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
-                            <span class="absolute right-4 top-3 text-xs text-slate-500">cm</span>
-                        </div>
-                        <p class="text-[10px] text-slate-500 mt-1">The maximum depth of water the tank can contain when 100% full (e.g. 200cm).</p>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Sensor Height Offset (cm)</label>
-                        <div class="relative">
-                            <input type="number" id="sensorHeightInput" placeholder="45.0" value="45" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
-                            <span class="absolute right-4 top-3 text-xs text-slate-500">cm</span>
-                        </div>
-                        <p class="text-[10px] text-slate-500 mt-1">Height from the Max Water Height (100% level) up to the physical sensor face (e.g. 45cm).</p>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Inner Tank Diameter (cm)</label>
-                        <div class="relative">
-                            <input type="number" id="diameterInput" placeholder="228.0" value="228" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
-                            <span class="absolute right-4 top-3 text-xs text-slate-500">cm</span>
-                        </div>
-                        <p class="text-[10px] text-slate-500 mt-1">Used to calculate the volume & liters dynamically inside the dashboard and ESP32 (Arpico 10K L is ~228cm).</p>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Number of Tanks Connected</label>
-                        <div class="relative">
-                            <input type="number" id="tankCountInput" min="1" step="1" placeholder="1" value="1" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
-                            <span class="absolute right-4 top-3 text-xs text-slate-500 font-medium">tanks</span>
-                        </div>
-                        <p class="text-[10px] text-slate-500 mt-1">Defines how many identical, parallel-connected tanks are in use. This scales the total volume and mass shown on the dashboard.</p>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Telemetry Logging Interval (seconds)</label>
-                        <div class="relative">
-                            <input type="number" id="telemetryIntervalInput" min="5" step="1" placeholder="15" value="15" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
-                            <span class="absolute right-4 top-3 text-xs text-slate-500 font-medium">seconds</span>
-                        </div>
-                        <p class="text-[10px] text-slate-500 mt-1">Configures how frequently (in seconds) the ESP32 publishes MQTT telemetry and performs HTTP Background Logging (e.g. 15 seconds).</p>
-                    </div>
-
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Background Logging Server HTTP URL (api_url)</label>
-                        <div class="relative">
-                            <input type="text" id="apiUrlInput" placeholder="https://your-app.vercel.app" class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-20 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
-                            <button onclick="document.getElementById('apiUrlInput').value = window.location.origin" type="button" class="absolute right-3 top-2.5 px-2 py-1 text-[9px] uppercase font-bold text-cyan-400 hover:text-white bg-slate-900 hover:bg-slate-800 rounded border border-slate-800/80 transition" title="Use current domain">
-                                Current
-                            </button>
-                        </div>
-                        <p class="text-[10px] text-slate-500 mt-1">Configures the HTTP POST URL on the ESP32. Set this to keep your database updating 24/7 in the background, even when this browser dashboard is closed.</p>
-                    </div>
-
-                    <div id="method1Fields" class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Motor 1 (1-inch) Pump Flow Rate (L/hr)</label>
-                            <div class="relative">
-                                <input type="number" id="motor1RateInput" placeholder="1000.0" value="1000" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
-                                <span class="absolute right-4 top-3 text-xs text-slate-500">L/hr</span>
-                            </div>
-                            <p class="text-[10px] text-slate-500 mt-1">Estimated flow rate for the 1-inch pipe filling motor (normally takes ~10 hours).</p>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Motor 2 (2-inch) Pump Flow Rate (L/hr)</label>
-                            <div class="relative">
-                                <input type="number" id="motor2RateInput" placeholder="5000.0" value="5000" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
-                                <span class="absolute right-4 top-3 text-xs text-slate-500">L/hr</span>
-                            </div>
-                            <p class="text-[10px] text-slate-500 mt-1">Estimated flow rate for the 2-inch pipe filling motor (normally takes ~2 hours).</p>
-                        </div>
-
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Pump Detection Threshold (L/hr)</label>
-                            <div class="relative">
-                                <input type="number" id="pumpThresholdInput" placeholder="2500.0" value="2500" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
-                                <span class="absolute right-4 top-3 text-xs text-slate-500">L/hr</span>
-                            </div>
-                            <p class="text-[10px] text-slate-500 mt-1">The rise-rate threshold in Liters per hour. Rise rates above this will classify the filling motor as Motor 2, and below as Motor 1.</p>
-                        </div>
-                    </div>
-
-                    <!-- Water Level Threshold Alerts Sub-section -->
-                    <div class="border-t border-slate-800/80 pt-4 mt-1 space-y-4">
-                        <div class="flex items-center gap-3">
-                            <div class="p-2 bg-rose-500/10 rounded-lg border border-rose-500/30">
-                                <svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                                </svg>
-                            </div>
-                            <div>
-                                <h4 class="text-xs font-bold text-white tracking-tight">Water Level Alerts</h4>
-                                <p class="text-[10px] text-slate-400">Configure alert thresholds saved in ESP32 memory</p>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-3 text-xs">
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-300 mb-1.5">Min Alert Level (%)</label>
-                                <div class="relative">
-                                    <input type="number" id="alertMinLevelInput" placeholder="20" min="0" max="100" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-rose-500 text-white placeholder-slate-600 transition">
-                                    <span class="absolute right-4 top-3 text-[10px] text-slate-500">%</span>
-                                </div>
-                                <p class="text-[9px] text-slate-500 mt-1">Triggers alert if level falls below this %.</p>
-                            </div>
-
-                            <div>
-                                <label class="block text-[11px] font-semibold text-slate-300 mb-1.5">Max Alert Level (%)</label>
-                                <div class="relative">
-                                    <input type="number" id="alertMaxLevelInput" placeholder="90" min="0" max="100" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-rose-500 text-white placeholder-slate-600 transition">
-                                    <span class="absolute right-4 top-3 text-[10px] text-slate-500">%</span>
-                                </div>
-                                <p class="text-[9px] text-slate-500 mt-1">Triggers alert if level rises above this %.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <button onclick="updateSettings()" class="w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 py-3.5 px-4 rounded-xl font-bold text-sm tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/10">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
-                        </svg>
-                        Transmit & Save Configurations
-                    </button>
-                </div>
-            </div>
-
-            <!-- WiFi Network Config Card (Setup Guide) -->
-            <div class="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-5 flex flex-col gap-4 shadow-xl shadow-cyan-500/5">
-                <div class="flex items-center gap-3">
-                    <div class="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/30">
-                        <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071a9 9 0 0112.14 0M1.929 8.929a13 13 0 0118.142 0"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-bold text-white tracking-tight">WiFi Setup Guide</h3>
-                        <p class="text-[11px] text-slate-400">Configure local network credentials over-the-air safely</p>
-                    </div>
-                </div>
-
-                <div class="space-y-4 text-xs">
-                    <div class="flex gap-3 items-start bg-slate-950/40 p-3 rounded-xl border border-slate-800/50">
-                        <span class="flex items-center justify-center w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold text-[10px] shrink-0 mt-0.5">1</span>
-                        <div>
-                            <p class="font-semibold text-slate-200">Connect to Module AP</p>
-                            <p class="text-[11px] text-slate-400 mt-0.5">Connect your phone or computer to the offline Wi-Fi: <strong class="text-cyan-400 select-all">ESP32_HydroSync_AP</strong></p>
-                        </div>
-                    </div>
-
-                    <div class="flex gap-3 items-start bg-slate-950/40 p-3 rounded-xl border border-slate-800/50">
-                        <span class="flex items-center justify-center w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold text-[10px] shrink-0 mt-0.5">2</span>
-                        <div>
-                            <p class="font-semibold text-slate-200">Open Setup Portal</p>
-                            <p class="text-[11px] text-slate-400 mt-0.5">Open your web browser and go to: <a href="http://192.168.4.1" target="_blank" class="text-cyan-400 hover:underline font-semibold font-mono">http://192.168.4.1/</a></p>
-                        </div>
-                    </div>
-
-                    <div class="flex gap-3 items-start bg-slate-950/40 p-3 rounded-xl border border-slate-800/50">
-                        <span class="flex items-center justify-center w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold text-[10px] shrink-0 mt-0.5">3</span>
-                        <div>
-                            <p class="font-semibold text-slate-200">Save & Reboot</p>
-                            <p class="text-[11px] text-slate-400 mt-0.5">Type your home Wi-Fi SSID, Password, and your custom topic path. Click <strong class="text-slate-200">Connect & Sync</strong>.</p>
-                        </div>
-                    </div>
-
-                    <div class="text-[11px] text-emerald-400 flex items-center gap-1.5 px-3 py-2 bg-emerald-500/5 border border-emerald-500/10 rounded-xl">
-                        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                        </svg>
-                        NVS Storage writes persist even after restarts!
-                    </div>
-                </div>
-            </div>
-
-            <!-- GSM Module & SMS Alerts Card -->
-            <div class="bg-slate-900/30 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
-                <div class="flex items-center gap-3">
-                    <div class="p-2 bg-pink-500/10 rounded-lg border border-pink-500/30">
-                        <svg class="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-bold text-white tracking-tight">GSM Missed Call & SMS Alert</h3>
-                        <p class="text-[11px] text-slate-400">Manage saved phone numbers authorized for missed-call SMS notifications</p>
-                    </div>
-                </div>
-
-                <div class="space-y-4">
-                    <!-- Numbers list -->
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex justify-between items-center">
-                            <span>Authorized Phone Numbers</span>
-                            <span id="gsmCount" class="text-[10px] text-slate-500 font-normal">0 / 10 saved</span>
-                        </label>
-                        <div id="gsmNumbersList" class="space-y-2 max-h-40 overflow-y-auto pr-1">
-                            <!-- Populated dynamically -->
-                            <div class="text-[11px] text-slate-500 italic p-3 bg-slate-950/40 rounded-xl text-center border border-dashed border-slate-800">No saved phone numbers. Add one below.</div>
-                        </div>
-                    </div>
-
-                    <!-- Add new number Form -->
-                    <div class="flex gap-2">
-                        <input type="text" id="gsmNewNumberInput" placeholder="e.g. +94771234567" class="flex-1 bg-slate-950 border border-slate-850 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-cyan-500 text-white placeholder-slate-705 transition">
-                        <button onclick="addGsmNumber()" class="bg-pink-600 hover:bg-pink-500 text-white px-4 rounded-xl font-bold text-xs tracking-wide transition shadow-lg shadow-pink-500/10">
-                            Add
-                        </button>
-                    </div>
-                    <p class="text-[10px] text-slate-500 leading-normal">
-                        When any of these numbers make a missed call, the ESP32 S3 hanging up immediately sends a SMS with current tank measurements.
-                    </p>
-                </div>
-            </div>
-
-            <!-- OTA (Over-The-Air) Updates Card -->
-            <div id="ota-card" class="bg-slate-900/30 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
-                <div class="flex items-center gap-3">
-                    <div class="p-2 bg-purple-500/10 rounded-lg border border-purple-500/30">
-                        <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-bold text-white tracking-tight">OTA Firmware Updates</h3>
-                        <p class="text-[11px] text-slate-400">Wireless flashing & firmware delivery</p>
-                    </div>
-                </div>
-
-                <div class="space-y-4 text-xs">
-                    <!-- Connected Device Firmware Version -->
-                    <div class="flex items-center justify-between bg-slate-950/40 p-3 rounded-xl border border-slate-800/80">
-                        <span class="font-bold text-slate-400 text-xs">Device Firmware Version</span>
-                        <span id="txtDeviceVersion" class="text-[11px] font-mono font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2.5 py-1 rounded-lg">Awaiting...</span>
-                    </div>
-
-                    <!-- Remote MQTT HTTP OTA -->
-                    <div class="bg-slate-950/40 p-3.5 rounded-xl border border-slate-800/80 space-y-3">
-                        <div class="flex items-center justify-between">
-                            <span class="font-bold text-purple-400 text-xs">Remote URL Update</span>
-                            <span class="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 border border-purple-500/20 uppercase font-semibold">Over MQTT</span>
-                        </div>
-                        <p class="text-[10px] text-slate-400 leading-normal">
-                            Provide a public URL to your compiled firmware binary (<code class="text-slate-300 font-mono">.bin</code>). The ESP32 will download, flash, and install it automatically.
-                        </p>
-                        <div class="space-y-2">
-                            <input type="url" id="otaBinUrl" placeholder="https://example.com/firmware.bin" class="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-[11px] font-mono focus:outline-none focus:border-purple-500 text-slate-300 placeholder-slate-600 transition">
-                            <button id="otaTriggerBtn" onclick="triggerRemoteOta()" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-semibold py-2 px-3 rounded-lg transition text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-purple-600/15">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                </svg>
-                                Trigger OTA Firmware Update
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                  <!-- Device Settings & Hardware Identifier Card -->
-            <div class="bg-slate-900/30 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
-                <div class="flex items-center gap-3">
-                    <div class="p-2 bg-blue-500/10 rounded-lg border border-blue-500/30">
-                        <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-bold text-white tracking-tight">Device Identification</h3>
-                        <p class="text-[11px] text-slate-400">Match active hardware identifier</p>
-                    </div>
-                </div>
-
-                <div class="space-y-3 text-xs">
-                    <div class="flex flex-col gap-1.5">
-                        <label class="font-semibold text-slate-400">Active Device ID</label>
-                        <input id="topicPrefix" type="text" value="mytank123" onchange="onDeviceIdChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 font-mono focus:outline-none focus:border-cyan-500">
-                        <p class="text-[10px] text-slate-500">This must match the <code>DEVICE_ID</code> constant compiled inside the ESP32 hardware firmware.</p>
-                    </div>
-
-                    <!-- Hidden inputs to prevent JS failures -->
-                    <input id="brokerInput" type="hidden" value="wss://broker.hivemq.com:8884/mqtt">
-                    <input id="clientIdInput" type="hidden" value="hydrosync-dashboard">
-                </div>
-            </div>        </div>
-
-            <!-- Water Consumption Calculation Card -->
-            <div class="bg-slate-900/30 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
-                <div class="flex items-center gap-3">
-                    <div class="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/30">
-                        <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547" />
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-bold text-white tracking-tight">Consumption Calculation</h3>
-                        <p class="text-[11px] text-slate-400">Configure how daily water usage is computed</p>
-                    </div>
-                </div>
-
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Calculation Method</label>
-                        <select id="calcMethodSelect" onchange="toggleMethodFields()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white transition">
-                            <option value="method_1" selected>Method 1: Flow-Rate Correction during Rise (Robust)</option>
-                            <option value="method_0">Method 0: Standard Net Delta Only</option>
-                        </select>
-                        <p class="text-[10px] text-slate-500 mt-1">Method 1 estimates consumption during tank filling by correcting with expected pump flow rates. Method 0 only calculates consumption when water level drops.</p>
-                    </div>
-                </div>
-            </div>
-
-
-
-            <!-- Database & History Management -->
-            <div class="bg-slate-900/30 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
-                <div class="flex items-center gap-3">
-                    <div class="p-2 bg-rose-500/10 rounded-lg border border-rose-500/30">
-                        <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 class="text-sm font-bold text-white tracking-tight">Database & Telemetry History</h3>
-                        <p class="text-[11px] text-slate-400">Manage saved analytics and cleanup storage</p>
-                    </div>
-                </div>
-
-                <div class="space-y-3">
-                    <p class="text-[11px] text-slate-400 leading-normal">
-                        Permanently clear saved historical telemetry data points. This is useful for resolving testing artifacts or recalibrating the sensors.
-                    </p>
-                    <button id="btnClearData" onclick="clearHistoricalData()" class="w-full bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 hover:border-rose-500 text-rose-400 hover:text-white font-bold py-3 px-4 rounded-xl text-xs tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-rose-500/5">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                        </svg>
-                        Clear Telemetry History Data
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Footer -->
     <footer class="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
@@ -1375,40 +1353,14 @@
             const errorMsg = document.getElementById('passwordError');
             if (pwdInput && pwdInput.value === "kk123") {
                 closePasswordModal();
-                
-                // Open Settings Drawer
-                const drawer = document.getElementById('settingsDrawer');
-                const backdrop = document.getElementById('settingsDrawerBackdrop');
-                if (backdrop && drawer) {
-                    backdrop.classList.remove('hidden');
-                    setTimeout(() => {
-                        backdrop.classList.remove('opacity-0');
-                        backdrop.classList.add('opacity-100');
-                        drawer.classList.remove('translate-x-full');
-                    }, 10);
-                }
+                isConfigAuthenticated = true;
+                switchMainTab('settings');
             } else {
                 if (errorMsg) errorMsg.classList.remove('hidden');
                 if (pwdInput) {
                     pwdInput.select();
                     pwdInput.focus();
                 }
-            }
-        }
-
-        // Toggle Settings Drawer Overlay
-        function toggleSettingsDrawer(show = true) {
-            const drawer = document.getElementById('settingsDrawer');
-            const backdrop = document.getElementById('settingsDrawerBackdrop');
-            if (show) {
-                openPasswordModal();
-            } else {
-                backdrop.classList.remove('opacity-100');
-                backdrop.classList.add('opacity-0');
-                if (drawer) drawer.classList.add('translate-x-full');
-                setTimeout(() => {
-                    backdrop.classList.add('hidden');
-                }, 300);
             }
         }
 
@@ -2834,24 +2786,29 @@
             document.getElementById('txtPeriodDataUsed').innerText = displayDataStr;
         }
 
-        let activeMainTab = 'monitor'; // 'monitor', 'analytics', or 'sms_automation'
+        let activeMainTab = 'monitor'; // 'monitor', 'analytics', or 'settings'
+        let isConfigAuthenticated = false;
 
         function switchMainTab(tab) {
+            if (tab === 'settings' && !isConfigAuthenticated) {
+                openPasswordModal();
+                return;
+            }
             activeMainTab = tab;
             const tabMonitor = document.getElementById('tabContentMonitor');
             const tabAnalytics = document.getElementById('tabContentAnalytics');
-            const tabSmsAutomation = document.getElementById('tabContentSmsAutomation');
+            const tabSettings = document.getElementById('tabContentSettings');
             const btnMonitor = document.getElementById('btnMainTabMonitor');
             const btnAnalytics = document.getElementById('btnMainTabAnalytics');
-            const btnSmsAutomation = document.getElementById('btnMainTabSmsAutomation');
+            const btnSettings = document.getElementById('btnMainTabSettings');
 
             // Hide all tab content
             if (tabMonitor) tabMonitor.classList.add('hidden');
             if (tabAnalytics) tabAnalytics.classList.add('hidden');
-            if (tabSmsAutomation) tabSmsAutomation.classList.add('hidden');
+            if (tabSettings) tabSettings.classList.add('hidden');
 
             // Reset tab button states to inactive
-            [btnMonitor, btnAnalytics, btnSmsAutomation].forEach(btn => {
+            [btnMonitor, btnAnalytics, btnSettings].forEach(btn => {
                 if (btn) {
                     btn.className = "flex items-center gap-2 px-5 py-3 border-b-2 border-transparent hover:border-slate-800 text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition";
                 }
@@ -2869,11 +2826,37 @@
                 setTimeout(() => {
                     renderAnalyticsChart();
                 }, 50);
-            } else if (tab === 'sms_automation') {
-                if (tabSmsAutomation) tabSmsAutomation.classList.remove('hidden');
-                if (btnSmsAutomation) btnSmsAutomation.className = "flex items-center gap-2 px-5 py-3 border-b-2 border-cyan-500 text-cyan-400 font-bold text-xs tracking-wider uppercase transition";
+            } else if (tab === 'settings') {
+                if (tabSettings) tabSettings.classList.remove('hidden');
+                if (btnSettings) btnSettings.className = "flex items-center gap-2 px-5 py-3 border-b-2 border-cyan-500 text-cyan-400 font-bold text-xs tracking-wider uppercase transition";
                 
-                // Load SMS automation configurations and schedules
+                // Ensure correct sub-tab states are active
+                const currentSubTab = window.activeSettingsSubTab || 'device_config';
+                switchSettingsSubTab(currentSubTab);
+            }
+        }
+
+        window.activeSettingsSubTab = 'device_config';
+
+        function switchSettingsSubTab(subTab) {
+            window.activeSettingsSubTab = subTab;
+            const tabDevice = document.getElementById('subTabContentDeviceConfig');
+            const tabSms = document.getElementById('subTabContentSmsAutomation');
+            const btnDevice = document.getElementById('btnSubTabDeviceConfig');
+            const btnSms = document.getElementById('btnSubTabSmsAutomation');
+
+            if (subTab === 'device_config') {
+                if (tabDevice) tabDevice.classList.remove('hidden');
+                if (tabSms) tabSms.classList.add('hidden');
+                if (btnDevice) btnDevice.className = "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all bg-cyan-500 text-slate-950";
+                if (btnSms) btnSms.className = "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all text-slate-400 hover:text-slate-200";
+            } else if (subTab === 'sms_automation') {
+                if (tabSms) tabSms.classList.remove('hidden');
+                if (tabDevice) tabDevice.classList.add('hidden');
+                if (btnSms) btnSms.className = "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all bg-cyan-500 text-slate-950";
+                if (btnDevice) btnDevice.className = "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all text-slate-400 hover:text-slate-200";
+
+                // Load SMS configurations, schedules, and logs
                 loadSmsGatewaySettings();
                 loadSmsSchedules();
                 loadSmsLogs();
@@ -3453,14 +3436,23 @@
                                 callbacks: {
                                     label: function(context) {
                                         let label = context.dataset.label || '';
-                                        if (label) {
-                                            label += ': ';
-                                        }
                                         if (context.parsed.y !== null) {
-                                            label += context.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 1 }) + ' L';
-                                            if (typeof totalMaxVol === 'number' && totalMaxVol > 0) {
-                                                const pct = (context.parsed.y / totalMaxVol) * 100;
-                                                label += ` (${pct.toFixed(1)}%)`;
+                                            if (context.datasetIndex === 0) {
+                                                if (typeof totalMaxVol === 'number' && totalMaxVol > 0) {
+                                                    const pct = (context.parsed.y / totalMaxVol) * 100;
+                                                    return [
+                                                        `Water Level Percentage: ${pct.toFixed(1)}%`,
+                                                        `Water Volume: ${context.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 1 })} L`
+                                                    ];
+                                                } else {
+                                                    return `Water Volume: ${context.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 1 })} L`;
+                                                }
+                                            } else {
+                                                // Alert threshold lines
+                                                let pctValue = 0;
+                                                if (context.datasetIndex === 1) pctValue = alertThresholds.min;
+                                                else if (context.datasetIndex === 2) pctValue = alertThresholds.max;
+                                                return `${label}: ${pctValue.toFixed(0)}% (${context.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 1 })} L)`;
                                             }
                                         }
                                         return label;
@@ -3748,6 +3740,7 @@
 
                 if (result.success && result.config) {
                     const cfg = result.config;
+                    window.currentSmsConfig = cfg;
                     
                     // Set radio button
                     const radios = document.getElementsByName('sms_api_mode');
@@ -3761,14 +3754,8 @@
                     document.getElementById('sms_sender_id').value = cfg.sms_sender_id || 'TextLK';
                     document.getElementById('sms_oauth_endpoint').value = cfg.sms_oauth_endpoint || 'https://app.text.lk/api/v3/';
                     document.getElementById('sms_http_endpoint').value = cfg.sms_http_endpoint || 'https://app.text.lk/api/http/';
-                    document.getElementById('sms_recipient_numbers').value = cfg.sms_recipient_numbers || '';
-                    document.getElementById('sms_alert_enabled').checked = !!cfg.sms_alert_enabled;
                     document.getElementById('sms_alert_min').value = Math.round(parseFloat(cfg.alert_min) || 20);
                     document.getElementById('sms_alert_max').value = Math.round(parseFloat(cfg.alert_max) || 90);
-                    
-                    document.getElementById('sms_msg_low').value = cfg.sms_msg_low || '⚠️ ALERT: Water level is critically LOW at [Percent]%! (Below [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
-                    document.getElementById('sms_msg_high').value = cfg.sms_msg_high || '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
-                    document.getElementById('sms_msg_normal').value = cfg.sms_msg_normal || 'ℹ️ RECOVERY: Water level is back to NORMAL range: [Percent]%. Device ID: [Device]. Time: [Timestamp]';
 
                     // Self-heal: If config timezone_offset is missing or 0 (and browser is not 0), update it
                     const currentBrowserOffset = new Date().getTimezoneOffset();
@@ -3813,15 +3800,13 @@
                 const senderId = document.getElementById('sms_sender_id').value.trim();
                 const oauthUrl = document.getElementById('sms_oauth_endpoint').value.trim();
                 const httpUrl = document.getElementById('sms_http_endpoint').value.trim();
-                const recipients = document.getElementById('sms_recipient_numbers').value.trim();
-                const alertEnabled = document.getElementById('sms_alert_enabled').checked;
                 const alertMin = parseFloat(document.getElementById('sms_alert_min').value) || 20;
                 const alertMax = parseFloat(document.getElementById('sms_alert_max').value) || 90;
                 const recoveryMargin = 5;
                 
-                const msgLow = document.getElementById('sms_msg_low').value.trim();
-                const msgHigh = document.getElementById('sms_msg_high').value.trim();
-                const msgNormal = document.getElementById('sms_msg_normal').value.trim();
+                const msgLow = (window.currentSmsConfig && window.currentSmsConfig.sms_msg_low) || '';
+                const msgHigh = (window.currentSmsConfig && window.currentSmsConfig.sms_msg_high) || '';
+                const msgNormal = (window.currentSmsConfig && window.currentSmsConfig.sms_msg_normal) || '';
 
                 if (!token) {
                     showToast('API token is required.', 'error');
@@ -3838,8 +3823,8 @@
                         sms_sender_id: senderId,
                         sms_oauth_endpoint: oauthUrl,
                         sms_http_endpoint: httpUrl,
-                        sms_recipient_numbers: recipients,
-                        sms_alert_enabled: alertEnabled,
+                        sms_recipient_numbers: '',
+                        sms_alert_enabled: true,
                         sms_msg_low: msgLow,
                         sms_msg_high: msgHigh,
                         sms_msg_normal: msgNormal,
@@ -3971,6 +3956,36 @@
             }
         }
 
+        function toggleConditionValueInput() {
+            const condType = document.getElementById('sched_cond_type').value;
+            const valWrapper = document.getElementById('sched_cond_val_wrapper');
+            const timeWrapper = document.getElementById('sched_time_wrapper');
+            
+            if (!valWrapper || !timeWrapper) return;
+
+            if (condType === 'less_than' || condType === 'greater_than') {
+                valWrapper.classList.remove('hidden');
+                timeWrapper.classList.add('hidden');
+            } else {
+                valWrapper.classList.add('hidden');
+                timeWrapper.classList.remove('hidden');
+            }
+        }
+
+        function toggleSection(containerId, chevronId) {
+            const container = document.getElementById(containerId);
+            const chevron = document.getElementById(chevronId);
+            if (!container || !chevron) return;
+            
+            if (container.classList.contains('hidden')) {
+                container.classList.remove('hidden');
+                chevron.classList.add('rotate-180');
+            } else {
+                container.classList.add('hidden');
+                chevron.classList.remove('rotate-180');
+            }
+        }
+
         async function loadSmsSchedules() {
             try {
                 const selectSms = document.getElementById('smsDeviceSelect');
@@ -4013,7 +4028,9 @@
                                     days_of_week: sched.days_of_week,
                                     message_template: sched.message_template,
                                     is_enabled: sched.is_enabled,
-                                    timezone_offset: currentBrowserOffset
+                                    timezone_offset: currentBrowserOffset,
+                                    condition_type: sched.condition_type || 'none',
+                                    condition_value: sched.condition_value !== null && sched.condition_value !== undefined ? parseFloat(sched.condition_value) : null
                                 })
                             }).catch(e => console.error('[SMS UI] Auto-heal offset error:', e));
                         }
@@ -4034,11 +4051,32 @@
 
                         const meta = typeLabels[sched.schedule_type] || { label: sched.schedule_type, color: 'text-slate-400 bg-slate-500/10' };
 
+                        let condBadgeHtml = '';
+                        if (sched.condition_type && sched.condition_type !== 'none') {
+                            let condLabel = '';
+                            if (sched.condition_type === 'less_than') {
+                                condLabel = `If Water < ${parseFloat(sched.condition_value).toFixed(0)}%`;
+                            } else if (sched.condition_type === 'greater_than') {
+                                condLabel = `If Water > ${parseFloat(sched.condition_value).toFixed(0)}%`;
+                            } else if (sched.condition_type === 'low_alert') {
+                                condLabel = `If Water < Low Margin`;
+                            } else if (sched.condition_type === 'high_alert') {
+                                condLabel = `If Water > High Margin`;
+                            }
+                            condBadgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">${condLabel}</span>`;
+                        }
+
+                        const isInstantSched = (sched.condition_type === 'less_than' || sched.condition_type === 'greater_than');
+                        const timeDisplayHtml = isInstantSched 
+                            ? `<span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">⚡ Real-time</span>`
+                            : `<span class="text-sm font-bold text-slate-100">${sched.scheduled_time.substring(0, 5)}</span>`;
+
                         card.innerHTML = `
                             <div class="flex flex-col gap-1.5 flex-grow">
-                                <div class="flex items-center gap-2">
+                                <div class="flex items-center gap-2 flex-wrap">
                                     <span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold border ${meta.color}">${meta.label}</span>
-                                    <span class="text-sm font-bold text-slate-100">${sched.scheduled_time.substring(0, 5)}</span>
+                                    ${condBadgeHtml}
+                                    ${timeDisplayHtml}
                                 </div>
                                 <div class="text-xs text-slate-400 leading-relaxed font-mono">
                                     "${sched.message_template}"
@@ -4087,6 +4125,10 @@
             document.getElementById('sched_recipients').value = sched.recipient_numbers;
             document.getElementById('sched_template').value = sched.message_template;
 
+            document.getElementById('sched_cond_type').value = sched.condition_type || 'none';
+            document.getElementById('sched_cond_value').value = (sched.condition_value !== null && sched.condition_value !== undefined) ? sched.condition_value : '30';
+            toggleConditionValueInput();
+
             const days = sched.days_of_week.split(',').map(d => d.trim());
             const daysChks = document.getElementsByName('sched_days');
             for (const c of daysChks) {
@@ -4121,6 +4163,10 @@
             document.getElementById('sched_time').value = "08:30";
             document.getElementById('sched_recipients').value = "";
             onScheduleTypeChange();
+
+            document.getElementById('sched_cond_type').value = 'none';
+            document.getElementById('sched_cond_value').value = '30';
+            toggleConditionValueInput();
             
             const daysChks = document.getElementsByName('sched_days');
             for (const c of daysChks) {
@@ -4146,12 +4192,25 @@
                 const deviceId = selectSms ? selectSms.value : 'mytank123';
 
                 const type = document.getElementById('sched_type').value;
-                const time = document.getElementById('sched_time').value;
                 const recipients = document.getElementById('sched_recipients').value.trim();
                 const template = document.getElementById('sched_template').value.trim();
+                const condType = document.getElementById('sched_cond_type').value;
+                const condVal = document.getElementById('sched_cond_value').value;
 
-                if (!time || !recipients || !template) {
-                    showToast('Please provide scheduled time, template text, and recipients.', 'error');
+                const isInstant = (condType === 'less_than' || condType === 'greater_than');
+                let time = document.getElementById('sched_time').value;
+
+                if (isInstant && !time) {
+                    time = '00:00';
+                }
+
+                if (!time && !isInstant) {
+                    showToast('Please provide scheduled time.', 'error');
+                    return;
+                }
+
+                if (!recipients || !template) {
+                    showToast('Please provide template text and recipients.', 'error');
                     return;
                 }
 
@@ -4172,11 +4231,13 @@
                     device_id: deviceId,
                     schedule_type: type,
                     recipient_numbers: recipients,
-                    scheduled_time: time + ':00',
+                    scheduled_time: time.includes(':') && time.split(':').length === 2 ? time + ':00' : time,
                     days_of_week: selectedDays.join(','),
                     message_template: template,
                     is_enabled: true,
-                    timezone_offset: new Date().getTimezoneOffset()
+                    timezone_offset: new Date().getTimezoneOffset(),
+                    condition_type: condType,
+                    condition_value: condType !== 'none' ? condVal : null
                 };
 
                 if (window.editingScheduleId) {

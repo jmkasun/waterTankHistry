@@ -132,6 +132,9 @@ async function initDb() {
     await client.query(`
       ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS recovery_margin NUMERIC(8, 2) NOT NULL DEFAULT 5.0;
     `);
+    await client.query(`
+      ALTER TABLE w_device_config ADD COLUMN IF NOT EXISTS last_alert_state VARCHAR(20) DEFAULT 'NORMAL';
+    `);
 
     // Create w_sms_schedules table
     await client.query(`

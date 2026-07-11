@@ -1350,7 +1350,7 @@ async function getTodayDeviceUsage(deviceId, offsetInMinutes, deviceConfig = nul
 async function checkDeviceThresholdAlerts(deviceId, level, volume) {
     try {
         const configRes = await pool.query(
-            `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin, motor1_rate, motor2_rate, pump_threshold
+            `SELECT tank_height, tank_diameter, num_tanks, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, alert_min, alert_max, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin, motor1_rate, motor2_rate, pump_threshold, last_alert_state
              FROM w_device_config WHERE device_id = $1`,
             [deviceId]
         );
@@ -1377,7 +1377,7 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
         const alertMax = parseFloat(config.alert_max) || 90.0;
         const recoveryMargin = config.recovery_margin !== undefined && config.recovery_margin !== null ? parseFloat(config.recovery_margin) : 5.0;
 
-        const prevState = lastDeviceSmsStates[deviceId] || 'NORMAL';
+        const prevState = config.last_alert_state || lastDeviceSmsStates[deviceId] || 'NORMAL';
 
         let currentState = prevState;
         if (prevState === 'LOW') {
@@ -1411,6 +1411,14 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
 
         if (currentState !== prevState) {
             lastDeviceSmsStates[deviceId] = currentState;
+            try {
+                await pool.query(
+                    `UPDATE w_device_config SET last_alert_state = $1 WHERE device_id = $2`,
+                    [currentState, deviceId]
+                );
+            } catch (dbErr) {
+                console.error('[SMS Threshold DB Update Error]:', dbErr);
+            }
 
             if (currentState === 'NORMAL') {
                 console.log(`[SMS Threshold Alert] State changed ${prevState} -> NORMAL for ${deviceId}. Recovery message is disabled, skipping SMS dispatch.`);

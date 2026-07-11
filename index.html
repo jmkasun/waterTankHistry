@@ -3458,6 +3458,10 @@
                                         }
                                         if (context.parsed.y !== null) {
                                             label += context.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 1 }) + ' L';
+                                            if (typeof totalMaxVol === 'number' && totalMaxVol > 0) {
+                                                const pct = (context.parsed.y / totalMaxVol) * 100;
+                                                label += ` (${pct.toFixed(1)}%)`;
+                                            }
                                         }
                                         return label;
                                     },

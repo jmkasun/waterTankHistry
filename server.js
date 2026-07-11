@@ -267,6 +267,16 @@ const server = http.createServer(async (req, res) => {
                 // Register device in memory set
                 registeredDevices.add(device_id);
 
+                const levelVal = parseFloat(level);
+                const volumeVal = parseFloat(volume);
+                const dataUsageVal = parseInt(data_usage, 10) || 0;
+                const versionVal = version ? version.toString().trim() : '1.6';
+
+                if (isNaN(levelVal) || isNaN(volumeVal)) {
+                    sendJSON(res, { success: false, error: 'Invalid level or volume' }, 400);
+                    return;
+                }
+
                 // Update or create device cache so the MQTT listener is synchronized
                 if (!deviceCache[device_id]) {
                     deviceCache[device_id] = {
@@ -279,16 +289,6 @@ const server = http.createServer(async (req, res) => {
                 }
                 deviceCache[device_id].last_insert_time = Date.now();
                 deviceCache[device_id].data_usage = dataUsageVal;
-
-                const levelVal = parseFloat(level);
-                const volumeVal = parseFloat(volume);
-                const dataUsageVal = parseInt(data_usage, 10) || 0;
-                const versionVal = version ? version.toString().trim() : '1.6';
-
-                if (isNaN(levelVal) || isNaN(volumeVal)) {
-                    sendJSON(res, { success: false, error: 'Invalid level or volume' }, 400);
-                    return;
-                }
 
                 // Log the telemetry point in w_telemetry
                 await pool.query(

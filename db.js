@@ -171,6 +171,9 @@ async function initDb() {
     await client.query(`
       ALTER TABLE w_sms_schedules ADD COLUMN IF NOT EXISTS condition_value NUMERIC(8, 2);
     `);
+    await client.query(`
+      ALTER TABLE w_sms_schedules ADD COLUMN IF NOT EXISTS trigger_status VARCHAR(50) DEFAULT 'NORMAL';
+    `);
 
     // Create w_sms_logs table to track SMS transmission status
     await client.query(`

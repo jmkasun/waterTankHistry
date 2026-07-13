@@ -931,7 +931,8 @@ const server = http.createServer(async (req, res) => {
                             is_enabled = $6,
                             timezone_offset = $7,
                             condition_type = $8,
-                            condition_value = $9
+                            condition_value = $9,
+                            trigger_status = 'NORMAL'
                          WHERE id = $10 AND device_id = $11`,
                         [schedule_type, recipient_numbers, scheduled_time, days_of_week || '1,2,3,4,5,6,0', message_template || '', isEnabled, tzOffset, condType, condValue, id, device_id]
                     );
@@ -1524,7 +1525,7 @@ async function runScheduleCheck() {
         const now = new Date();
 
         const result = await pool.query(
-            `SELECT id, device_id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, days_of_week, message_template, last_run, timezone_offset, condition_type, condition_value
+            `SELECT id, device_id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, days_of_week, message_template, last_run, timezone_offset, condition_type, condition_value, trigger_status
              FROM w_sms_schedules
              WHERE is_enabled = TRUE`
         );
@@ -1535,22 +1536,14 @@ async function runScheduleCheck() {
             const currentHHMM = `${localTime.getHours().toString().padStart(2, '0')}:${localTime.getMinutes().toString().padStart(2, '0')}`;
             const currentDay = localTime.getDay().toString();
 
-            const isInstant = (schedule.condition_type === 'less_than' || schedule.condition_type === 'greater_than');
+            const isInstant = (schedule.condition_type === 'less_than' || schedule.condition_type === 'greater_than' || schedule.condition_type === 'low_alert' || schedule.condition_type === 'high_alert');
 
             const days = (schedule.days_of_week || '').split(',').map(d => d.trim());
             if (!days.includes(currentDay)) {
                 continue;
             }
 
-            if (isInstant) {
-                // Unscheduled real-time threshold conditions (run continuously but with cooldown)
-                if (schedule.last_run) {
-                    const lastRunTime = new Date(schedule.last_run).getTime();
-                    if (Date.now() - lastRunTime < 30 * 60 * 1000) { // 30-minute cooldown
-                        continue;
-                    }
-                }
-            } else {
+            if (!isInstant) {
                 // Scheduled time checks
                 const schedParts = schedule.scheduled_time.split(':');
                 const schedHHMM = `${schedParts[0].padStart(2, '0')}:${schedParts[1].padStart(2, '0')}`;
@@ -1580,6 +1573,7 @@ async function runScheduleCheck() {
             const config = configRes.rows[0];
 
             // Evaluate condition if configured
+            // Evaluate condition if configured
             const condType = schedule.condition_type || 'none';
             if (condType !== 'none') {
                 const telRes = await pool.query(
@@ -1600,33 +1594,113 @@ async function runScheduleCheck() {
                     continue;
                 }
 
+                const triggerStatus = schedule.trigger_status || 'NORMAL';
                 let conditionMet = false;
                 let conditionDesc = '';
+                let nextTriggerStatus = triggerStatus;
                 
                 if (condType === 'less_than') {
                     const thresholdVal = parseFloat(schedule.condition_value) || 0;
-                    conditionMet = currentPct < thresholdVal;
-                    conditionDesc = `Water Level (${currentPct.toFixed(1)}%) < ${thresholdVal}%`;
+                    if (triggerStatus === 'NORMAL') {
+                        if (currentPct < thresholdVal) {
+                            conditionMet = true;
+                            nextTriggerStatus = 'TRIGGERED';
+                            conditionDesc = `Water Level (${currentPct.toFixed(1)}%) < Threshold (${thresholdVal}%) - Triggers Alarm`;
+                        } else {
+                            conditionMet = false;
+                            conditionDesc = `Water Level (${currentPct.toFixed(1)}%) >= Threshold (${thresholdVal}%)`;
+                        }
+                    } else { // TRIGGERED
+                        const resetThreshold = thresholdVal + 10;
+                        if (currentPct >= resetThreshold) {
+                            nextTriggerStatus = 'NORMAL';
+                            conditionDesc = `Water Level (${currentPct.toFixed(1)}%) >= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
+                        } else {
+                            conditionDesc = `Water Level (${currentPct.toFixed(1)}%) is still below reset threshold ${resetThreshold}%`;
+                        }
+                        conditionMet = false;
+                    }
                 } else if (condType === 'greater_than') {
                     const thresholdVal = parseFloat(schedule.condition_value) || 0;
-                    conditionMet = currentPct > thresholdVal;
-                    conditionDesc = `Water Level (${currentPct.toFixed(1)}%) > ${thresholdVal}%`;
+                    if (triggerStatus === 'NORMAL') {
+                        if (currentPct > thresholdVal) {
+                            conditionMet = true;
+                            nextTriggerStatus = 'TRIGGERED';
+                            conditionDesc = `Water Level (${currentPct.toFixed(1)}%) > Threshold (${thresholdVal}%) - Triggers Alarm`;
+                        } else {
+                            conditionMet = false;
+                            conditionDesc = `Water Level (${currentPct.toFixed(1)}%) <= Threshold (${thresholdVal}%)`;
+                        }
+                    } else { // TRIGGERED
+                        const resetThreshold = thresholdVal - 10;
+                        if (currentPct <= resetThreshold) {
+                            nextTriggerStatus = 'NORMAL';
+                            conditionDesc = `Water Level (${currentPct.toFixed(1)}%) <= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
+                        } else {
+                            conditionDesc = `Water Level (${currentPct.toFixed(1)}%) is still above reset threshold ${resetThreshold}%`;
+                        }
+                        conditionMet = false;
+                    }
                 } else if (condType === 'low_alert') {
                     const alertMin = parseFloat(config.alert_min) || 20.0;
-                    conditionMet = currentPct < alertMin;
-                    conditionDesc = `Water Level (${currentPct.toFixed(1)}%) < Low Margin (${alertMin}%)`;
+                    if (triggerStatus === 'NORMAL') {
+                        if (currentPct < alertMin) {
+                            conditionMet = true;
+                            nextTriggerStatus = 'TRIGGERED';
+                            conditionDesc = `Water Level (${currentPct.toFixed(1)}%) < Low Margin (${alertMin}%) - Triggers Alarm`;
+                        } else {
+                            conditionMet = false;
+                            conditionDesc = `Water Level (${currentPct.toFixed(1)}%) >= Low Margin (${alertMin}%)`;
+                        }
+                    } else { // TRIGGERED
+                        const resetThreshold = alertMin + 10;
+                        if (currentPct >= resetThreshold) {
+                            nextTriggerStatus = 'NORMAL';
+                            conditionDesc = `Water Level (${currentPct.toFixed(1)}%) >= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
+                        } else {
+                            conditionDesc = `Water Level (${currentPct.toFixed(1)}%) is still below reset threshold ${resetThreshold}%`;
+                        }
+                        conditionMet = false;
+                    }
                 } else if (condType === 'high_alert') {
                     const alertMax = parseFloat(config.alert_max) || 90.0;
-                    conditionMet = currentPct > alertMax;
-                    conditionDesc = `Water Level (${currentPct.toFixed(1)}%) > High Margin (${alertMax}%)`;
+                    if (triggerStatus === 'NORMAL') {
+                        if (currentPct > alertMax) {
+                            conditionMet = true;
+                            nextTriggerStatus = 'TRIGGERED';
+                            conditionDesc = `Water Level (${currentPct.toFixed(1)}%) > High Margin (${alertMax}%) - Triggers Alarm`;
+                        } else {
+                            conditionMet = false;
+                            conditionDesc = `Water Level (${currentPct.toFixed(1)}%) <= High Margin (${alertMax}%)`;
+                        }
+                    } else { // TRIGGERED
+                        const resetThreshold = alertMax - 10;
+                        if (currentPct <= resetThreshold) {
+                            nextTriggerStatus = 'NORMAL';
+                            conditionDesc = `Water Level (${currentPct.toFixed(1)}%) <= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
+                        } else {
+                            conditionDesc = `Water Level (${currentPct.toFixed(1)}%) is still above reset threshold ${resetThreshold}%`;
+                        }
+                        conditionMet = false;
+                    }
+                }
+
+                if (nextTriggerStatus !== triggerStatus) {
+                    await pool.query(
+                        `UPDATE w_sms_schedules SET trigger_status = $1 WHERE id = $2`,
+                        [nextTriggerStatus, schedule.id]
+                    );
+                    console.log(`[SMS Scheduler] Schedule ID ${schedule.id} trigger_status updated from ${triggerStatus} to ${nextTriggerStatus}. Reason: ${conditionDesc}`);
                 }
 
                 if (!conditionMet) {
-                    console.log(`[SMS Scheduler] Schedule ID ${schedule.id} skipped because condition was not met: ${conditionDesc}`);
-                    const recipients = schedule.recipient_numbers.split(',').map(n => n.trim()).filter(Boolean);
-                    const skipMsg = `[Automation Skipped] Condition not met: ${conditionDesc}`;
-                    for (const rec of recipients) {
-                        await saveSmsLog(schedule.device_id, rec, skipMsg, 'SKIPPED', `Condition not met: ${conditionDesc}`);
+                    if (!isInstant) {
+                        console.log(`[SMS Scheduler] Schedule ID ${schedule.id} skipped because condition was not met: ${conditionDesc}`);
+                        const recipients = schedule.recipient_numbers.split(',').map(n => n.trim()).filter(Boolean);
+                        const skipMsg = `[Automation Skipped] Condition not met: ${conditionDesc}`;
+                        for (const rec of recipients) {
+                            await saveSmsLog(schedule.device_id, rec, skipMsg, 'SKIPPED', `Condition not met: ${conditionDesc}`);
+                        }
                     }
                     await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP WHERE id = $1', [schedule.id]);
                     continue;

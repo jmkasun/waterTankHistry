@@ -9,5 +9,11 @@
       "source": "/api/:path*",
       "destination": "/api/server.js"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/sms/cron",
+      "schedule": "*/10 * * * *"
+    }
   ]
 }

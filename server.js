@@ -1533,8 +1533,7 @@ async function runScheduleCheck() {
         for (const schedule of result.rows) {
             const tzOffset = schedule.timezone_offset !== null && schedule.timezone_offset !== undefined ? parseInt(schedule.timezone_offset, 10) : 0;
             const localTime = new Date(now.getTime() - (tzOffset * 60000));
-            const currentHHMM = `${localTime.getHours().toString().padStart(2, '0')}:${localTime.getMinutes().toString().padStart(2, '0')}`;
-            const currentDay = localTime.getDay().toString();
+            const currentDay = localTime.getUTCDay().toString();
 
             const isInstant = (schedule.condition_type === 'less_than' || schedule.condition_type === 'greater_than' || schedule.condition_type === 'low_alert' || schedule.condition_type === 'high_alert');
 
@@ -1545,16 +1544,32 @@ async function runScheduleCheck() {
 
             if (!isInstant) {
                 // Scheduled time checks
-                const schedParts = schedule.scheduled_time.split(':');
-                const schedHHMM = `${schedParts[0].padStart(2, '0')}:${schedParts[1].padStart(2, '0')}`;
+                const [schedHour, schedMin] = schedule.scheduled_time.split(':').map(Number);
+                
+                // Construct scheduled time today in local timezone (represented in UTC fields of shifted Date)
+                const schedLocalToday = new Date(localTime);
+                schedLocalToday.setUTCHours(schedHour, schedMin, 0, 0);
 
-                if (schedHHMM !== currentHHMM) {
+                // Is the scheduled time in the future? If so, don't run yet.
+                if (localTime.getTime() < schedLocalToday.getTime()) {
                     continue;
                 }
 
+                // If the scheduled time was more than 45 minutes ago, skip it (avoid stale alerts)
+                if (localTime.getTime() - schedLocalToday.getTime() > 45 * 60 * 1000) {
+                    continue;
+                }
+
+                // Has it already run for this scheduled occurrence?
                 if (schedule.last_run) {
-                    const lastRunTime = new Date(schedule.last_run).getTime();
-                    if (Date.now() - lastRunTime < 90000) {
+                    const lastRunLocal = new Date(new Date(schedule.last_run).getTime() - (tzOffset * 60000));
+                    
+                    // If last_run local is on the same day as localTime, and it was run after or equal to the scheduled local time
+                    const isSameDay = lastRunLocal.getUTCFullYear() === localTime.getUTCFullYear() &&
+                                      lastRunLocal.getUTCMonth() === localTime.getUTCMonth() &&
+                                      lastRunLocal.getUTCDate() === localTime.getUTCDate();
+                    
+                    if (isSameDay && lastRunLocal.getTime() >= schedLocalToday.getTime()) {
                         continue;
                     }
                 }

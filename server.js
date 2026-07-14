@@ -1362,24 +1362,17 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
         if (configRes.rows.length === 0) return;
         const config = configRes.rows[0];
 
-        const activeSchedulesRes = await pool.query(
-            `SELECT DISTINCT recipient_numbers FROM w_sms_schedules WHERE device_id = $1 AND is_enabled = TRUE`,
+        // Fetch enabled schedules for this device
+        const schedulesRes = await pool.query(
+            `SELECT id, schedule_type, recipient_numbers, days_of_week, message_template, timezone_offset, condition_type, condition_value, trigger_status
+             FROM w_sms_schedules
+             WHERE device_id = $1 AND is_enabled = TRUE`,
             [deviceId]
         );
-        const uniqueRecipients = new Set();
-        activeSchedulesRes.rows.forEach(row => {
-            if (row.recipient_numbers) {
-                row.recipient_numbers.split(',').forEach(num => {
-                    const cleanNum = num.trim();
-                    if (cleanNum) uniqueRecipients.add(cleanNum);
-                });
-            }
-        });
 
-        if (uniqueRecipients.size === 0) {
+        if (schedulesRes.rows.length === 0) {
             return;
         }
-        const recipients = Array.from(uniqueRecipients);
 
         const tankHeight = parseFloat(config.tank_height) || 200.0;
         const tankDiameter = parseFloat(config.tank_diameter) || 228.0;
@@ -1395,126 +1388,163 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
         }
         percent = Math.min(Math.max(percent, 0), 100);
 
-        const alertMin = parseFloat(config.alert_min) || 20.0;
-        const alertMax = parseFloat(config.alert_max) || 90.0;
-        const recoveryMargin = config.recovery_margin !== undefined && config.recovery_margin !== null ? parseFloat(config.recovery_margin) : 5.0;
+        const now = new Date();
 
-        const prevState = config.last_alert_state || lastDeviceSmsStates[deviceId] || 'NORMAL';
-
-        let currentState = prevState;
-        if (prevState === 'LOW') {
-            // Only recover to NORMAL if percent has risen at least recoveryMargin above alertMin
-            if (percent >= alertMin + recoveryMargin) {
-                currentState = 'NORMAL';
-            } else if (percent > alertMax) {
-                currentState = 'HIGH';
-            } else {
-                currentState = 'LOW';
+        for (const schedule of schedulesRes.rows) {
+            const isInstant = (schedule.condition_type === 'less_than' || schedule.condition_type === 'greater_than' || schedule.condition_type === 'low_alert' || schedule.condition_type === 'high_alert');
+            if (!isInstant) {
+                // Non-instant schedules are skipped in this real-time check. They are processed by runScheduleCheck.
+                continue;
             }
-        } else if (prevState === 'HIGH') {
-            // Only recover to NORMAL if percent has dropped at least recoveryMargin below alertMax
-            if (percent <= alertMax - recoveryMargin) {
-                currentState = 'NORMAL';
-            } else if (percent < alertMin) {
-                currentState = 'LOW';
-            } else {
-                currentState = 'HIGH';
-            }
-        } else {
-            // prevState is NORMAL
-            if (percent < alertMin) {
-                currentState = 'LOW';
-            } else if (percent > alertMax) {
-                currentState = 'HIGH';
-            } else {
-                currentState = 'NORMAL';
-            }
-        }
 
-        if (currentState !== prevState) {
-            // Apply Cooldown Check to prevent duplicate alert spam (from sensor jitter, rapid state bounce, etc.)
-            const nowMs = Date.now();
-            const cooldownMs = 30 * 60 * 1000; // 30 minutes cooldown
+            const tzOffset = schedule.timezone_offset !== null && schedule.timezone_offset !== undefined ? parseInt(schedule.timezone_offset, 10) : 0;
+            const localTime = new Date(now.getTime() - (tzOffset * 60000));
+            const currentDay = localTime.getUTCDay().toString();
 
-            if (currentState === 'LOW') {
-                const lastLowTime = config.last_low_alert_time ? new Date(config.last_low_alert_time).getTime() : 0;
-                if (nowMs - lastLowTime < cooldownMs) {
-                    console.log(`[SMS Threshold Alert] LOW alert triggered for ${deviceId}, but skipped due to 30-minute cooldown window. Last sent: ${config.last_low_alert_time}`);
-                    return;
+            const days = (schedule.days_of_week || '').split(',').map(d => d.trim());
+            if (!days.includes(currentDay)) {
+                continue;
+            }
+
+            const triggerStatus = schedule.trigger_status || 'NORMAL';
+            let conditionMet = false;
+            let conditionDesc = '';
+            let nextTriggerStatus = triggerStatus;
+            
+            const condType = schedule.condition_type;
+
+            if (condType === 'less_than') {
+                const thresholdVal = parseFloat(schedule.condition_value) || 0;
+                if (triggerStatus === 'NORMAL') {
+                    if (percent < thresholdVal) {
+                        conditionMet = true;
+                        nextTriggerStatus = 'TRIGGERED';
+                        conditionDesc = `Water Level (${percent.toFixed(1)}%) < Threshold (${thresholdVal}%) - Triggers Alarm`;
+                    } else {
+                        conditionMet = false;
+                        conditionDesc = `Water Level (${percent.toFixed(1)}%) >= Threshold (${thresholdVal}%)`;
+                    }
+                } else { // TRIGGERED
+                    const resetThreshold = thresholdVal + 10;
+                    if (percent >= resetThreshold) {
+                        nextTriggerStatus = 'NORMAL';
+                        conditionDesc = `Water Level (${percent.toFixed(1)}%) >= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
+                    } else {
+                        conditionDesc = `Water Level (${percent.toFixed(1)}%) is still below reset threshold ${resetThreshold}%`;
+                    }
+                    conditionMet = false;
                 }
-            } else if (currentState === 'HIGH') {
-                const lastHighTime = config.last_high_alert_time ? new Date(config.last_high_alert_time).getTime() : 0;
-                if (nowMs - lastHighTime < cooldownMs) {
-                    console.log(`[SMS Threshold Alert] HIGH alert triggered for ${deviceId}, but skipped due to 30-minute cooldown window. Last sent: ${config.last_high_alert_time}`);
-                    return;
+            } else if (condType === 'greater_than') {
+                const thresholdVal = parseFloat(schedule.condition_value) || 0;
+                if (triggerStatus === 'NORMAL') {
+                    if (percent > thresholdVal) {
+                        conditionMet = true;
+                        nextTriggerStatus = 'TRIGGERED';
+                        conditionDesc = `Water Level (${percent.toFixed(1)}%) > Threshold (${thresholdVal}%) - Triggers Alarm`;
+                    } else {
+                        conditionMet = false;
+                        conditionDesc = `Water Level (${percent.toFixed(1)}%) <= Threshold (${thresholdVal}%)`;
+                    }
+                } else { // TRIGGERED
+                    const resetThreshold = thresholdVal - 10;
+                    if (percent <= resetThreshold) {
+                        nextTriggerStatus = 'NORMAL';
+                        conditionDesc = `Water Level (${percent.toFixed(1)}%) <= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
+                    } else {
+                        conditionDesc = `Water Level (${percent.toFixed(1)}%) is still above reset threshold ${resetThreshold}%`;
+                    }
+                    conditionMet = false;
+                }
+            } else if (condType === 'low_alert') {
+                const alertMin = parseFloat(config.alert_min) || 20.0;
+                if (triggerStatus === 'NORMAL') {
+                    if (percent < alertMin) {
+                        conditionMet = true;
+                        nextTriggerStatus = 'TRIGGERED';
+                        conditionDesc = `Water Level (${percent.toFixed(1)}%) < Low Margin (${alertMin}%) - Triggers Alarm`;
+                    } else {
+                        conditionMet = false;
+                        conditionDesc = `Water Level (${percent.toFixed(1)}%) >= Low Margin (${alertMin}%)`;
+                    }
+                } else { // TRIGGERED
+                    const resetThreshold = alertMin + 10;
+                    if (percent >= resetThreshold) {
+                        nextTriggerStatus = 'NORMAL';
+                        conditionDesc = `Water Level (${percent.toFixed(1)}%) >= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
+                    } else {
+                        conditionDesc = `Water Level (${percent.toFixed(1)}%) is still below reset threshold ${resetThreshold}%`;
+                    }
+                    conditionMet = false;
+                }
+            } else if (condType === 'high_alert') {
+                const alertMax = parseFloat(config.alert_max) || 90.0;
+                if (triggerStatus === 'NORMAL') {
+                    if (percent > alertMax) {
+                        conditionMet = true;
+                        nextTriggerStatus = 'TRIGGERED';
+                        conditionDesc = `Water Level (${percent.toFixed(1)}%) > High Margin (${alertMax}%) - Triggers Alarm`;
+                    } else {
+                        conditionMet = false;
+                        conditionDesc = `Water Level (${percent.toFixed(1)}%) <= High Margin (${alertMax}%)`;
+                    }
+                } else { // TRIGGERED
+                    const resetThreshold = alertMax - 10;
+                    if (percent <= resetThreshold) {
+                        nextTriggerStatus = 'NORMAL';
+                        conditionDesc = `Water Level (${percent.toFixed(1)}%) <= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
+                    } else {
+                        conditionDesc = `Water Level (${percent.toFixed(1)}%) is still above reset threshold ${resetThreshold}%`;
+                    }
+                    conditionMet = false;
                 }
             }
 
-            lastDeviceSmsStates[deviceId] = currentState;
-            try {
+            if (nextTriggerStatus !== triggerStatus) {
                 await pool.query(
-                    `UPDATE w_device_config SET last_alert_state = $1 WHERE device_id = $2`,
-                    [currentState, deviceId]
+                    `UPDATE w_sms_schedules SET trigger_status = $1 WHERE id = $2`,
+                    [nextTriggerStatus, schedule.id]
                 );
-            } catch (dbErr) {
-                console.error('[SMS Threshold DB Update Error]:', dbErr);
+                console.log(`[Instant SMS Triggers] Schedule ID ${schedule.id} trigger_status updated from ${triggerStatus} to ${nextTriggerStatus}. Reason: ${conditionDesc}`);
             }
 
-            if (currentState === 'NORMAL') {
-                console.log(`[SMS Threshold Alert] State changed ${prevState} -> NORMAL for ${deviceId}. Recovery message is disabled, skipping SMS dispatch.`);
-                return;
-            }
+            if (conditionMet) {
+                console.log(`[Instant SMS Triggers] Triggering schedule ID ${schedule.id} (${schedule.schedule_type}) for device ${deviceId}...`);
+                await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP WHERE id = $1', [schedule.id]);
 
-            // Update the alert timestamp in the DB when we actually dispatch/attempt the SMS
-            try {
-                if (currentState === 'LOW') {
-                    await pool.query(
-                        `UPDATE w_device_config SET last_low_alert_time = CURRENT_TIMESTAMP WHERE device_id = $1`,
-                        [deviceId]
-                    );
-                } else if (currentState === 'HIGH') {
-                    await pool.query(
-                        `UPDATE w_device_config SET last_high_alert_time = CURRENT_TIMESTAMP WHERE device_id = $1`,
-                        [deviceId]
-                    );
+                let template = schedule.message_template || '';
+                let thresholdValue = '';
+                
+                if (condType === 'low_alert') {
+                    template = template || '⚠️ ALERT: Water level is critically LOW at [Percent]%! (Below [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
+                    thresholdValue = (parseFloat(config.alert_min) || 20.0).toFixed(0);
+                } else if (condType === 'high_alert') {
+                    template = template || '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
+                    thresholdValue = (parseFloat(config.alert_max) || 90.0).toFixed(0);
+                } else {
+                    template = template || '⚠️ ALERT: Water level trigger alert! Current level is [Percent]% (Threshold: [Threshold]%). Device ID: [Device]. Time: [Timestamp]';
+                    thresholdValue = (parseFloat(schedule.condition_value) || 0.0).toFixed(0);
                 }
-            } catch (tsErr) {
-                console.error('[SMS Threshold DB Timestamp Update Error]:', tsErr);
-            }
 
-            let template = '';
-            let thresholdValue = '';
-            if (currentState === 'LOW') {
-                template = config.sms_msg_low || '⚠️ ALERT: Water level is critically LOW at [Percent]%! (Below [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
-                thresholdValue = alertMin.toFixed(0);
-            } else if (currentState === 'HIGH') {
-                template = config.sms_msg_high || '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
-                thresholdValue = alertMax.toFixed(0);
-            } else {
-                template = config.sms_msg_normal || 'ℹ️ RECOVERY: Water level is back to NORMAL range: [Percent]%. Device ID: [Device]. Time: [Timestamp]';
-                thresholdValue = `${alertMin.toFixed(0)}-${alertMax.toFixed(0)}`;
-            }
+                const timestamp = getFormattedLocalTimestamp(tzOffset);
+                const dailyUsage = await getTodayDeviceUsage(deviceId, tzOffset, config);
+                let message = template
+                    .replace(/\[Percent\]/g, percent.toFixed(0))
+                    .replace(/\[Threshold\]/g, thresholdValue)
+                    .replace(/\[Device\]/g, deviceId)
+                    .replace(/\[Timestamp\]/g, timestamp)
+                    .replace(/\[DailyUsage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`)
+                    .replace(/\[Usage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`);
 
-            const timestamp = getFormattedLocalTimestamp(config.timezone_offset);
-            const dailyUsage = await getTodayDeviceUsage(deviceId, config.timezone_offset, config);
-            let message = template
-                .replace(/\[Percent\]/g, percent.toFixed(0))
-                .replace(/\[Threshold\]/g, thresholdValue)
-                .replace(/\[Device\]/g, deviceId)
-                .replace(/\[Timestamp\]/g, timestamp)
-                .replace(/\[DailyUsage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`)
-                .replace(/\[Usage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`);
-
-            console.log(`[SMS Threshold Alert] State changed ${prevState} -> ${currentState} for ${deviceId}. Sending to ${recipients.length} numbers...`);
-
-            for (const rec of recipients) {
-                const res = await sendSmsMessageDirectly(config, rec, message);
-                console.log(`[SMS Threshold Alert] Dispatch to ${rec}: ${res.success ? 'Success' : 'Failed (' + res.error + ')'}`);
-                await saveSmsLog(deviceId, rec, message, res.success ? 'SUCCESS' : 'FAILED', res.success ? null : res.error);
+                const recipients = schedule.recipient_numbers.split(',').map(n => n.trim()).filter(Boolean);
+                for (const rec of recipients) {
+                    const res = await sendSmsMessageDirectly(config, rec, message);
+                    console.log(`[Instant SMS Triggers] Dispatch to ${rec}: ${res.success ? 'Success' : 'Failed (' + res.error + ')'}`);
+                    await saveSmsLog(deviceId, rec, message, res.success ? 'SUCCESS' : 'FAILED', res.success ? null : res.error);
+                }
             }
         }
     } catch (err) {
-        console.error('[SMS Threshold Check Error]:', err);
+        console.error('[SMS Real-Time Triggers Check Error]:', err);
     }
 }
 

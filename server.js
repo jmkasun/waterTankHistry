@@ -1510,7 +1510,6 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
 
             if (conditionMet) {
                 console.log(`[Instant SMS Triggers] Triggering schedule ID ${schedule.id} (${schedule.schedule_type}) for device ${deviceId}...`);
-                await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP WHERE id = $1', [schedule.id]);
 
                 let template = schedule.message_template || '';
                 let thresholdValue = '';
@@ -1537,11 +1536,13 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
                     .replace(/\[Usage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`);
 
                 const recipients = (schedule.recipient_numbers || '').split(',').map(n => n.trim()).filter(Boolean);
-                for (const rec of recipients) {
+                await Promise.all(recipients.map(async (rec) => {
                     const res = await sendSmsMessageDirectly(config, rec, message);
                     console.log(`[Instant SMS Triggers] Dispatch to ${rec}: ${res.success ? 'Success' : 'Failed (' + res.error + ')'}`);
                     await saveSmsLog(deviceId, rec, message, res.success ? 'SUCCESS' : 'FAILED', res.success ? null : res.error);
-                }
+                }));
+
+                await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP WHERE id = $1', [schedule.id]);
             }
             } catch (innerErr) {
                 console.error(`[SMS Real-Time Triggers Check Loop Error] Failed to process schedule ID ${schedule.id}:`, innerErr);
@@ -1759,8 +1760,6 @@ async function runScheduleCheck() {
                 console.log(`[SMS Scheduler] Triggering schedule ID ${schedule.id} (${schedule.schedule_type}) for device ${schedule.device_id}...`);
                 checkedCount++;
 
-                await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP WHERE id = $1', [schedule.id]);
-
                 let message = '';
                 
                 if (schedule.schedule_type === 'status_update') {
@@ -1803,12 +1802,14 @@ async function runScheduleCheck() {
                 }
 
                 const recipients = (schedule.recipient_numbers || '').split(',').map(n => n.trim()).filter(Boolean);
-                for (const rec of recipients) {
+                await Promise.all(recipients.map(async (rec) => {
                     console.log(`[SMS Scheduler] Sending scheduled SMS to ${rec}...`);
                     const res = await sendSmsMessageDirectly(config, rec, message);
                     console.log(`[SMS Scheduler] Dispatch results: ${res.success ? 'SUCCESS' : 'FAILED: ' + res.error}`);
                     await saveSmsLog(schedule.device_id, rec, message, res.success ? 'SUCCESS' : 'FAILED', res.success ? null : res.error);
-                }
+                }));
+
+                await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP WHERE id = $1', [schedule.id]);
             } catch (innerErr) {
                 console.error(`[SMS Scheduler Error] Failed to process schedule ID ${schedule.id}:`, innerErr);
             }

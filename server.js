@@ -1542,6 +1542,7 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
                     console.log(`[Instant SMS Triggers] Dispatch to ${rec}: ${res.success ? 'Success' : 'Failed (' + res.error + ')'}`);
                     await saveSmsLog(deviceId, rec, message, res.success ? 'SUCCESS' : 'FAILED', res.success ? null : res.error);
                 }
+            }
             } catch (innerErr) {
                 console.error(`[SMS Real-Time Triggers Check Loop Error] Failed to process schedule ID ${schedule.id}:`, innerErr);
             }

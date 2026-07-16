@@ -115,6 +115,11 @@ mqttClient.on('message', async (topic, message) => {
             checkDeviceThresholdAlerts(deviceId, levelVal, volumeVal).catch(err => {
                 console.error('[SMS Trigger Error] Error checking threshold alerts:', err);
             });
+
+            // Also check for scheduled SMS tasks using telemetry as a reliable active clock heartbeat
+            runScheduleCheckWithRateLimit().catch(err => {
+                console.error('[MQTT Schedule Check Error] Failed to run schedule check:', err);
+            });
         }
     } catch (err) {
         console.error('[MQTT Server Listener] Error processing packet:', err);
@@ -299,6 +304,11 @@ const server = http.createServer(async (req, res) => {
                 // Check for threshold alerts and dispatch SMS if needed
                 checkDeviceThresholdAlerts(device_id, levelVal, volumeVal).catch(err => {
                     console.error('[SMS Trigger Error] Error checking threshold alerts on HTTP telemetry:', err);
+                });
+
+                // Also check for scheduled SMS tasks using telemetry as a reliable active clock heartbeat
+                runScheduleCheckWithRateLimit().catch(err => {
+                    console.error('[HTTP Schedule Check Error] Failed to run schedule check:', err);
                 });
                 
                 // Get or create device configuration
@@ -1247,6 +1257,20 @@ async function sendSmsMessageDirectly(config, recipient, messageText) {
         }
     }
     return lastResult;
+}
+
+let lastScheduleCheckTime = 0;
+
+async function runScheduleCheckWithRateLimit() {
+    const now = Date.now();
+    if (now - lastScheduleCheckTime >= 25000) {
+        lastScheduleCheckTime = now;
+        try {
+            await runScheduleCheck();
+        } catch (err) {
+            console.error('[Telemetry Schedule Check Error]:', err);
+        }
+    }
 }
 
 function getFormattedLocalTimestamp(offsetInMinutes) {

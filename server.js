@@ -301,15 +301,19 @@ const server = http.createServer(async (req, res) => {
                     [device_id, levelVal, volumeVal, dataUsageVal, versionVal]
                 );
                 
-                // Check for threshold alerts and dispatch SMS if needed
-                checkDeviceThresholdAlerts(device_id, levelVal, volumeVal).catch(err => {
+                // Check for threshold alerts and dispatch SMS if needed (awaited to prevent serverless freeze)
+                try {
+                    await checkDeviceThresholdAlerts(device_id, levelVal, volumeVal);
+                } catch (err) {
                     console.error('[SMS Trigger Error] Error checking threshold alerts on HTTP telemetry:', err);
-                });
+                }
 
-                // Also check for scheduled SMS tasks using telemetry as a reliable active clock heartbeat
-                runScheduleCheckWithRateLimit().catch(err => {
+                // Also check for scheduled SMS tasks using telemetry as a reliable active clock heartbeat (awaited to prevent serverless freeze)
+                try {
+                    await runScheduleCheckWithRateLimit();
+                } catch (err) {
                     console.error('[HTTP Schedule Check Error] Failed to run schedule check:', err);
-                });
+                }
                 
                 // Get or create device configuration
                 let configRes = await pool.query(
@@ -1394,10 +1398,6 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
             [deviceId]
         );
 
-        if (schedulesRes.rows.length === 0) {
-            return;
-        }
-
         const tankHeight = parseFloat(config.tank_height) || 200.0;
         const tankDiameter = parseFloat(config.tank_diameter) || 228.0;
         const numTanks = parseInt(config.num_tanks, 10) || 1;
@@ -1411,6 +1411,73 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
             percent = (parseFloat(volume) / totalMaxVol) * 100;
         }
         percent = Math.min(Math.max(percent, 0), 100);
+
+        // 1. Evaluate default device-level threshold alerts (low, high, normal) if enabled
+        if (config.sms_alert_enabled && config.sms_recipient_numbers) {
+            const alertMin = parseFloat(config.alert_min) || 20.0;
+            const alertMax = parseFloat(config.alert_max) || 90.0;
+            const recoveryMargin = parseFloat(config.recovery_margin) || 5.0;
+            const lastState = config.last_alert_state || 'NORMAL';
+            const recipients = (config.sms_recipient_numbers || '').split(',').map(n => n.trim()).filter(Boolean);
+
+            let newState = lastState;
+            let triggerAlert = false;
+            let alertMsg = '';
+
+            if (percent < alertMin) {
+                if (lastState !== 'LOW') {
+                    newState = 'LOW';
+                    triggerAlert = true;
+                    alertMsg = config.sms_msg_low || '⚠️ ALERT: Water level is critically LOW at [Percent]%! (Below [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
+                }
+            } else if (percent > alertMax) {
+                if (lastState !== 'HIGH') {
+                    newState = 'HIGH';
+                    triggerAlert = true;
+                    alertMsg = config.sms_msg_high || '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
+                }
+            } else if (percent >= (alertMin + recoveryMargin) && percent <= (alertMax - recoveryMargin)) {
+                if (lastState === 'LOW' || lastState === 'HIGH') {
+                    newState = 'NORMAL';
+                    triggerAlert = true;
+                    alertMsg = config.sms_msg_normal || '✅ UPDATE: Water level has recovered to [Percent]%. Device ID: [Device]. Time: [Timestamp]';
+                }
+            }
+
+            if (newState !== lastState) {
+                await pool.query(
+                    `UPDATE w_device_config SET last_alert_state = $1 WHERE device_id = $2`,
+                    [newState, deviceId]
+                );
+                console.log(`[Device SMS Alert State] ${deviceId} state changed from ${lastState} to ${newState}`);
+            }
+
+            if (triggerAlert && alertMsg && recipients.length > 0) {
+                const tzOffset = config.timezone_offset !== null && config.timezone_offset !== undefined ? parseInt(config.timezone_offset, 10) : 0;
+                const timestamp = getFormattedLocalTimestamp(tzOffset);
+                const dailyUsage = await getTodayDeviceUsage(deviceId, tzOffset, config);
+                let thresholdValue = newState === 'LOW' ? alertMin.toFixed(0) : (newState === 'HIGH' ? alertMax.toFixed(0) : '');
+                
+                let message = alertMsg
+                    .replace(/\[Percent\]/g, percent.toFixed(0))
+                    .replace(/\[Threshold\]/g, thresholdValue)
+                    .replace(/\[Device\]/g, deviceId)
+                    .replace(/\[Timestamp\]/g, timestamp)
+                    .replace(/\[DailyUsage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`)
+                    .replace(/\[Usage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`);
+
+                await Promise.all(recipients.map(async (rec) => {
+                    const res = await sendSmsMessageDirectly(config, rec, message);
+                    console.log(`[Device Default SMS Triggers] Dispatch to ${rec}: ${res.success ? 'Success' : 'Failed (' + res.error + ')'}`);
+                    await saveSmsLog(deviceId, rec, message, res.success ? 'SUCCESS' : 'FAILED', res.success ? null : res.error);
+                }));
+            }
+        }
+
+        // 2. Evaluate custom schedules
+        if (schedulesRes.rows.length === 0) {
+            return;
+        }
 
         const now = new Date();
 
@@ -1615,8 +1682,8 @@ async function runScheduleCheck() {
                         continue;
                     }
 
-                    // If the scheduled time was more than 45 minutes ago, skip it (avoid stale alerts)
-                    if (localTime.getTime() - schedLocalToday.getTime() > 45 * 60 * 1000) {
+                    // If the scheduled time was more than 180 minutes ago, skip it (avoid stale alerts)
+                    if (localTime.getTime() - schedLocalToday.getTime() > 180 * 60 * 1000) {
                         continue;
                     }
 

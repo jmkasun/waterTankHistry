@@ -3280,19 +3280,37 @@
 
                     let indFillingRate = 0;
                     let indOutflowRate = 0;
+                    let pointMotor = 'None (Stable/Discharging)';
+                    let pointColor = '#3b82f6';
+                    let pointBorder = '#1d4ed8';
+                    let isUptrend = false;
+                    let displayOverallRate = 0;
 
                     const interval = findIntervalForIndex(i);
                     if (interval) {
+                        isUptrend = true;
+                        displayOverallRate = interval.overallRate;
+
                         const m1Rate = parseFloat(document.getElementById('motor1RateInput')?.value || '1000');
                         const m2Rate = parseFloat(document.getElementById('motor2RateInput')?.value || '5000');
-                        let activeMotorRate = 0;
-                        if (interval.motor.includes('Motor 1')) {
-                            activeMotorRate = m1Rate;
-                        } else if (interval.motor.includes('Motor 2')) {
-                            activeMotorRate = m2Rate;
-                        }
+                        const threshold = parseFloat(document.getElementById('pumpThresholdInput')?.value || '2500');
 
                         indFillingRate = Math.max(0, indRate);
+                        let activeMotorRate = m1Rate;
+
+                        // Classify motor at this specific point individually based on its individual filling rate
+                        if (indFillingRate >= threshold) {
+                            pointMotor = 'Motor 2 (2-inch Pipe)';
+                            pointColor = '#10b981'; // Emerald
+                            pointBorder = '#047857';
+                            activeMotorRate = m2Rate;
+                        } else {
+                            pointMotor = 'Motor 1 (1-inch Pipe)';
+                            pointColor = '#5a8f6a'; // Muted sage green
+                            pointBorder = '#3a5f45';
+                            activeMotorRate = m1Rate;
+                        }
+
                         indOutflowRate = Math.max(0, activeMotorRate - indFillingRate);
                     } else {
                         if (indRate > 0) {
@@ -3305,13 +3323,13 @@
                     }
 
                     if (interval) {
-                        pointBackgroundColors.push(interval.color);
-                        pointBorderColors.push(interval.borderColor);
+                        pointBackgroundColors.push(pointColor);
+                        pointBorderColors.push(pointBorder);
                         pointRadii.push(4.5);
                         pointHoverRadii.push(7.5);
                         pointMotorLabels.push({ 
-                            motor: interval.motor, 
-                            rate: interval.overallRate, 
+                            motor: pointMotor, 
+                            rate: displayOverallRate, 
                             isUptrend: true,
                             indFillingRate: indFillingRate,
                             indOutflowRate: indOutflowRate

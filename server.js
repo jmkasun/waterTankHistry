@@ -1402,13 +1402,21 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
         const tankDiameter = parseFloat(config.tank_diameter) || 228.0;
         const numTanks = parseInt(config.num_tanks, 10) || 1;
 
+        const radius = tankDiameter / 2.0;
+        const crossSectionArea = Math.PI * radius * radius; // cm^2
+        let displayLevel = level !== null && level !== undefined ? parseFloat(level) : 0;
+        let displayVolume = volume !== null && volume !== undefined ? parseFloat(volume) : 0;
+
         let percent = 0;
         if (level !== null && level !== undefined) {
             percent = (parseFloat(level) / tankHeight) * 100;
+            if (volume === null || volume === undefined) {
+                displayVolume = (crossSectionArea * displayLevel * numTanks) / 1000.0;
+            }
         } else if (volume !== null && volume !== undefined) {
-            const singleMaxVol = (Math.PI * Math.pow(tankDiameter / 2, 2) * tankHeight) / 1000;
-            const totalMaxVol = singleMaxVol * numTanks;
+            const totalMaxVol = ((crossSectionArea * tankHeight) / 1000) * numTanks;
             percent = (parseFloat(volume) / totalMaxVol) * 100;
+            displayLevel = (displayVolume * 1000.0) / (crossSectionArea * numTanks);
         }
         percent = Math.min(Math.max(percent, 0), 100);
 
@@ -1459,10 +1467,12 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
                 let thresholdValue = newState === 'LOW' ? alertMin.toFixed(0) : (newState === 'HIGH' ? alertMax.toFixed(0) : '');
                 
                 let message = alertMsg
-                    .replace(/\[Percent\]/g, percent.toFixed(0))
+                    .replace(/\[Percent\]/g, `${percent.toFixed(0)}%`)
                     .replace(/\[Threshold\]/g, thresholdValue)
                     .replace(/\[Device\]/g, deviceId)
                     .replace(/\[Timestamp\]/g, timestamp)
+                    .replace(/\[Volume\]/g, `${displayVolume.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} L`)
+                    .replace(/\[Depth\]/g, `${displayLevel.toFixed(1)} cm`)
                     .replace(/\[DailyUsage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`)
                     .replace(/\[Usage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`);
 
@@ -1619,10 +1629,12 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
                 const timestamp = getFormattedLocalTimestamp(tzOffset);
                 const dailyUsage = await getTodayDeviceUsage(deviceId, tzOffset, config);
                 let message = template
-                    .replace(/\[Percent\]/g, percent.toFixed(0))
+                    .replace(/\[Percent\]/g, `${percent.toFixed(0)}%`)
                     .replace(/\[Threshold\]/g, thresholdValue)
                     .replace(/\[Device\]/g, deviceId)
                     .replace(/\[Timestamp\]/g, timestamp)
+                    .replace(/\[Volume\]/g, `${displayVolume.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} L`)
+                    .replace(/\[Depth\]/g, `${displayLevel.toFixed(1)} cm`)
                     .replace(/\[DailyUsage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`)
                     .replace(/\[Usage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`);
 

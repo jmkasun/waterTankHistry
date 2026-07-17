@@ -37,7 +37,7 @@
 #define PREF_NAMESPACE "hydrosync-cfg"
 
 // --- Firmware Version ---
-#define FIRMWARE_VERSION "1.651"
+#define FIRMWARE_VERSION "1.656"
 
 // --- Global Classes ---
 WebServer server(80);
@@ -1263,6 +1263,44 @@ void loop() {
                     Serial.printf("[HTTP] Telemetry POST failed, error: %s\n", http.errorToString(httpResponseCode).c_str());
                 }
                 http.end();
+
+                // Trigger the SMS schedule check/cron endpoint on the server to run automation and scheduled SMS tasks
+                // To avoid overloading the server, we rate-limit this GET request to once every 60 seconds.
+                static unsigned long lastCronCallTime = 0;
+                unsigned long nowMs = millis();
+                if (lastCronCallTime == 0 || nowMs - lastCronCallTime >= 60000) {
+                    lastCronCallTime = nowMs;
+                    HTTPClient cronHttp;
+                    String cronEndpoint = apiServerUrl;
+                    if (!cronEndpoint.endsWith("/")) {
+                        cronEndpoint += "/";
+                    }
+                    cronEndpoint += "api/sms/cron";
+                    
+                    Serial.println("[HTTP] Triggering SMS schedule cron: " + cronEndpoint);
+                    int cronResponseCode = -1;
+                    
+                    if (cronEndpoint.startsWith("https://")) {
+                        WiFiClientSecure clientSecure;
+                        clientSecure.setInsecure();
+                        cronHttp.begin(clientSecure, cronEndpoint);
+                        cronHttp.setTimeout(3000);
+                        cronResponseCode = cronHttp.GET();
+                    } else {
+                        WiFiClient client;
+                        cronHttp.begin(client, cronEndpoint);
+                        cronHttp.setTimeout(3000);
+                        cronResponseCode = cronHttp.GET();
+                    }
+                    
+                    if (cronResponseCode > 0) {
+                        Serial.printf("[HTTP] SMS Cron success, response: %d\n", cronResponseCode);
+                        totalBytesSent += 200; // estimated data usage offset
+                    } else {
+                        Serial.printf("[HTTP] SMS Cron failed, error: %s\n", cronHttp.errorToString(cronResponseCode).c_str());
+                    }
+                    cronHttp.end();
+                }
             }
         }
     }

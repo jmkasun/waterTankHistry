@@ -1453,11 +1453,16 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
             }
 
             if (newState !== lastState) {
-                await pool.query(
-                    `UPDATE w_device_config SET last_alert_state = $1 WHERE device_id = $2`,
-                    [newState, deviceId]
+                const updateStateRes = await pool.query(
+                    `UPDATE w_device_config SET last_alert_state = $1 WHERE device_id = $2 AND (last_alert_state = $3 OR (last_alert_state IS NULL AND $3 = 'NORMAL'))`,
+                    [newState, deviceId, lastState]
                 );
-                console.log(`[Device SMS Alert State] ${deviceId} state changed from ${lastState} to ${newState}`);
+                if (updateStateRes.rowCount === 0) {
+                    triggerAlert = false;
+                    console.log(`[Device SMS Alert State] ${deviceId} state update failed (concurrent update). Skipping SMS.`);
+                } else {
+                    console.log(`[Device SMS Alert State] ${deviceId} state changed from ${lastState} to ${newState}`);
+                }
             }
 
             if (triggerAlert && alertMsg && recipients.length > 0) {
@@ -1602,11 +1607,17 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
             }
 
             if (nextTriggerStatus !== triggerStatus) {
-                await pool.query(
-                    `UPDATE w_sms_schedules SET trigger_status = $1 WHERE id = $2`,
-                    [nextTriggerStatus, schedule.id]
+                // ATOMIC STATE CHANGE: Update trigger_status atomically to ensure only one process triggers the SMS
+                const updateTriggerRes = await pool.query(
+                    `UPDATE w_sms_schedules SET trigger_status = $1 WHERE id = $2 AND trigger_status = $3`,
+                    [nextTriggerStatus, schedule.id, triggerStatus]
                 );
-                console.log(`[Instant SMS Triggers] Schedule ID ${schedule.id} trigger_status updated from ${triggerStatus} to ${nextTriggerStatus}. Reason: ${conditionDesc}`);
+                if (updateTriggerRes.rowCount === 0) {
+                    conditionMet = false;
+                    console.log(`[Instant SMS Triggers] Schedule ID ${schedule.id} trigger_status update failed (concurrent update). Skipping SMS.`);
+                } else {
+                    console.log(`[Instant SMS Triggers] Schedule ID ${schedule.id} trigger_status updated from ${triggerStatus} to ${nextTriggerStatus}. Reason: ${conditionDesc}`);
+                }
             }
 
             if (conditionMet) {
@@ -1711,6 +1722,18 @@ async function runScheduleCheck() {
                         if (isSameDay && lastRunLocal.getTime() >= schedLocalToday.getTime()) {
                             continue;
                         }
+                    }
+
+                    // ATOMIC LOCK: Claim this execution instance atomically in PostgreSQL before sending SMS to avoid multiple parallel runs
+                    const updateRes = await pool.query(
+                        `UPDATE w_sms_schedules 
+                         SET last_run = CURRENT_TIMESTAMP 
+                         WHERE id = $1 AND (last_run IS NULL OR last_run = $2 OR last_run < CURRENT_TIMESTAMP - INTERVAL '1 minute')`,
+                        [schedule.id, schedule.last_run]
+                    );
+                    if (updateRes.rowCount === 0) {
+                        console.log(`[SMS Scheduler] Schedule ID ${schedule.id} already claimed or updated by concurrent run. Skipping.`);
+                        continue;
                     }
                 }
 
@@ -1839,11 +1862,17 @@ async function runScheduleCheck() {
                     }
 
                     if (nextTriggerStatus !== triggerStatus) {
-                        await pool.query(
-                            `UPDATE w_sms_schedules SET trigger_status = $1 WHERE id = $2`,
-                            [nextTriggerStatus, schedule.id]
+                        // ATOMIC STATE CHANGE: Update trigger_status atomically to ensure only one process triggers the SMS
+                        const updateTriggerRes = await pool.query(
+                            `UPDATE w_sms_schedules SET trigger_status = $1 WHERE id = $2 AND trigger_status = $3`,
+                            [nextTriggerStatus, schedule.id, triggerStatus]
                         );
-                        console.log(`[SMS Scheduler] Schedule ID ${schedule.id} trigger_status updated from ${triggerStatus} to ${nextTriggerStatus}. Reason: ${conditionDesc}`);
+                        if (updateTriggerRes.rowCount === 0) {
+                            conditionMet = false;
+                            console.log(`[SMS Scheduler] Schedule ID ${schedule.id} trigger_status update failed (concurrent update). Skipping SMS.`);
+                        } else {
+                            console.log(`[SMS Scheduler] Schedule ID ${schedule.id} trigger_status updated from ${triggerStatus} to ${nextTriggerStatus}. Reason: ${conditionDesc}`);
+                        }
                     }
 
                     if (!conditionMet) {
@@ -1855,7 +1884,6 @@ async function runScheduleCheck() {
                                 await saveSmsLog(schedule.device_id, rec, skipMsg, 'SKIPPED', `Condition not met: ${conditionDesc}`);
                             }
                         }
-                        await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP WHERE id = $1', [schedule.id]);
                         continue;
                     }
                 }

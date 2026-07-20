@@ -2932,7 +2932,7 @@
 
             if (currentChartTab === 'water') {
                 const labels = analyticsData.usage.map(r => r.usage_date);
-                const values = analyticsData.usage.map(r => parseFloat(r.daily_water_used || 0));
+                const values = analyticsData.usage.map(r => Math.round(parseFloat(r.daily_water_used || 0) / 10) * 10);
 
                 chartConfig = {
                     type: 'bar',
@@ -3107,7 +3107,7 @@
                         return dateStr + ' ' + d.getHours() + ':00';
                     }
                 });
-                const volumes = historyRows.map(r => r.avg_volume !== null ? parseFloat(r.avg_volume) : null);
+                const volumes = historyRows.map(r => r.avg_volume !== null ? Math.round(parseFloat(r.avg_volume) / 10) * 10 : null);
 
                 // Precompute point-specific styles and metadata for exact motor categorization
                 // 1. Identify all contiguous non-null segments
@@ -3460,17 +3460,17 @@
                                                     const pct = (context.parsed.y / totalMaxVol) * 100;
                                                     return [
                                                         `Water Level Percentage: ${pct.toFixed(1)}%`,
-                                                        `Water Volume: ${context.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 1 })} L`
+                                                        `Water Volume: ${context.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 0 })} L`
                                                     ];
                                                 } else {
-                                                    return `Water Volume: ${context.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 1 })} L`;
+                                                    return `Water Volume: ${context.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 0 })} L`;
                                                 }
                                             } else {
                                                 // Alert threshold lines
                                                 let pctValue = 0;
                                                 if (context.datasetIndex === 1) pctValue = alertThresholds.min;
                                                 else if (context.datasetIndex === 2) pctValue = alertThresholds.max;
-                                                return `${label}: ${pctValue.toFixed(0)}% (${context.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 1 })} L)`;
+                                                return `${label}: ${pctValue.toFixed(0)}% (${context.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 0 })} L)`;
                                             }
                                         }
                                         return label;

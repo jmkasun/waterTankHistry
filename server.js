@@ -1476,7 +1476,7 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
                     .replace(/\[Threshold\]/g, thresholdValue)
                     .replace(/\[Device\]/g, deviceId)
                     .replace(/\[Timestamp\]/g, timestamp)
-                    .replace(/\[Volume\]/g, `${displayVolume.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} L`)
+                    .replace(/\[Volume\]/g, `${(Math.round(displayVolume / 10) * 10).toLocaleString()} L`)
                     .replace(/\[Depth\]/g, `${displayLevel.toFixed(1)} cm`)
                     .replace(/\[DailyUsage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`)
                     .replace(/\[Usage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`);
@@ -1644,7 +1644,7 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
                     .replace(/\[Threshold\]/g, thresholdValue)
                     .replace(/\[Device\]/g, deviceId)
                     .replace(/\[Timestamp\]/g, timestamp)
-                    .replace(/\[Volume\]/g, `${displayVolume.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} L`)
+                    .replace(/\[Volume\]/g, `${(Math.round(displayVolume / 10) * 10).toLocaleString()} L`)
                     .replace(/\[Depth\]/g, `${displayLevel.toFixed(1)} cm`)
                     .replace(/\[DailyUsage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`)
                     .replace(/\[Usage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`);
@@ -1919,7 +1919,7 @@ async function runScheduleCheck() {
                     message = message
                         .replace(/\[Device\]/g, schedule.device_id)
                         .replace(/\[Percent\]/g, `${percent.toFixed(0)}%`)
-                        .replace(/\[Volume\]/g, `${volume.toLocaleString()} L`)
+                        .replace(/\[Volume\]/g, `${(Math.round(volume / 10) * 10).toLocaleString()} L`)
                         .replace(/\[Depth\]/g, `${depth.toFixed(1)} cm`)
                         .replace(/\[Timestamp\]/g, getFormattedLocalTimestamp(schedule.timezone_offset))
                         .replace(/\[DailyUsage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`)

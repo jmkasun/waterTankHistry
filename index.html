@@ -3459,7 +3459,7 @@
                                                 if (typeof totalMaxVol === 'number' && totalMaxVol > 0) {
                                                     const pct = (context.parsed.y / totalMaxVol) * 100;
                                                     return [
-                                                        `Water Level Percentage: ${pct.toFixed(1)}%`,
+                                                        `Water Level Percentage: ${pct.toFixed(0)}%`,
                                                         `Water Volume: ${context.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 0 })} L`
                                                     ];
                                                 } else {

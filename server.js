@@ -1244,8 +1244,8 @@ async function sendSmsMessageDirectly(config, recipient, messageText) {
         try {
             if (attempt > 1) {
                 console.log(`[SMS Retry] Retrying transmission to ${recipient}. Attempt ${attempt} of ${maxAttempts}...`);
-                // Wait for a brief period before retrying
-                await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt - 1)));
+                // Wait for 3 seconds before retrying to prevent rapid-fire failures
+                await new Promise((resolve) => setTimeout(resolve, 3000));
             }
             lastResult = await sendSmsMessageDirectlyRaw(config, recipient, messageText);
             if (lastResult.success) {
@@ -1481,11 +1481,16 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
                     .replace(/\[DailyUsage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`)
                     .replace(/\[Usage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`);
 
-                await Promise.all(recipients.map(async (rec) => {
+                for (let i = 0; i < recipients.length; i++) {
+                    const rec = recipients[i];
+                    if (i > 0) {
+                        console.log(`[Device Default SMS Triggers] Waiting 3 seconds before sending to next recipient (${rec})...`);
+                        await new Promise((resolve) => setTimeout(resolve, 3000));
+                    }
                     const res = await sendSmsMessageDirectly(config, rec, message);
                     console.log(`[Device Default SMS Triggers] Dispatch to ${rec}: ${res.success ? 'Success' : 'Failed (' + res.error + ')'}`);
                     await saveSmsLog(deviceId, rec, message, res.success ? 'SUCCESS' : 'FAILED', res.success ? null : res.error);
-                }));
+                }
             }
         }
 
@@ -1650,11 +1655,16 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
                     .replace(/\[Usage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`);
 
                 const recipients = (schedule.recipient_numbers || '').split(',').map(n => n.trim()).filter(Boolean);
-                await Promise.all(recipients.map(async (rec) => {
+                for (let i = 0; i < recipients.length; i++) {
+                    const rec = recipients[i];
+                    if (i > 0) {
+                        console.log(`[Instant SMS Triggers] Waiting 3 seconds before sending to next recipient (${rec})...`);
+                        await new Promise((resolve) => setTimeout(resolve, 3000));
+                    }
                     const res = await sendSmsMessageDirectly(config, rec, message);
                     console.log(`[Instant SMS Triggers] Dispatch to ${rec}: ${res.success ? 'Success' : 'Failed (' + res.error + ')'}`);
                     await saveSmsLog(deviceId, rec, message, res.success ? 'SUCCESS' : 'FAILED', res.success ? null : res.error);
-                }));
+                }
 
                 await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP WHERE id = $1', [schedule.id]);
             }
@@ -1933,12 +1943,17 @@ async function runScheduleCheck() {
                 }
 
                 const recipients = (schedule.recipient_numbers || '').split(',').map(n => n.trim()).filter(Boolean);
-                await Promise.all(recipients.map(async (rec) => {
+                for (let i = 0; i < recipients.length; i++) {
+                    const rec = recipients[i];
+                    if (i > 0) {
+                        console.log(`[SMS Scheduler] Waiting 3 seconds before sending to next recipient (${rec})...`);
+                        await new Promise((resolve) => setTimeout(resolve, 3000));
+                    }
                     console.log(`[SMS Scheduler] Sending scheduled SMS to ${rec}...`);
                     const res = await sendSmsMessageDirectly(config, rec, message);
                     console.log(`[SMS Scheduler] Dispatch results: ${res.success ? 'SUCCESS' : 'FAILED: ' + res.error}`);
                     await saveSmsLog(schedule.device_id, rec, message, res.success ? 'SUCCESS' : 'FAILED', res.success ? null : res.error);
-                }));
+                }
 
                 await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP WHERE id = $1', [schedule.id]);
             } catch (innerErr) {

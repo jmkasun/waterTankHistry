@@ -943,7 +943,7 @@
                         <!-- API Mode Selector -->
                         <div class="flex flex-col gap-1.5">
                             <label class="text-[10px] uppercase tracking-wider font-bold text-slate-400">SMS Gateway Protocol</label>
-                            <div class="grid grid-cols-2 gap-2">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                 <label class="flex items-center gap-2 bg-slate-950/50 border border-slate-800 rounded-xl p-3 cursor-pointer hover:border-cyan-500/50 transition">
                                     <input type="radio" name="sms_api_mode" value="v3" checked class="text-cyan-500 focus:ring-cyan-500" onchange="toggleSmsEndpointInputs()">
                                     <span class="text-xs text-slate-200 font-semibold">OAuth v3 JSON</span>
@@ -952,16 +952,21 @@
                                     <input type="radio" name="sms_api_mode" value="http" class="text-cyan-500 focus:ring-cyan-500" onchange="toggleSmsEndpointInputs()">
                                     <span class="text-xs text-slate-200 font-semibold">HTTP GET API</span>
                                 </label>
+                                <label class="flex items-center gap-2 bg-slate-950/50 border border-slate-800 rounded-xl p-3 cursor-pointer hover:border-cyan-500/50 transition">
+                                    <input type="radio" name="sms_api_mode" value="dialog_esms" class="text-cyan-500 focus:ring-cyan-500" onchange="toggleSmsEndpointInputs()">
+                                    <span class="text-xs text-slate-200 font-semibold">Dialog eSMS</span>
+                                </label>
                             </div>
                         </div>
 
                         <!-- API Token -->
                         <div class="flex flex-col gap-1.5">
                             <label class="text-[10px] uppercase tracking-wider font-bold text-slate-400 flex justify-between items-center">
-                                <span>API Token / Bearer Key</span>
+                                <span id="lblSmsApiToken">API Token / Bearer Key</span>
                                 <button type="button" onclick="toggleApiTokenVisibility()" class="text-cyan-400 hover:text-cyan-300 text-[10px] lowercase">toggle visibility</button>
                             </label>
                             <input id="sms_api_token" type="password" value="5812|zSz889GfK4tAKEJO3PaYaPOyw3kUW86LRgLbu7JSd908c821" placeholder="Enter Text.lk API token..." class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
+                            <span id="lblSmsApiTokenHint" class="text-[10px] text-slate-500 mt-1 leading-relaxed hidden">Hint: You can enter your <strong>username:password</strong> for auto-token refresh to prevent expiration.</span>
                         </div>
 
                         <!-- Sender ID -->
@@ -972,7 +977,7 @@
 
                         <!-- Endpoint URLs -->
                         <div id="rowOauthEndpoint" class="flex flex-col gap-1.5">
-                            <label class="text-[10px] uppercase tracking-wider font-bold text-slate-400">OAuth API v3 Base URL</label>
+                            <label id="lblOauthEndpoint" class="text-[10px] uppercase tracking-wider font-bold text-slate-400">OAuth API v3 Base URL</label>
                             <input id="sms_oauth_endpoint" type="url" value="https://app.text.lk/api/v3/" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
                         </div>
 
@@ -3738,13 +3743,37 @@
             const mode = document.querySelector('input[name="sms_api_mode"]:checked').value;
             const rowOauth = document.getElementById('rowOauthEndpoint');
             const rowHttp = document.getElementById('rowHttpEndpoint');
+            const lblOauth = document.getElementById('lblOauthEndpoint');
+            const lblToken = document.getElementById('lblSmsApiToken');
+            const oauthInput = document.getElementById('sms_oauth_endpoint');
+
+            const hint = document.getElementById('lblSmsApiTokenHint');
 
             if (mode === 'v3') {
                 if (rowOauth) rowOauth.classList.remove('hidden');
                 if (rowHttp) rowHttp.classList.add('hidden');
+                if (lblOauth) lblOauth.textContent = 'OAuth API v3 Base URL';
+                if (lblToken) lblToken.textContent = 'API Token / Bearer Key';
+                const tokenInput = document.getElementById('sms_api_token');
+                if (tokenInput) tokenInput.placeholder = 'Enter Text.lk API token...';
+                if (oauthInput && (oauthInput.value === 'https://esms.dialog.lk/api/v1/sms' || oauthInput.value === 'https://esms.dialog.lk/api/v1/sms-send' || oauthInput.value === 'https://esms.dialog.lk/api/sms/send' || !oauthInput.value.trim())) {
+                    oauthInput.value = 'https://app.text.lk/api/v3/';
+                }
+                if (hint) hint.classList.add('hidden');
+            } else if (mode === 'dialog_esms') {
+                if (rowOauth) rowOauth.classList.add('hidden');
+                if (rowHttp) rowHttp.classList.add('hidden');
+                if (lblToken) lblToken.textContent = 'Message Key';
+                const tokenInput = document.getElementById('sms_api_token');
+                if (tokenInput) tokenInput.placeholder = 'Enter Dialog eSMS Message Key or username:password...';
+                if (hint) hint.classList.remove('hidden');
             } else {
                 if (rowOauth) rowOauth.classList.add('hidden');
                 if (rowHttp) rowHttp.classList.remove('hidden');
+                if (lblToken) lblToken.textContent = 'API Token / Key';
+                const tokenInput = document.getElementById('sms_api_token');
+                if (tokenInput) tokenInput.placeholder = 'Enter HTTP API token...';
+                if (hint) hint.classList.add('hidden');
             }
         }
 

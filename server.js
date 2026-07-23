@@ -681,83 +681,49 @@ const server = http.createServer(async (req, res) => {
                 tz = 'UTC';
             }
 
-            // Calculate daily usage using the robust window function or Method 1 flow-rate correction
+            // Calculate daily usage using 5-minute bucketed window aggregation to eliminate ultrasonic noise
             const result = await pool.query(
-                `WITH ordered_telemetry AS (
+                `WITH buckets AS (
                     SELECT 
-                        timestamp,
-                        volume,
-                        data_usage,
-                        AVG(volume) OVER (
-                            ORDER BY timestamp 
-                            ROWS BETWEEN 20 PRECEDING AND CURRENT ROW
-                        ) as smoothed_volume,
-                        LAG(data_usage) OVER (ORDER BY timestamp) as prev_data_usage,
-                        LAG(timestamp) OVER (ORDER BY timestamp) as prev_timestamp
+                        (timestamp AT TIME ZONE $5::text)::date as usage_date,
+                        date_trunc('hour', timestamp) + floor(extract(minute from timestamp) / 5) * interval '5 minutes' as bucket,
+                        AVG(volume) as vol,
+                        MAX(data_usage) as max_data_usage,
+                        MIN(data_usage) as min_data_usage
                     FROM w_telemetry
                     WHERE device_id = $1 AND timestamp >= $2 AND timestamp <= $3
-                ),
-                smoothed_deltas AS (
-                    SELECT
-                        timestamp,
-                        smoothed_volume,
-                        data_usage,
-                        prev_data_usage,
-                        LAG(smoothed_volume) OVER (ORDER BY timestamp) as prev_smoothed_volume,
-                        prev_timestamp
-                    FROM ordered_telemetry
+                    GROUP BY 1, 2
+                    ORDER BY bucket ASC
                 ),
                 deltas AS (
                     SELECT
-                        (timestamp AT TIME ZONE $8)::date as usage_date,
-                        CASE 
-                            -- Method 1: Flow Rate Correction
-                            WHEN $4 = 'method_1' THEN
-                                CASE
-                                    WHEN prev_timestamp IS NOT NULL AND prev_smoothed_volume IS NOT NULL AND timestamp > prev_timestamp THEN
-                                        CASE
-                                            -- If water level is rising (smoothed_volume > prev_smoothed_volume)
-                                            WHEN smoothed_volume > prev_smoothed_volume THEN
-                                                CASE
-                                                    -- Motor 2 (2-inch)
-                                                    WHEN ((smoothed_volume - prev_smoothed_volume) / (EXTRACT(EPOCH FROM (timestamp - prev_timestamp)) / 3600.0)) >= $7 THEN
-                                                        GREATEST(0, ($6 * (EXTRACT(EPOCH FROM (timestamp - prev_timestamp)) / 3600.0)) - (smoothed_volume - prev_smoothed_volume))
-                                                    -- Motor 1 (1-inch)
-                                                    ELSE
-                                                        GREATEST(0, ($5 * (EXTRACT(EPOCH FROM (timestamp - prev_timestamp)) / 3600.0)) - (smoothed_volume - prev_smoothed_volume))
-                                                END
-                                            -- If water level is falling or stable
-                                            ELSE
-                                                GREATEST(0, prev_smoothed_volume - smoothed_volume)
-                                        END
-                                    ELSE 0
-                                END
-                            -- Method 0: Standard Net Delta Only
-                            ELSE
-                                CASE 
-                                    WHEN prev_smoothed_volume IS NOT NULL AND prev_smoothed_volume > smoothed_volume THEN prev_smoothed_volume - smoothed_volume 
-                                    ELSE 0 
-                                END
-                        END as water_outflow,
+                        usage_date,
+                        bucket,
+                        vol,
+                        LAG(vol) OVER (ORDER BY bucket) as prev_vol,
                         CASE
-                            WHEN prev_data_usage IS NOT NULL AND data_usage >= prev_data_usage THEN data_usage - prev_data_usage
-                            WHEN prev_data_usage IS NOT NULL AND data_usage < prev_data_usage THEN
-                                CASE
-                                    WHEN data_usage < (prev_data_usage / 2) OR data_usage < 5000 THEN data_usage
-                                    ELSE 0
-                                END
+                            WHEN max_data_usage IS NOT NULL AND min_data_usage IS NOT NULL AND max_data_usage >= min_data_usage THEN max_data_usage - min_data_usage
                             ELSE 0
                         END as data_increment
-                    FROM smoothed_deltas
+                    FROM buckets
                 )
                 SELECT 
                     usage_date::text as usage_date,
-                    ROUND(SUM(water_outflow)::numeric, 1) as daily_water_used,
+                    ROUND(SUM(
+                        CASE
+                            -- Volume drop >= 10 L: direct water outflow
+                            WHEN prev_vol IS NOT NULL AND (prev_vol - vol) >= 10 THEN (prev_vol - vol)
+                            -- Volume rise >= 100 L: pump filling tank
+                            WHEN prev_vol IS NOT NULL AND (vol - prev_vol) >= 100 THEN
+                                GREATEST(0, ($4::numeric * 5.0 / 60.0) - (vol - prev_vol))
+                            ELSE 0
+                        END
+                    )::numeric, 1) as daily_water_used,
                     ROUND((SUM(data_increment) / 1024.0)::numeric, 2) as daily_data_used_kb
                 FROM deltas
                 GROUP BY usage_date
                 ORDER BY usage_date ASC`,
-                [deviceId, startDate, endDate, method, motor1_rate, motor2_rate, threshold, tz]
+                [deviceId, startDate, endDate, motor2_rate, tz]
             );
 
             sendJSON(res, { success: true, data: result.rows });
@@ -805,6 +771,14 @@ const server = http.createServer(async (req, res) => {
                 config.sms_msg_normal = config.sms_msg_normal || 'ℹ️ RECOVERY: Water level is back to NORMAL range: [Percent]%. Device ID: [Device]. Time: [Timestamp]';
                 config.timezone_offset = config.timezone_offset !== undefined && config.timezone_offset !== null ? config.timezone_offset : 0;
                 config.recovery_margin = config.recovery_margin !== undefined && config.recovery_margin !== null ? parseFloat(config.recovery_margin) : 5.0;
+                
+                // Self-healing for Dialog eSMS endpoint
+                if (config.sms_api_mode === 'dialog_esms') {
+                    if (!config.sms_oauth_endpoint || config.sms_oauth_endpoint.includes('app.text.lk') || config.sms_oauth_endpoint.includes('api/sms/send') || config.sms_oauth_endpoint.includes('api/v1/sms-send')) {
+                        config.sms_oauth_endpoint = 'https://esms.dialog.lk/api/v1/sms';
+                    }
+                }
+
                 sendJSON(res, { success: true, config });
             } else {
                 sendJSON(res, {
@@ -852,6 +826,13 @@ const server = http.createServer(async (req, res) => {
                 const tzOffset = timezone_offset !== undefined && timezone_offset !== null ? parseInt(timezone_offset, 10) : 0;
                 const margin = recovery_margin !== undefined && recovery_margin !== null ? parseFloat(recovery_margin) : 5.0;
 
+                let finalOauthUrl = sms_oauth_endpoint || 'https://app.text.lk/api/v3/';
+                if (sms_api_mode === 'dialog_esms') {
+                    if (!sms_oauth_endpoint || sms_oauth_endpoint.includes('app.text.lk') || sms_oauth_endpoint.includes('api/sms/send') || sms_oauth_endpoint.includes('api/v1/sms-send')) {
+                        finalOauthUrl = 'https://esms.dialog.lk/api/v1/sms';
+                    }
+                }
+
                 await pool.query(
                     `INSERT INTO w_device_config (
                         device_id, sms_api_mode, sms_oauth_endpoint, sms_http_endpoint, sms_api_token, sms_sender_id, sms_recipient_numbers, sms_alert_enabled, sms_msg_low, sms_msg_high, sms_msg_normal, timezone_offset, recovery_margin
@@ -873,7 +854,7 @@ const server = http.createServer(async (req, res) => {
                     [
                         device_id,
                         sms_api_mode || 'v3',
-                        sms_oauth_endpoint || 'https://app.text.lk/api/v3/',
+                        finalOauthUrl,
                         sms_http_endpoint || 'https://app.text.lk/api/http/',
                         sms_api_token || '5812|zSz889GfK4tAKEJO3PaYaPOyw3kUW86LRgLbu7JSd908c821',
                         sms_sender_id || 'TextLK',
@@ -1001,6 +982,7 @@ const server = http.createServer(async (req, res) => {
                 }
 
                 const smsConfig = {
+                    device_id: device_id || 'mytank123',
                     sms_api_mode: sms_api_mode || 'v3',
                     sms_oauth_endpoint: sms_oauth_endpoint || 'https://app.text.lk/api/v3/',
                     sms_http_endpoint: sms_http_endpoint || 'https://app.text.lk/api/http/',
@@ -1119,16 +1101,110 @@ async function saveSmsLog(deviceId, recipient, message, status, errorMessage = n
     }
 }
 
-async function sendSmsMessageDirectlyRaw(config, recipient, messageText) {
+// --- Dialog eSMS Auto-Login Cache and Helpers ---
+const dialogEsmsTokenCache = {};
+
+function performDialogEsmsLoginDirectly(username, password) {
     return new Promise((resolve) => {
+        const https = require('https');
+        const payload = JSON.stringify({ username, password });
+        const options = {
+            hostname: 'esms.dialog.lk',
+            port: 443,
+            path: '/api/v1/login',
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Content-Length': Buffer.byteLength(payload)
+            }
+        };
+
+        const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+                try {
+                    const json = JSON.parse(data);
+                    resolve(json);
+                } catch (e) {
+                    resolve({ error: 'Invalid JSON response from login endpoint', raw: data });
+                }
+            });
+        });
+
+        req.on('error', (err) => {
+            resolve({ error: err.message });
+        });
+
+        req.write(payload);
+        req.end();
+    });
+}
+
+async function getDialogEsmsToken(config) {
+    const rawToken = config.sms_api_token || config.api_token || '';
+    if (!rawToken.includes(':')) {
+        // Not a username:password combo, return raw token (manual JWT or API key)
+        return rawToken;
+    }
+
+    const deviceId = config.device_id || 'mytank123';
+    
+    // Check in-memory cache first
+    const cached = dialogEsmsTokenCache[deviceId];
+    if (cached && cached.token && cached.expiresAt > Date.now()) {
+        console.log(`[Dialog eSMS Auth] Using cached JWT token for ${deviceId}.`);
+        return cached.token;
+    }
+
+    const colonIndex = rawToken.indexOf(':');
+    const username = rawToken.substring(0, colonIndex);
+    const password = rawToken.substring(colonIndex + 1);
+
+    console.log(`[Dialog eSMS Auth] Token is credentials. Doing auto-login for user: ${username}...`);
+    try {
+        const tokenData = await performDialogEsmsLoginDirectly(username, password);
+        if (tokenData && tokenData.token) {
+            // Default token duration: 23 hours from now if no exp returned
+            let expiresAt = Date.now() + 23 * 3600 * 1000;
+            if (tokenData.expiration) {
+                const parsedExp = Date.parse(tokenData.expiration);
+                if (!isNaN(parsedExp)) {
+                    expiresAt = parsedExp - 5000; // 5s buffer
+                }
+            }
+            dialogEsmsTokenCache[deviceId] = {
+                token: tokenData.token,
+                expiresAt: expiresAt
+            };
+            console.log(`[Dialog eSMS Auth] Auto-login successful. Cached token for ${deviceId}.`);
+            return tokenData.token;
+        } else {
+            const errorMsg = tokenData.comment || tokenData.error || (tokenData.status === 'failed' ? 'Invalid credentials' : JSON.stringify(tokenData));
+            console.error(`[Dialog eSMS Auth] Auto-login failed for ${username}:`, errorMsg);
+            throw new Error(`Dialog eSMS login failed: ${errorMsg}`);
+        }
+    } catch (err) {
+        console.error(`[Dialog eSMS Auth] Auto-login error:`, err);
+        if (err.message && err.message.startsWith('Dialog eSMS login failed')) {
+            throw err;
+        }
+        throw new Error(`Dialog eSMS login system error: ${err.message}`);
+    }
+}
+
+async function sendSmsMessageDirectlyRaw(config, recipient, messageText) {
+    return new Promise(async (resolve) => {
         try {
             const mode = config.sms_api_mode || 'v3';
-            let targetUrl = mode === 'v3' ? (config.sms_oauth_endpoint || 'https://app.text.lk/api/v3/') : (config.sms_http_endpoint || 'https://app.text.lk/api/http/');
+            let targetUrl = '';
             let payload = '';
             let headers = {};
             let method = 'POST';
 
             if (mode === 'v3') {
+                targetUrl = config.sms_oauth_endpoint || 'https://app.text.lk/api/v3/';
                 if (!targetUrl.endsWith('/')) {
                     targetUrl += '/';
                 }
@@ -1148,7 +1224,34 @@ async function sendSmsMessageDirectlyRaw(config, recipient, messageText) {
                     message: messageText
                 });
                 method = 'POST';
+            } else if (mode === 'dialog_esms') {
+                targetUrl = 'https://esms.dialog.lk/api/v1/sms';
+                
+                // Dialog eSMS usually prefers the destination starting with country code e.g. 9477... without '+'
+                let cleanRecipient = recipient.trim();
+                if (cleanRecipient.startsWith('+')) {
+                    cleanRecipient = cleanRecipient.substring(1);
+                }
+                if (cleanRecipient.startsWith('0')) {
+                    cleanRecipient = '94' + cleanRecipient.substring(1);
+                } else if (cleanRecipient.length === 9 && /^[7][0-9]{8}$/.test(cleanRecipient)) {
+                    cleanRecipient = '94' + cleanRecipient;
+                }
+                
+                const tokenToUse = await getDialogEsmsToken(config);
+                payload = JSON.stringify({
+                    message: messageText,
+                    destination: cleanRecipient,
+                    messageKey: tokenToUse
+                });
+                headers = {
+                    'Authorization': `Bearer ${tokenToUse}`,
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                };
+                method = 'POST';
             } else {
+                targetUrl = config.sms_http_endpoint || 'https://app.text.lk/api/http/';
                 const urlObj = new URL(targetUrl);
                 urlObj.searchParams.set('api_token', config.sms_api_token || config.api_token);
                 urlObj.searchParams.set('recipient', recipient);
@@ -1186,18 +1289,25 @@ async function sendSmsMessageDirectlyRaw(config, recipient, messageText) {
                     try {
                         let isSuccess = false;
                         let errorDetail = '';
+                        let hasParsedJson = false;
 
                         try {
                             const resJson = JSON.parse(responseData);
+                            hasParsedJson = true;
                             if (resJson.success || resJson.status === 'success' || resJson.ok || resJson.status === true || resJson.status === 'sent') {
                                 isSuccess = true;
-                            } else if (resJson.error || resJson.message) {
-                                errorDetail = resJson.error || resJson.message;
+                            } else if (resJson.error || resJson.message || resJson.comment) {
+                                errorDetail = resJson.error || resJson.message || resJson.comment;
+                                isSuccess = false;
+                            } else if (resJson.status === 'failed' || resJson.errCode) {
+                                errorDetail = resJson.comment || `API Error Code ${resJson.errCode}`;
+                                isSuccess = false;
                             } else {
                                 if (resJson.message_id || resJson.id || resJson.data) {
                                     isSuccess = true;
                                 } else {
                                     errorDetail = JSON.stringify(resJson);
+                                    isSuccess = false;
                                 }
                             }
                         } catch (e) {
@@ -1209,7 +1319,14 @@ async function sendSmsMessageDirectlyRaw(config, recipient, messageText) {
                             }
                         }
 
-                        if (isSuccess || (smsRes.statusCode >= 200 && smsRes.statusCode < 300)) {
+                        let finalSuccess = false;
+                        if (hasParsedJson) {
+                            finalSuccess = isSuccess;
+                        } else {
+                            finalSuccess = isSuccess || (smsRes.statusCode >= 200 && smsRes.statusCode < 300);
+                        }
+
+                        if (finalSuccess) {
                             resolve({ success: true, rawResponse: responseData });
                         } else {
                             resolve({ success: false, error: errorDetail || 'Gateway returned an error status', rawResponse: responseData });
@@ -1255,9 +1372,32 @@ async function sendSmsMessageDirectly(config, recipient, messageText) {
                 return lastResult;
             }
             console.warn(`[SMS Retry] Attempt ${attempt} failed with error: ${lastResult.error || 'Gateway error'}`);
+
+            // Invalidate Dialog eSMS cached token on auth failure
+            if (config.sms_api_mode === 'dialog_esms') {
+                const errStr = String(lastResult.error || '').toLowerCase();
+                if (errStr.includes('expired') || errStr.includes('auth') || errStr.includes('token') || errStr.includes('105') || errStr.includes('106') || errStr.includes('invalid')) {
+                    const deviceId = config.device_id || 'mytank123';
+                    console.log(`[Dialog eSMS Auth] Clearing cached token for ${deviceId} due to auth error: ${lastResult.error}`);
+                    delete dialogEsmsTokenCache[deviceId];
+                }
+
+                // If it is a permanent credential issue (wrong username or password), do not retry
+                if (errStr.includes('username or password is invalid') || errStr.includes('invalid credentials')) {
+                    console.log(`[Dialog eSMS Auth] Permanent login failure detected. Aborting retries.`);
+                    break;
+                }
+            }
         } catch (err) {
             lastResult = { success: false, error: err.message };
             console.warn(`[SMS Retry] Attempt ${attempt} exception:`, err);
+
+            // If it is a permanent credential issue, do not retry
+            const errStr = String(err.message || '').toLowerCase();
+            if (errStr.includes('username or password is invalid') || errStr.includes('invalid credentials')) {
+                console.log(`[Dialog eSMS Auth] Permanent login failure in exception. Aborting retries.`);
+                break;
+            }
         }
     }
     return lastResult;
@@ -1300,7 +1440,7 @@ async function getTodayDeviceUsage(deviceId, offsetInMinutes, deviceConfig = nul
         
         const localMidnight = new Date(Date.UTC(localYear, localMonth, localDay));
         const utcStart = new Date(localMidnight.getTime() + (tzOffset * 60000));
-        const queryStart = new Date(utcStart.getTime() - 2 * 60 * 60 * 1000);
+        const queryStart = new Date(utcStart.getTime() - 10 * 60 * 1000);
 
         let motor1 = 1000.0;
         let motor2 = 5000.0;
@@ -1324,50 +1464,35 @@ async function getTodayDeviceUsage(deviceId, offsetInMinutes, deviceConfig = nul
         }
 
         const res = await pool.query(
-            `WITH ordered_telemetry AS (
+            `WITH buckets AS (
                 SELECT 
-                    timestamp,
-                    volume,
-                    AVG(volume) OVER (
-                        ORDER BY timestamp 
-                        ROWS BETWEEN 20 PRECEDING AND CURRENT ROW
-                    ) as smoothed_volume,
-                    LAG(timestamp) OVER (ORDER BY timestamp) as prev_timestamp
+                    date_trunc('hour', timestamp) + floor(extract(minute from timestamp) / 5) * interval '5 minutes' as bucket,
+                    AVG(volume) as vol
                 FROM w_telemetry
                 WHERE device_id = $1 AND timestamp >= $2 AND timestamp <= $3
-            ),
-            smoothed_deltas AS (
-                SELECT
-                    timestamp,
-                    smoothed_volume,
-                    LAG(smoothed_volume) OVER (ORDER BY timestamp) as prev_smoothed_volume,
-                    prev_timestamp
-                FROM ordered_telemetry
+                GROUP BY bucket
+                ORDER BY bucket ASC
             ),
             deltas AS (
                 SELECT
-                    timestamp,
-                    CASE 
-                        WHEN prev_timestamp IS NOT NULL AND prev_smoothed_volume IS NOT NULL AND timestamp > prev_timestamp THEN
-                            CASE
-                                WHEN smoothed_volume > prev_smoothed_volume THEN
-                                    CASE
-                                        WHEN ((smoothed_volume - prev_smoothed_volume) / (EXTRACT(EPOCH FROM (timestamp - prev_timestamp)) / 3600.0)) >= $6 THEN
-                                            GREATEST(0, ($5 * (EXTRACT(EPOCH FROM (timestamp - prev_timestamp)) / 3600.0)) - (smoothed_volume - prev_smoothed_volume))
-                                        ELSE
-                                            GREATEST(0, ($4 * (EXTRACT(EPOCH FROM (timestamp - prev_timestamp)) / 3600.0)) - (smoothed_volume - prev_smoothed_volume))
-                                    END
-                                ELSE
-                                    GREATEST(0, prev_smoothed_volume - smoothed_volume)
-                            END
-                        ELSE 0
-                    END as water_outflow
-                FROM smoothed_deltas
+                    bucket,
+                    vol,
+                    LAG(vol) OVER (ORDER BY bucket) as prev_vol
+                FROM buckets
             )
-            SELECT COALESCE(SUM(water_outflow), 0) as total_outflow
+            SELECT COALESCE(SUM(
+                CASE
+                    -- Volume drop >= 10 L: direct water outflow
+                    WHEN prev_vol IS NOT NULL AND (prev_vol - vol) >= 10 THEN (prev_vol - vol)
+                    -- Volume rise >= 100 L: pump filling tank
+                    WHEN prev_vol IS NOT NULL AND (vol - prev_vol) >= 100 THEN
+                        GREATEST(0, ($4 * 5.0 / 60.0) - (vol - prev_vol))
+                    ELSE 0
+                END
+            ), 0) as total_outflow
             FROM deltas
-            WHERE timestamp >= $7`,
-            [deviceId, queryStart.toISOString(), now.toISOString(), motor1, motor2, threshold, utcStart.toISOString()]
+            WHERE bucket >= $5`,
+            [deviceId, queryStart.toISOString(), now.toISOString(), motor2, utcStart.toISOString()]
         );
 
         if (res.rows.length > 0) {

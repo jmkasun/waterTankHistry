@@ -681,7 +681,7 @@ const server = http.createServer(async (req, res) => {
                 tz = 'UTC';
             }
 
-            // Calculate daily usage: when motor is OFF, use Net Tank Volume Difference; when motor is ON in a 5-min gap, compensate for motor inflow.
+            // Calculate daily usage: continuous Motor-OFF segments are telescoped (v_start - v_end) to completely eliminate sensor noise, while Motor-ON periods compensate for pump inflow.
             const result = await pool.query(
                 `WITH buckets AS (
                     SELECT 
@@ -710,13 +710,13 @@ const server = http.createServer(async (req, res) => {
                 bucket_usage AS (
                     SELECT
                         usage_date,
+                        bucket_epoch,
                         min_ts,
                         max_ts,
                         v_start,
                         v_end,
                         d_start,
                         d_end,
-                        (EXTRACT(EPOCH FROM (max_ts - min_ts)) / 3600.0) as duration_hours,
                         (v_end - v_start) as vol_increase,
                         CASE 
                             WHEN EXTRACT(EPOCH FROM (max_ts - min_ts)) > 0 THEN 
@@ -725,34 +725,80 @@ const server = http.createServer(async (req, res) => {
                         END as rate_l_per_h
                     FROM bucket_stats
                 ),
-                bucket_calculated AS (
+                bucket_classified AS (
                     SELECT
                         usage_date,
-                        CASE
-                            WHEN $4 = 'method_0' THEN (v_start - v_end)
-                            -- Method 1: Hybrid 5-minute Gap Calculation
-                            -- Motor is ON if volume increased by > 50L and fill rate >= pump threshold ($7)
-                            WHEN vol_increase > 50 AND rate_l_per_h >= $7 THEN
-                                CASE 
-                                    WHEN rate_l_per_h >= ($7 * 2) THEN
-                                        GREATEST(0, ($6 * duration_hours) + (v_start - v_end))
-                                    ELSE
-                                        GREATEST(0, ($5 * duration_hours) + (v_start - v_end))
-                                END
-                            -- Motor is OFF: Net Tank Volume Difference (v_start - v_end)
-                            ELSE (v_start - v_end)
-                        END as water_outflow,
-                        CASE
-                            WHEN d_end >= d_start THEN d_end - d_start
-                            ELSE 0
-                        END as data_increment
+                        bucket_epoch,
+                        min_ts,
+                        max_ts,
+                        v_start,
+                        v_end,
+                        d_start,
+                        d_end,
+                        vol_increase,
+                        rate_l_per_h,
+                        CASE 
+                            WHEN vol_increase >= 25 AND rate_l_per_h >= 300.0 THEN true 
+                            ELSE false 
+                        END as is_motor_on
                     FROM bucket_usage
+                ),
+                bucket_segments AS (
+                    SELECT
+                        usage_date,
+                        bucket_epoch,
+                        min_ts,
+                        max_ts,
+                        v_start,
+                        v_end,
+                        d_start,
+                        d_end,
+                        is_motor_on,
+                        SUM(CASE WHEN is_motor_on != prev_is_motor_on THEN 1 ELSE 0 END) 
+                            OVER (PARTITION BY usage_date ORDER BY bucket_epoch) as seg_id
+                    FROM (
+                        SELECT 
+                            *,
+                            LAG(is_motor_on, 1, is_motor_on) OVER (PARTITION BY usage_date ORDER BY bucket_epoch) as prev_is_motor_on
+                        FROM bucket_classified
+                    ) sub
+                ),
+                segment_totals AS (
+                    SELECT
+                        usage_date,
+                        seg_id,
+                        is_motor_on,
+                        MIN(min_ts) as seg_min_ts,
+                        MAX(max_ts) as seg_max_ts,
+                        GREATEST(0.0833, EXTRACT(EPOCH FROM (MAX(max_ts) - MIN(min_ts))) / 3600.0) as total_duration_hours,
+                        (ARRAY_AGG(v_start ORDER BY bucket_epoch ASC))[1] as seg_v_start,
+                        (ARRAY_AGG(v_end ORDER BY bucket_epoch DESC))[1] as seg_v_end,
+                        SUM(CASE WHEN d_end >= d_start THEN d_end - d_start ELSE 0 END) as seg_data_inc
+                    FROM bucket_segments
+                    GROUP BY usage_date, seg_id, is_motor_on
+                ),
+                segment_usage AS (
+                    SELECT
+                        usage_date,
+                        seg_data_inc,
+                        CASE
+                            WHEN $4 = 'method_0' THEN GREATEST(0, seg_v_start - seg_v_end)
+                            WHEN is_motor_on THEN
+                                CASE 
+                                    WHEN total_duration_hours > 0 AND ((seg_v_end - seg_v_start) / total_duration_hours) >= $7 THEN
+                                        GREATEST(0, ($6 * total_duration_hours) - (seg_v_end - seg_v_start))
+                                    ELSE
+                                        GREATEST(0, ($5 * total_duration_hours) - (seg_v_end - seg_v_start))
+                                END
+                            ELSE GREATEST(0, seg_v_start - seg_v_end)
+                        END as water_outflow
+                    FROM segment_totals
                 )
                 SELECT 
                     usage_date::text as usage_date,
-                    ROUND(SUM(water_outflow)::numeric, 1) as daily_water_used,
-                    ROUND((SUM(data_increment) / 1024.0)::numeric, 2) as daily_data_used_kb
-                FROM bucket_calculated
+                    ROUND(GREATEST(0, SUM(water_outflow))::numeric, 1) as daily_water_used,
+                    ROUND((SUM(seg_data_inc) / 1024.0)::numeric, 2) as daily_data_used_kb
+                FROM segment_usage
                 GROUP BY usage_date
                 ORDER BY usage_date ASC`,
                 [deviceId, startDate, endDate, method, motor1_rate, motor2_rate, threshold, tz]

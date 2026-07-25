@@ -113,16 +113,11 @@ mqttClient.on('message', async (topic, message) => {
             
             // Check for threshold alerts and dispatch SMS if needed
             checkDeviceThresholdAlerts(deviceId, levelVal, volumeVal).catch(err => {
-                console.error('[SMS Trigger Error] Error checking threshold alerts:', err);
-            });
-
-            // Also check for scheduled SMS tasks using telemetry as a reliable active clock heartbeat
-            runScheduleCheckWithRateLimit().catch(err => {
-                console.error('[MQTT Schedule Check Error] Failed to run schedule check:', err);
+                console.error('[SMS Trigger Error] Error checking threshold alerts:', err.message || err);
             });
         }
     } catch (err) {
-        console.error('[MQTT Server Listener] Error processing packet:', err);
+        console.error('[MQTT Server Listener] Error processing packet:', err.message || err);
     }
 });
 
@@ -301,18 +296,11 @@ const server = http.createServer(async (req, res) => {
                     [device_id, levelVal, volumeVal, dataUsageVal, versionVal]
                 );
                 
-                // Check for threshold alerts and dispatch SMS if needed (awaited to prevent serverless freeze)
+                // Check for threshold alerts and dispatch SMS if needed
                 try {
                     await checkDeviceThresholdAlerts(device_id, levelVal, volumeVal);
                 } catch (err) {
-                    console.error('[SMS Trigger Error] Error checking threshold alerts on HTTP telemetry:', err);
-                }
-
-                // Also check for scheduled SMS tasks using telemetry as a reliable active clock heartbeat (awaited to prevent serverless freeze)
-                try {
-                    await runScheduleCheckWithRateLimit();
-                } catch (err) {
-                    console.error('[HTTP Schedule Check Error] Failed to run schedule check:', err);
+                    console.error('[SMS Trigger Error] Error checking threshold alerts on HTTP telemetry:', err.message || err);
                 }
                 
                 // Get or create device configuration
@@ -2146,7 +2134,7 @@ async function runApiUrlBackgroundPolling() {
             }
         }
     } catch (err) {
-        console.error('[Background API Polling Main Error]:', err);
+        console.error('[Background API Polling Main Error]:', err.message || err);
     }
 }
 

@@ -113,11 +113,16 @@ mqttClient.on('message', async (topic, message) => {
             
             // Check for threshold alerts and dispatch SMS if needed
             checkDeviceThresholdAlerts(deviceId, levelVal, volumeVal).catch(err => {
-                console.error('[SMS Trigger Error] Error checking threshold alerts:', err.message || err);
+                console.error('[SMS Trigger Error] Error checking threshold alerts:', err);
+            });
+
+            // Also check for scheduled SMS tasks using telemetry as a reliable active clock heartbeat
+            runScheduleCheckWithRateLimit().catch(err => {
+                console.error('[MQTT Schedule Check Error] Failed to run schedule check:', err);
             });
         }
     } catch (err) {
-        console.error('[MQTT Server Listener] Error processing packet:', err.message || err);
+        console.error('[MQTT Server Listener] Error processing packet:', err);
     }
 });
 
@@ -296,11 +301,18 @@ const server = http.createServer(async (req, res) => {
                     [device_id, levelVal, volumeVal, dataUsageVal, versionVal]
                 );
                 
-                // Check for threshold alerts and dispatch SMS if needed
+                // Check for threshold alerts and dispatch SMS if needed (awaited to prevent serverless freeze)
                 try {
                     await checkDeviceThresholdAlerts(device_id, levelVal, volumeVal);
                 } catch (err) {
-                    console.error('[SMS Trigger Error] Error checking threshold alerts on HTTP telemetry:', err.message || err);
+                    console.error('[SMS Trigger Error] Error checking threshold alerts on HTTP telemetry:', err);
+                }
+
+                // Also check for scheduled SMS tasks using telemetry as a reliable active clock heartbeat (awaited to prevent serverless freeze)
+                try {
+                    await runScheduleCheckWithRateLimit();
+                } catch (err) {
+                    console.error('[HTTP Schedule Check Error] Failed to run schedule check:', err);
                 }
                 
                 // Get or create device configuration
@@ -842,11 +854,11 @@ const server = http.createServer(async (req, res) => {
                 sendJSON(res, {
                     success: true,
                     config: {
-                        sms_api_mode: 'v3',
-                        sms_oauth_endpoint: 'https://app.text.lk/api/v3/',
-                        sms_http_endpoint: 'https://app.text.lk/api/http/',
-                        sms_api_token: '5812|zSz889GfK4tAKEJO3PaYaPOyw3kUW86LRgLbu7JSd908c821',
-                        sms_sender_id: 'TextLK',
+                        sms_api_mode: 'v4',
+                        sms_oauth_endpoint: 'https://app.fitsms.lk/api/v4/',
+                        sms_http_endpoint: 'https://app.fitsms.lk/api/http/',
+                        sms_api_token: '544|dr3JYXmtfxEwes0ryc3MUY0k2U7zYAM0SkbCxEUTd58a01be',
+                        sms_sender_id: 'AnandaSeya',
                         sms_recipient_numbers: '',
                         sms_alert_enabled: false,
                         alert_min: 20.0,
@@ -904,11 +916,11 @@ const server = http.createServer(async (req, res) => {
                         updated_at = CURRENT_TIMESTAMP`,
                     [
                         device_id,
-                        sms_api_mode || 'v3',
-                        sms_oauth_endpoint || 'https://app.text.lk/api/v3/',
-                        sms_http_endpoint || 'https://app.text.lk/api/http/',
-                        sms_api_token || '5812|zSz889GfK4tAKEJO3PaYaPOyw3kUW86LRgLbu7JSd908c821',
-                        sms_sender_id || 'TextLK',
+                        sms_api_mode || 'v4',
+                        sms_oauth_endpoint || 'https://app.fitsms.lk/api/v4/',
+                        sms_http_endpoint || 'https://app.fitsms.lk/api/http/',
+                        sms_api_token || '544|dr3JYXmtfxEwes0ryc3MUY0k2U7zYAM0SkbCxEUTd58a01be',
+                        sms_sender_id || 'AnandaSeya',
                         sms_recipient_numbers || '',
                         smsAlertEnabled,
                         sms_msg_low || '',
@@ -1033,11 +1045,11 @@ const server = http.createServer(async (req, res) => {
                 }
 
                 const smsConfig = {
-                    sms_api_mode: sms_api_mode || 'v3',
-                    sms_oauth_endpoint: sms_oauth_endpoint || 'https://app.text.lk/api/v3/',
-                    sms_http_endpoint: sms_http_endpoint || 'https://app.text.lk/api/http/',
-                    sms_api_token: sms_api_token || '5812|zSz889GfK4tAKEJO3PaYaPOyw3kUW86LRgLbu7JSd908c821',
-                    sms_sender_id: sms_sender_id || 'TextLK'
+                    sms_api_mode: sms_api_mode || 'v4',
+                    sms_oauth_endpoint: sms_oauth_endpoint || 'https://app.fitsms.lk/api/v4/',
+                    sms_http_endpoint: sms_http_endpoint || 'https://app.fitsms.lk/api/http/',
+                    sms_api_token: sms_api_token || '544|dr3JYXmtfxEwes0ryc3MUY0k2U7zYAM0SkbCxEUTd58a01be',
+                    sms_sender_id: sms_sender_id || 'AnandaSeya'
                 };
 
                 const result = await sendSmsMessageDirectly(smsConfig, recipient, message);
@@ -1154,17 +1166,18 @@ async function saveSmsLog(deviceId, recipient, message, status, errorMessage = n
 async function sendSmsMessageDirectlyRaw(config, recipient, messageText) {
     return new Promise((resolve) => {
         try {
-            const mode = config.sms_api_mode || 'v3';
-            let targetUrl = mode === 'v3' ? (config.sms_oauth_endpoint || 'https://app.text.lk/api/v3/') : (config.sms_http_endpoint || 'https://app.text.lk/api/http/');
+            const mode = (config.sms_api_mode || 'v4').toLowerCase();
+            const isJsonMode = mode === 'v4' || mode === 'v3' || mode === 'oauth' || mode === 'json';
+            let targetUrl = isJsonMode ? (config.sms_oauth_endpoint || 'https://app.fitsms.lk/api/v4/') : (config.sms_http_endpoint || 'https://app.fitsms.lk/api/http/');
             let payload = '';
             let headers = {};
             let method = 'POST';
 
-            if (mode === 'v3') {
-                if (!targetUrl.endsWith('/')) {
-                    targetUrl += '/';
-                }
-                if (!targetUrl.includes('sms/send') && !targetUrl.includes('sms')) {
+            if (isJsonMode) {
+                if (!targetUrl.includes('/sms/send') && !targetUrl.includes('/sms/')) {
+                    if (!targetUrl.endsWith('/')) {
+                        targetUrl += '/';
+                    }
                     targetUrl += 'sms/send';
                 }
 
@@ -1176,15 +1189,19 @@ async function sendSmsMessageDirectlyRaw(config, recipient, messageText) {
 
                 payload = JSON.stringify({
                     recipient: recipient,
-                    sender_id: config.sms_sender_id || 'TextLK',
+                    sender_id: config.sms_sender_id || 'AnandaSeya',
                     message: messageText
                 });
                 method = 'POST';
             } else {
+                if (!targetUrl.includes('sms/send')) {
+                    if (!targetUrl.endsWith('/')) targetUrl += '/';
+                    targetUrl += 'sms/send';
+                }
                 const urlObj = new URL(targetUrl);
                 urlObj.searchParams.set('api_token', config.sms_api_token || config.api_token);
                 urlObj.searchParams.set('recipient', recipient);
-                urlObj.searchParams.set('sender_id', config.sms_sender_id || 'TextLK');
+                urlObj.searchParams.set('sender_id', config.sms_sender_id || 'AnandaSeya');
                 urlObj.searchParams.set('message', messageText);
                 
                 targetUrl = urlObj.toString();
@@ -2134,7 +2151,7 @@ async function runApiUrlBackgroundPolling() {
             }
         }
     } catch (err) {
-        console.error('[Background API Polling Main Error]:', err.message || err);
+        console.error('[Background API Polling Main Error]:', err);
     }
 }
 

@@ -12,18 +12,12 @@ if (connectionString.includes('sslmode=')) {
 
 const pool = new Pool({
   connectionString,
-  max: 3, // Max connections allowed per process for shared PostgreSQL instance
-  idleTimeoutMillis: 1000, // Close idle connections after 1 second to immediately free slots
-  connectionTimeoutMillis: 4000, // Fail quickly if connection slot is unavailable
-  allowExitOnIdle: true,
+  max: 2, // Set extremely conservative max connection limit for shared Aiven database
+  idleTimeoutMillis: 1000, // Close idle connections after 1 second to instantly free up slots
+  connectionTimeoutMillis: 3000, // Fail quickly if connection can't be established
   ssl: {
     rejectUnauthorized: false
   }
-});
-
-// Catch pool-level unexpected errors (e.g. dropped socket, idle client error) to prevent crashes
-pool.on('error', (err) => {
-  console.error('[DB Pool Error] Unexpected idle client error:', err.message || err);
 });
 
 async function initDb() {

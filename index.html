@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Water Level Dashboard </title>
+    <title>Water Level Dashboard</title>
     <!-- Suppress Tailwind Play CDN warning in production console -->
     <script>
         (function() {
@@ -940,17 +940,36 @@
                     </div>
 
                     <form id="formSmsConfig" onsubmit="event.preventDefault(); saveSmsGatewaySettings();" class="flex flex-col gap-4">
+                        <!-- Provider Preset Selection -->
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[10px] uppercase tracking-wider font-bold text-slate-400">Gateway Provider Presets</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button type="button" onclick="applySmsProviderPreset('fitsms')" class="flex items-center justify-center gap-2 bg-cyan-950/40 hover:bg-cyan-900/40 border border-cyan-500/40 rounded-xl p-2.5 text-xs text-cyan-300 font-bold transition shadow-sm">
+                                    <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                                    Fit SMS (v4 API)
+                                </button>
+                                <button type="button" onclick="applySmsProviderPreset('textlk')" class="flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-xs text-slate-300 font-bold transition shadow-sm">
+                                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                                    Text.lk (v3 API)
+                                </button>
+                            </div>
+                        </div>
+
                         <!-- API Mode Selector -->
                         <div class="flex flex-col gap-1.5">
                             <label class="text-[10px] uppercase tracking-wider font-bold text-slate-400">SMS Gateway Protocol</label>
-                            <div class="grid grid-cols-2 gap-2">
-                                <label class="flex items-center gap-2 bg-slate-950/50 border border-slate-800 rounded-xl p-3 cursor-pointer hover:border-cyan-500/50 transition">
-                                    <input type="radio" name="sms_api_mode" value="v3" checked class="text-cyan-500 focus:ring-cyan-500" onchange="toggleSmsEndpointInputs()">
-                                    <span class="text-xs text-slate-200 font-semibold">OAuth v3 JSON</span>
+                            <div class="grid grid-cols-3 gap-2">
+                                <label class="flex items-center gap-1.5 bg-slate-950/50 border border-slate-800 rounded-xl p-2.5 cursor-pointer hover:border-cyan-500/50 transition">
+                                    <input type="radio" name="sms_api_mode" value="v4" checked class="text-cyan-500 focus:ring-cyan-500" onchange="toggleSmsEndpointInputs()">
+                                    <span class="text-xs text-slate-200 font-semibold">OAuth v4</span>
                                 </label>
-                                <label class="flex items-center gap-2 bg-slate-950/50 border border-slate-800 rounded-xl p-3 cursor-pointer hover:border-cyan-500/50 transition">
+                                <label class="flex items-center gap-1.5 bg-slate-950/50 border border-slate-800 rounded-xl p-2.5 cursor-pointer hover:border-cyan-500/50 transition">
+                                    <input type="radio" name="sms_api_mode" value="v3" class="text-cyan-500 focus:ring-cyan-500" onchange="toggleSmsEndpointInputs()">
+                                    <span class="text-xs text-slate-200 font-semibold">OAuth v3</span>
+                                </label>
+                                <label class="flex items-center gap-1.5 bg-slate-950/50 border border-slate-800 rounded-xl p-2.5 cursor-pointer hover:border-cyan-500/50 transition">
                                     <input type="radio" name="sms_api_mode" value="http" class="text-cyan-500 focus:ring-cyan-500" onchange="toggleSmsEndpointInputs()">
-                                    <span class="text-xs text-slate-200 font-semibold">HTTP GET API</span>
+                                    <span class="text-xs text-slate-200 font-semibold">HTTP GET</span>
                                 </label>
                             </div>
                         </div>
@@ -961,24 +980,24 @@
                                 <span>API Token / Bearer Key</span>
                                 <button type="button" onclick="toggleApiTokenVisibility()" class="text-cyan-400 hover:text-cyan-300 text-[10px] lowercase">toggle visibility</button>
                             </label>
-                            <input id="sms_api_token" type="password" value="5812|zSz889GfK4tAKEJO3PaYaPOyw3kUW86LRgLbu7JSd908c821" placeholder="Enter Text.lk API token..." class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
+                            <input id="sms_api_token" type="password" value="544|dr3JYXmtfxEwes0ryc3MUY0k2U7zYAM0SkbCxEUTd58a01be" placeholder="Enter SMS API token..." class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
                         </div>
 
                         <!-- Sender ID -->
                         <div class="flex flex-col gap-1.5">
                             <label class="text-[10px] uppercase tracking-wider font-bold text-slate-400">Sender ID (Masking/Brand)</label>
-                            <input id="sms_sender_id" type="text" value="TextLK" placeholder="e.g. TextLK, Notify" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
+                            <input id="sms_sender_id" type="text" value="AnandaSeya" placeholder="e.g. AnandaSeya, FitSMS" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
                         </div>
 
                         <!-- Endpoint URLs -->
                         <div id="rowOauthEndpoint" class="flex flex-col gap-1.5">
-                            <label class="text-[10px] uppercase tracking-wider font-bold text-slate-400">OAuth API v3 Base URL</label>
-                            <input id="sms_oauth_endpoint" type="url" value="https://app.text.lk/api/v3/" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
+                            <label class="text-[10px] uppercase tracking-wider font-bold text-slate-400">OAuth / REST API Base URL</label>
+                            <input id="sms_oauth_endpoint" type="url" value="https://app.fitsms.lk/api/v4/" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
                         </div>
 
                         <div id="rowHttpEndpoint" class="flex flex-col gap-1.5 hidden">
                             <label class="text-[10px] uppercase tracking-wider font-bold text-slate-400">HTTP GET Endpoint URL</label>
-                            <input id="sms_http_endpoint" type="url" value="https://app.text.lk/api/http/" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
+                            <input id="sms_http_endpoint" type="url" value="https://app.fitsms.lk/api/http/" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500/80">
                         </div>
 
                         <!-- Alert Thresholds -->
@@ -3739,13 +3758,33 @@
             const rowOauth = document.getElementById('rowOauthEndpoint');
             const rowHttp = document.getElementById('rowHttpEndpoint');
 
-            if (mode === 'v3') {
+            if (mode === 'v3' || mode === 'v4' || mode === 'oauth') {
                 if (rowOauth) rowOauth.classList.remove('hidden');
                 if (rowHttp) rowHttp.classList.add('hidden');
             } else {
                 if (rowOauth) rowOauth.classList.add('hidden');
                 if (rowHttp) rowHttp.classList.remove('hidden');
             }
+        }
+
+        function applySmsProviderPreset(provider) {
+            const radios = document.getElementsByName('sms_api_mode');
+            if (provider === 'fitsms') {
+                for (const r of radios) { if (r.value === 'v4') r.checked = true; }
+                document.getElementById('sms_api_token').value = '544|dr3JYXmtfxEwes0ryc3MUY0k2U7zYAM0SkbCxEUTd58a01be';
+                document.getElementById('sms_sender_id').value = 'AnandaSeya';
+                document.getElementById('sms_oauth_endpoint').value = 'https://app.fitsms.lk/api/v4/';
+                document.getElementById('sms_http_endpoint').value = 'https://app.fitsms.lk/api/http/';
+                showToast('Applied Fit SMS (v4) Provider Preset', 'info');
+            } else if (provider === 'textlk') {
+                for (const r of radios) { if (r.value === 'v3') r.checked = true; }
+                document.getElementById('sms_api_token').value = '5812|zSz889GfK4tAKEJO3PaYaPOyw3kUW86LRgLbu7JSd908c821';
+                document.getElementById('sms_sender_id').value = 'TextLK';
+                document.getElementById('sms_oauth_endpoint').value = 'https://app.text.lk/api/v3/';
+                document.getElementById('sms_http_endpoint').value = 'https://app.text.lk/api/http/';
+                showToast('Applied Text.lk (v3) Provider Preset', 'info');
+            }
+            toggleSmsEndpointInputs();
         }
 
         async function loadSmsGatewaySettings() {
@@ -3762,16 +3801,21 @@
                     
                     // Set radio button
                     const radios = document.getElementsByName('sms_api_mode');
+                    let matchedRadio = false;
                     for (const r of radios) {
-                        if (r.value === (cfg.sms_api_mode || 'v3')) {
+                        if (r.value === (cfg.sms_api_mode || 'v4')) {
                             r.checked = true;
+                            matchedRadio = true;
                         }
                     }
+                    if (!matchedRadio && radios.length > 0) {
+                        radios[0].checked = true;
+                    }
 
-                    document.getElementById('sms_api_token').value = cfg.sms_api_token || '';
-                    document.getElementById('sms_sender_id').value = cfg.sms_sender_id || 'TextLK';
-                    document.getElementById('sms_oauth_endpoint').value = cfg.sms_oauth_endpoint || 'https://app.text.lk/api/v3/';
-                    document.getElementById('sms_http_endpoint').value = cfg.sms_http_endpoint || 'https://app.text.lk/api/http/';
+                    document.getElementById('sms_api_token').value = cfg.sms_api_token || '544|dr3JYXmtfxEwes0ryc3MUY0k2U7zYAM0SkbCxEUTd58a01be';
+                    document.getElementById('sms_sender_id').value = cfg.sms_sender_id || 'AnandaSeya';
+                    document.getElementById('sms_oauth_endpoint').value = cfg.sms_oauth_endpoint || 'https://app.fitsms.lk/api/v4/';
+                    document.getElementById('sms_http_endpoint').value = cfg.sms_http_endpoint || 'https://app.fitsms.lk/api/http/';
                     document.getElementById('sms_alert_min').value = Math.round(parseFloat(cfg.alert_min) || 20);
                     document.getElementById('sms_alert_max').value = Math.round(parseFloat(cfg.alert_max) || 90);
 
@@ -3784,11 +3828,11 @@
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 device_id: deviceId,
-                                sms_api_mode: cfg.sms_api_mode || 'v3',
-                                sms_api_token: cfg.sms_api_token || '',
-                                sms_sender_id: cfg.sms_sender_id || 'TextLK',
-                                sms_oauth_endpoint: cfg.sms_oauth_endpoint || 'https://app.text.lk/api/v3/',
-                                sms_http_endpoint: cfg.sms_http_endpoint || 'https://app.text.lk/api/http/',
+                                sms_api_mode: cfg.sms_api_mode || 'v4',
+                                sms_api_token: cfg.sms_api_token || '544|dr3JYXmtfxEwes0ryc3MUY0k2U7zYAM0SkbCxEUTd58a01be',
+                                sms_sender_id: cfg.sms_sender_id || 'AnandaSeya',
+                                sms_oauth_endpoint: cfg.sms_oauth_endpoint || 'https://app.fitsms.lk/api/v4/',
+                                sms_http_endpoint: cfg.sms_http_endpoint || 'https://app.fitsms.lk/api/http/',
                                 sms_recipient_numbers: cfg.sms_recipient_numbers || '',
                                 sms_alert_enabled: !!cfg.sms_alert_enabled,
                                 sms_msg_low: cfg.sms_msg_low,

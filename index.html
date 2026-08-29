@@ -1061,20 +1061,27 @@
                                 <label class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Trigger Condition</label>
                                 <select id="sched_cond_type" onchange="toggleConditionValueInput()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none">
                                     <option value="none">⏱️ Run Always at Scheduled Time</option>
+                                    <option value="flow_rate_window">🌊 when Flow Rate &gt; (L/h) in Time Window</option>
+                                    <option value="usage_window">💧 when Total Outflow &gt; (Liters) in Time Window</option>
+                                    <option value="flow_rate_instant">⚡ when Real-time Flow Rate &gt; (L/h)</option>
                                     <option value="less_than">📉 when Lower than % &lt;</option>
                                     <option value="greater_than">📈 when Greater than % &gt;</option>
                                     <option value="low_alert">⚠️ Run Instantly when Low Alert is Active</option>
                                     <option value="high_alert">🚨 Run Instantly when High Alert is Active</option>
                                 </select>
                             </div>
-                            <div id="sched_params_wrapper" class="grid grid-cols-1 gap-3">
+                            <div id="sched_params_wrapper" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div id="sched_time_wrapper" class="flex flex-col gap-1.5">
-                                    <label class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Scheduled Time</label>
-                                    <input id="sched_time" type="time" value="08:30" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200">
+                                    <label id="lbl_sched_time" class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Scheduled Time</label>
+                                    <input id="sched_time" type="time" value="01:00" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200">
                                 </div>
-                                <div id="sched_cond_val_wrapper" class="flex flex-col gap-1.5 hidden">
-                                    <label class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Threshold (%)</label>
-                                    <input id="sched_cond_value" type="number" min="0" max="100" value="30" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none">
+                                <div id="sched_window_end_wrapper" class="flex flex-col gap-1.5 hidden">
+                                    <label id="lbl_window_end_time" class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Window End Time</label>
+                                    <input id="sched_window_end_time" type="time" value="02:00" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200">
+                                </div>
+                                <div id="sched_cond_val_wrapper" class="flex flex-col gap-1.5 sm:col-span-2 hidden">
+                                    <label id="lbl_cond_val" class="text-[9px] uppercase tracking-wider font-bold text-slate-400">Threshold Value</label>
+                                    <input id="sched_cond_value" type="number" min="0" value="500" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none">
                                 </div>
                             </div>
                         </div>
@@ -4034,18 +4041,63 @@
             const condType = document.getElementById('sched_cond_type').value;
             const valWrapper = document.getElementById('sched_cond_val_wrapper');
             const timeWrapper = document.getElementById('sched_time_wrapper');
+            const timeLabel = document.getElementById('lbl_sched_time');
+            const endWrapper = document.getElementById('sched_window_end_wrapper');
+            const valLabel = document.getElementById('lbl_cond_val');
+            const valInput = document.getElementById('sched_cond_value');
+            const templateInput = document.getElementById('sched_template');
+            const tipEl = document.getElementById('lblDynamicTip');
             
             if (!valWrapper || !timeWrapper) return;
 
-            if (condType === 'less_than' || condType === 'greater_than') {
+            if (condType === 'flow_rate_window') {
+                valWrapper.classList.remove('hidden');
+                timeWrapper.classList.remove('hidden');
+                if (endWrapper) endWrapper.classList.remove('hidden');
+                if (timeLabel) timeLabel.innerText = "Window Start Time";
+                if (valLabel) valLabel.innerText = "Flow Rate Higher Than (L/h)";
+                if (valInput && (valInput.value === '30' || valInput.value === '')) valInput.value = '500';
+                if (tipEl) tipEl.innerText = "Supports [FlowRate], [WindowUsage], [TimeWindow], [Percent], [Volume], [DailyUsage]";
+                if (templateInput && (!templateInput.value || templateInput.value.includes('HydroSync Status:'))) {
+                    templateInput.value = "⚠️ FLOW ALERT: [Device] water flow rate is [FlowRate] (exceeds [Threshold] L/h) during [TimeWindow]. Current Level: [Percent]%. Time: [Timestamp]";
+                }
+            } else if (condType === 'usage_window') {
+                valWrapper.classList.remove('hidden');
+                timeWrapper.classList.remove('hidden');
+                if (endWrapper) endWrapper.classList.remove('hidden');
+                if (timeLabel) timeLabel.innerText = "Window Start Time";
+                if (valLabel) valLabel.innerText = "Outflow Higher Than (Liters)";
+                if (valInput && (valInput.value === '30' || valInput.value === '')) valInput.value = '200';
+                if (tipEl) tipEl.innerText = "Supports [WindowUsage], [FlowRate], [TimeWindow], [Percent], [Volume], [DailyUsage]";
+                if (templateInput && (!templateInput.value || templateInput.value.includes('HydroSync Status:'))) {
+                    templateInput.value = "⚠️ USAGE ALERT: [Device] outflow is [WindowUsage] (exceeds [Threshold] L) during [TimeWindow]. Current Level: [Percent]%. Time: [Timestamp]";
+                }
+            } else if (condType === 'flow_rate_instant') {
                 valWrapper.classList.remove('hidden');
                 timeWrapper.classList.add('hidden');
+                if (endWrapper) endWrapper.classList.add('hidden');
+                if (valLabel) valLabel.innerText = "Flow Rate Higher Than (L/h)";
+                if (valInput && (valInput.value === '30' || valInput.value === '')) valInput.value = '1000';
+                if (tipEl) tipEl.innerText = "Supports [FlowRate], [Percent], [Volume], [DailyUsage], [Threshold]";
+            } else if (condType === 'less_than' || condType === 'greater_than') {
+                valWrapper.classList.remove('hidden');
+                timeWrapper.classList.add('hidden');
+                if (endWrapper) endWrapper.classList.add('hidden');
+                if (valLabel) valLabel.innerText = "Threshold Level (%)";
+                if (valInput && (valInput.value === '500' || valInput.value === '1000' || valInput.value === '')) valInput.value = '30';
+                if (tipEl) tipEl.innerText = "Supports [Percent], [Volume], [Depth], [DailyUsage], [Threshold]";
             } else if (condType === 'low_alert' || condType === 'high_alert') {
                 valWrapper.classList.add('hidden');
                 timeWrapper.classList.add('hidden');
+                if (endWrapper) endWrapper.classList.add('hidden');
+                if (tipEl) tipEl.innerText = "Supports [Percent], [Volume], [Depth], [DailyUsage], [Threshold]";
             } else {
+                // 'none' - standard scheduled time
                 valWrapper.classList.add('hidden');
                 timeWrapper.classList.remove('hidden');
+                if (endWrapper) endWrapper.classList.add('hidden');
+                if (timeLabel) timeLabel.innerText = "Scheduled Time";
+                if (tipEl) tipEl.innerText = "Supports [Percent], [Volume], [Depth], [DailyUsage], [FlowRate]";
             }
         }
 
@@ -4081,7 +4133,7 @@
                         container.innerHTML = `
                             <div class="text-center py-8 border border-dashed border-slate-800 rounded-2xl w-full">
                                 <span class="block text-xs text-slate-500">No scheduled automation tasks configured.</span>
-                                <span class="block text-[10px] text-slate-600 mt-1">Create a status update or pump trigger above.</span>
+                                <span class="block text-[10px] text-slate-600 mt-1">Create a status update, flow rate alert, or pump trigger above.</span>
                             </div>
                         `;
                         return;
@@ -4102,6 +4154,7 @@
                                     schedule_type: sched.schedule_type,
                                     recipient_numbers: sched.recipient_numbers,
                                     scheduled_time: sched.scheduled_time,
+                                    window_end_time: sched.window_end_time,
                                     days_of_week: sched.days_of_week,
                                     message_template: sched.message_template,
                                     is_enabled: sched.is_enabled,
@@ -4131,22 +4184,43 @@
                         let condBadgeHtml = '';
                         if (sched.condition_type && sched.condition_type !== 'none') {
                             let condLabel = '';
-                            if (sched.condition_type === 'less_than') {
-                                condLabel = `If Water < ${parseFloat(sched.condition_value).toFixed(0)}%`;
+                            if (sched.condition_type === 'flow_rate_window') {
+                                condLabel = `🌊 If Flow > ${parseFloat(sched.condition_value).toFixed(0)} L/h`;
+                            } else if (sched.condition_type === 'usage_window') {
+                                condLabel = `💧 If Outflow > ${parseFloat(sched.condition_value).toFixed(0)} L`;
+                            } else if (sched.condition_type === 'flow_rate_instant') {
+                                condLabel = `⚡ If Flow > ${parseFloat(sched.condition_value).toFixed(0)} L/h`;
+                            } else if (sched.condition_type === 'less_than') {
+                                condLabel = `📉 If Water < ${parseFloat(sched.condition_value).toFixed(0)}%`;
                             } else if (sched.condition_type === 'greater_than') {
-                                condLabel = `If Water > ${parseFloat(sched.condition_value).toFixed(0)}%`;
+                                condLabel = `📈 If Water > ${parseFloat(sched.condition_value).toFixed(0)}%`;
                             } else if (sched.condition_type === 'low_alert') {
-                                condLabel = `If Water < Low Margin`;
+                                condLabel = `⚠️ If Low Alert Active`;
                             } else if (sched.condition_type === 'high_alert') {
-                                condLabel = `If Water > High Margin`;
+                                condLabel = `🚨 If High Alert Active`;
                             }
                             condBadgeHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">${condLabel}</span>`;
                         }
 
-                        const isInstantSched = (sched.condition_type === 'less_than' || sched.condition_type === 'greater_than' || sched.condition_type === 'low_alert' || sched.condition_type === 'high_alert');
-                        const timeDisplayHtml = isInstantSched 
-                            ? `<span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">⚡ Real-time</span>`
-                            : `<span class="text-sm font-bold text-slate-100">${sched.scheduled_time.substring(0, 5)}</span>`;
+                        const isWindowSched = (sched.condition_type === 'flow_rate_window' || sched.condition_type === 'usage_window');
+                        const isInstantSched = (
+                            sched.condition_type === 'less_than' ||
+                            sched.condition_type === 'greater_than' ||
+                            sched.condition_type === 'low_alert' ||
+                            sched.condition_type === 'high_alert' ||
+                            sched.condition_type === 'flow_rate_instant'
+                        );
+
+                        let timeDisplayHtml = '';
+                        if (isWindowSched) {
+                            const startStr = (sched.scheduled_time || '00:00').substring(0, 5);
+                            const endStr = (sched.window_end_time || '00:00').substring(0, 5);
+                            timeDisplayHtml = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 flex items-center gap-1 font-mono">🕒 ${startStr} - ${endStr}</span>`;
+                        } else if (isInstantSched) {
+                            timeDisplayHtml = `<span class="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">⚡ Real-time</span>`;
+                        } else {
+                            timeDisplayHtml = `<span class="text-sm font-bold text-slate-100 font-mono">${(sched.scheduled_time || '00:00').substring(0, 5)}</span>`;
+                        }
 
                         card.innerHTML = `
                             <div class="flex flex-col gap-1.5 flex-grow">
@@ -4197,16 +4271,20 @@
             window.editingScheduleId = id;
 
             document.getElementById('sched_type').value = sched.schedule_type;
-            const timeHHMM = sched.scheduled_time.substring(0, 5);
+            const timeHHMM = sched.scheduled_time ? sched.scheduled_time.substring(0, 5) : '01:00';
             document.getElementById('sched_time').value = timeHHMM;
+            const endHHMM = sched.window_end_time ? sched.window_end_time.substring(0, 5) : '02:00';
+            if (document.getElementById('sched_window_end_time')) {
+                document.getElementById('sched_window_end_time').value = endHHMM;
+            }
             document.getElementById('sched_recipients').value = sched.recipient_numbers;
             document.getElementById('sched_template').value = sched.message_template;
 
             document.getElementById('sched_cond_type').value = sched.condition_type || 'none';
-            document.getElementById('sched_cond_value').value = (sched.condition_value !== null && sched.condition_value !== undefined) ? sched.condition_value : '30';
+            document.getElementById('sched_cond_value').value = (sched.condition_value !== null && sched.condition_value !== undefined) ? sched.condition_value : '500';
             toggleConditionValueInput();
 
-            const days = sched.days_of_week.split(',').map(d => d.trim());
+            const days = (sched.days_of_week || '').split(',').map(d => d.trim());
             const daysChks = document.getElementsByName('sched_days');
             for (const c of daysChks) {
                 c.checked = days.includes(c.value);
@@ -4237,12 +4315,15 @@
             window.editingScheduleId = null;
             
             document.getElementById('sched_type').selectedIndex = 0;
-            document.getElementById('sched_time').value = "08:30";
+            document.getElementById('sched_time').value = "01:00";
+            if (document.getElementById('sched_window_end_time')) {
+                document.getElementById('sched_window_end_time').value = "02:00";
+            }
             document.getElementById('sched_recipients').value = "";
             onScheduleTypeChange();
 
             document.getElementById('sched_cond_type').value = 'none';
-            document.getElementById('sched_cond_value').value = '30';
+            document.getElementById('sched_cond_value').value = '500';
             toggleConditionValueInput();
             
             const daysChks = document.getElementsByName('sched_days');
@@ -4274,15 +4355,30 @@
                 const condType = document.getElementById('sched_cond_type').value;
                 const condVal = document.getElementById('sched_cond_value').value;
 
-                const isInstant = (condType === 'less_than' || condType === 'greater_than' || condType === 'low_alert' || condType === 'high_alert');
+                const isInstant = (
+                    condType === 'less_than' ||
+                    condType === 'greater_than' ||
+                    condType === 'low_alert' ||
+                    condType === 'high_alert' ||
+                    condType === 'flow_rate_instant'
+                );
+
+                const isWindow = (condType === 'flow_rate_window' || condType === 'usage_window');
+
                 let time = document.getElementById('sched_time').value;
+                let windowEndTime = document.getElementById('sched_window_end_time') ? document.getElementById('sched_window_end_time').value : null;
 
                 if (isInstant && !time) {
                     time = '00:00';
                 }
 
                 if (!time && !isInstant) {
-                    showToast('Please provide scheduled time.', 'error');
+                    showToast('Please provide scheduled / window start time.', 'error');
+                    return;
+                }
+
+                if (isWindow && !windowEndTime) {
+                    showToast('Please provide window end time (e.g. 02:00).', 'error');
                     return;
                 }
 
@@ -4304,17 +4400,21 @@
                     return;
                 }
 
+                const formattedTime = time.includes(':') && time.split(':').length === 2 ? time + ':00' : time;
+                const formattedEndTime = windowEndTime && windowEndTime.includes(':') && windowEndTime.split(':').length === 2 ? windowEndTime + ':00' : windowEndTime;
+
                 const payload = {
                     device_id: deviceId,
                     schedule_type: type,
                     recipient_numbers: recipients,
-                    scheduled_time: time.includes(':') && time.split(':').length === 2 ? time + ':00' : time,
+                    scheduled_time: formattedTime,
+                    window_end_time: isWindow ? formattedEndTime : null,
                     days_of_week: selectedDays.join(','),
                     message_template: template,
                     is_enabled: true,
                     timezone_offset: new Date().getTimezoneOffset(),
                     condition_type: condType,
-                    condition_value: condType !== 'none' ? condVal : null
+                    condition_value: condType !== 'none' && condType !== 'low_alert' && condType !== 'high_alert' ? parseFloat(condVal) : null
                 };
 
                 if (window.editingScheduleId) {
@@ -4361,10 +4461,13 @@
                     schedule_type: s.schedule_type,
                     recipient_numbers: s.recipient_numbers,
                     scheduled_time: s.scheduled_time,
+                    window_end_time: s.window_end_time,
                     days_of_week: s.days_of_week,
                     message_template: s.message_template,
                     is_enabled: isChecked,
-                    timezone_offset: s.timezone_offset !== undefined ? s.timezone_offset : new Date().getTimezoneOffset()
+                    timezone_offset: s.timezone_offset !== undefined ? s.timezone_offset : new Date().getTimezoneOffset(),
+                    condition_type: s.condition_type || 'none',
+                    condition_value: s.condition_value !== null && s.condition_value !== undefined ? parseFloat(s.condition_value) : null
                 };
 
                 const response = await fetch('/api/sms/schedules', {
@@ -4381,7 +4484,8 @@
                     showToast(result.error || 'Failed to update schedule status.', 'error');
                 }
             } catch (err) {
-                console.error('[SMS UI] Toggle schedule error:', err);
+                console.error('[SMS UI] Toggle active error:', err);
+                showToast('Failed to update schedule status.', 'error');
             }
         }
 

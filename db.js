@@ -172,6 +172,9 @@ async function initDb() {
       ALTER TABLE w_sms_schedules ADD COLUMN IF NOT EXISTS condition_value NUMERIC(8, 2);
     `);
     await client.query(`
+      ALTER TABLE w_sms_schedules ADD COLUMN IF NOT EXISTS window_end_time TIME DEFAULT NULL;
+    `);
+    await client.query(`
       ALTER TABLE w_sms_schedules ADD COLUMN IF NOT EXISTS trigger_status VARCHAR(50) DEFAULT 'NORMAL';
     `);
 

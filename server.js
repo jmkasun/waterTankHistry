@@ -945,7 +945,7 @@ const server = http.createServer(async (req, res) => {
         try {
             const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
             const result = await pool.query(
-                `SELECT id, device_id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, days_of_week, message_template, is_enabled, timezone_offset, condition_type, condition_value
+                `SELECT id, device_id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, window_end_time::text as window_end_time, days_of_week, message_template, is_enabled, timezone_offset, condition_type, condition_value
                  FROM w_sms_schedules
                  WHERE device_id = $1
                  ORDER BY scheduled_time ASC`,
@@ -966,7 +966,7 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                const { id, device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week, message_template, is_enabled, timezone_offset, condition_type, condition_value } = data;
+                const { id, device_id, schedule_type, recipient_numbers, scheduled_time, window_end_time, days_of_week, message_template, is_enabled, timezone_offset, condition_type, condition_value } = data;
 
                 if (!device_id || !schedule_type || !recipient_numbers || !scheduled_time) {
                     sendJSON(res, { success: false, error: 'Missing required schedule fields' }, 400);
@@ -977,6 +977,7 @@ const server = http.createServer(async (req, res) => {
                 const tzOffset = timezone_offset !== undefined ? parseInt(timezone_offset, 10) : 0;
                 const condType = condition_type || 'none';
                 const condValue = condition_value !== undefined && condition_value !== null && condition_value !== '' ? parseFloat(condition_value) : null;
+                const windowEnd = window_end_time ? (window_end_time.includes(':') && window_end_time.split(':').length === 2 ? window_end_time + ':00' : window_end_time) : null;
 
                 if (id) {
                     await pool.query(
@@ -990,17 +991,18 @@ const server = http.createServer(async (req, res) => {
                             timezone_offset = $7,
                             condition_type = $8,
                             condition_value = $9,
+                            window_end_time = $10,
                             trigger_status = 'NORMAL'
-                         WHERE id = $10 AND device_id = $11`,
-                        [schedule_type, recipient_numbers, scheduled_time, days_of_week || '1,2,3,4,5,6,0', message_template || '', isEnabled, tzOffset, condType, condValue, id, device_id]
+                         WHERE id = $11 AND device_id = $12`,
+                        [schedule_type, recipient_numbers, scheduled_time, days_of_week || '1,2,3,4,5,6,0', message_template || '', isEnabled, tzOffset, condType, condValue, windowEnd, id, device_id]
                     );
                     sendJSON(res, { success: true, message: 'Schedule updated successfully.' });
                 } else {
                     await pool.query(
                         `INSERT INTO w_sms_schedules (
-                            device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week, message_template, is_enabled, timezone_offset, condition_type, condition_value
-                         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-                        [device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week || '1,2,3,4,5,6,0', message_template || '', isEnabled, tzOffset, condType, condValue]
+                            device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week, message_template, is_enabled, timezone_offset, condition_type, condition_value, window_end_time
+                         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+                        [device_id, schedule_type, recipient_numbers, scheduled_time, days_of_week || '1,2,3,4,5,6,0', message_template || '', isEnabled, tzOffset, condType, condValue, windowEnd]
                     );
                     sendJSON(res, { success: true, message: 'Schedule created successfully.' });
                 }
@@ -1429,6 +1431,384 @@ async function getTodayDeviceUsage(deviceId, offsetInMinutes, deviceConfig = nul
     }
 }
 
+// Calculate water outflow and flow rate (L/h) between startUtc and endUtc
+async function getDeviceOutflowAndFlowRate(deviceId, startUtc, endUtc, deviceConfig = null) {
+    try {
+        const queryStart = new Date(startUtc.getTime() - 30 * 60 * 1000); // 30 min buffer for smoothing window
+        let motor1 = 1000.0;
+        let motor2 = 5000.0;
+        let threshold = 2500.0;
+
+        if (deviceConfig) {
+            motor1 = parseFloat(deviceConfig.motor1_rate) || 1000.0;
+            motor2 = parseFloat(deviceConfig.motor2_rate) || 5000.0;
+            threshold = parseFloat(deviceConfig.pump_threshold) || 2500.0;
+        } else {
+            const cfgRes = await pool.query(
+                `SELECT motor1_rate, motor2_rate, pump_threshold FROM w_device_config WHERE device_id = $1`,
+                [deviceId]
+            );
+            if (cfgRes.rows.length > 0) {
+                const row = cfgRes.rows[0];
+                motor1 = parseFloat(row.motor1_rate) || 1000.0;
+                motor2 = parseFloat(row.motor2_rate) || 5000.0;
+                threshold = parseFloat(row.pump_threshold) || 2500.0;
+            }
+        }
+
+        const res = await pool.query(
+            `WITH ordered_telemetry AS (
+                SELECT 
+                    timestamp,
+                    volume,
+                    AVG(volume) OVER (
+                        ORDER BY timestamp 
+                        ROWS BETWEEN 20 PRECEDING AND CURRENT ROW
+                    ) as smoothed_volume,
+                    LAG(timestamp) OVER (ORDER BY timestamp) as prev_timestamp
+                FROM w_telemetry
+                WHERE device_id = $1 AND timestamp >= $2 AND timestamp <= $3
+            ),
+            smoothed_deltas AS (
+                SELECT
+                    timestamp,
+                    smoothed_volume,
+                    LAG(smoothed_volume) OVER (ORDER BY timestamp) as prev_smoothed_volume,
+                    prev_timestamp
+                FROM ordered_telemetry
+            ),
+            deltas AS (
+                SELECT
+                    timestamp,
+                    CASE 
+                        WHEN prev_timestamp IS NOT NULL AND prev_smoothed_volume IS NOT NULL AND timestamp > prev_timestamp THEN
+                            CASE
+                                WHEN smoothed_volume > prev_smoothed_volume THEN
+                                    CASE
+                                        WHEN ((smoothed_volume - prev_smoothed_volume) / (EXTRACT(EPOCH FROM (timestamp - prev_timestamp)) / 3600.0)) >= $6 THEN
+                                            GREATEST(0, ($5 * (EXTRACT(EPOCH FROM (timestamp - prev_timestamp)) / 3600.0)) - (smoothed_volume - prev_smoothed_volume))
+                                        ELSE
+                                            GREATEST(0, ($4 * (EXTRACT(EPOCH FROM (timestamp - prev_timestamp)) / 3600.0)) - (smoothed_volume - prev_smoothed_volume))
+                                    END
+                                ELSE
+                                    GREATEST(0, prev_smoothed_volume - smoothed_volume)
+                            END
+                        ELSE 0
+                    END as water_outflow
+                FROM smoothed_deltas
+            )
+            SELECT COALESCE(SUM(water_outflow), 0) as total_outflow
+            FROM deltas
+            WHERE timestamp >= $7`,
+            [deviceId, queryStart.toISOString(), endUtc.toISOString(), motor1, motor2, threshold, startUtc.toISOString()]
+        );
+
+        const totalOutflow = res.rows.length > 0 ? (parseFloat(res.rows[0].total_outflow) || 0) : 0;
+        const durationHours = Math.max(0.0167, (endUtc.getTime() - startUtc.getTime()) / (3600 * 1000));
+        const flowRateLph = totalOutflow / durationHours;
+
+        return {
+            outflowLiters: totalOutflow,
+            durationHours: durationHours,
+            flowRateLph: flowRateLph
+        };
+    } catch (err) {
+        console.error('[getDeviceOutflowAndFlowRate Error]:', err);
+        return { outflowLiters: 0, durationHours: 1, flowRateLph: 0 };
+    }
+}
+
+function isLocalTimeInWindow(localTime, startTimeStr, endTimeStr) {
+    if (!startTimeStr) return false;
+    const [sH, sM] = startTimeStr.split(':').map(Number);
+    const startMins = sH * 60 + (sM || 0);
+
+    let endMins;
+    if (endTimeStr) {
+        const [eH, eM] = endTimeStr.split(':').map(Number);
+        endMins = eH * 60 + (eM || 0);
+    } else {
+        endMins = (startMins + 60) % 1440;
+    }
+
+    const currentMins = localTime.getUTCHours() * 60 + localTime.getUTCMinutes();
+
+    if (startMins <= endMins) {
+        return currentMins >= startMins && currentMins <= endMins;
+    } else {
+        // Crosses midnight (e.g. 23:00 to 02:00)
+        return currentMins >= startMins || currentMins <= endMins;
+    }
+}
+
+function getWindowUtcRange(localTime, tzOffset, startTimeStr, endTimeStr) {
+    const [sH, sM] = (startTimeStr || '00:00').split(':').map(Number);
+    const startMins = sH * 60 + (sM || 0);
+
+    let endMins;
+    if (endTimeStr) {
+        const [eH, eM] = endTimeStr.split(':').map(Number);
+        endMins = eH * 60 + (eM || 0);
+    } else {
+        endMins = (startMins + 60) % 1440;
+    }
+
+    const currentMins = localTime.getUTCHours() * 60 + localTime.getUTCMinutes();
+
+    const startLocal = new Date(localTime);
+    if (startMins > endMins && currentMins <= endMins) {
+        startLocal.setUTCDate(startLocal.getUTCDate() - 1);
+    }
+    startLocal.setUTCHours(sH, sM || 0, 0, 0);
+
+    const endLocal = new Date(startLocal);
+    if (startMins > endMins) {
+        endLocal.setUTCDate(endLocal.getUTCDate() + 1);
+    }
+    const [eH, eM] = (endTimeStr || '01:00').split(':').map(Number);
+    endLocal.setUTCHours(eH, eM || 0, 0, 0);
+
+    const startUtc = new Date(startLocal.getTime() + (tzOffset * 60000));
+    const endUtc = new Date(endLocal.getTime() + (tzOffset * 60000));
+
+    return { startUtc, endUtc };
+}
+
+async function evaluateScheduleCondition(schedule, config, ctx) {
+    const { percent, displayLevel, displayVolume, now, localTime, tzOffset, deviceId } = ctx;
+    const condType = schedule.condition_type || 'none';
+    const triggerStatus = schedule.trigger_status || 'NORMAL';
+    let conditionMet = false;
+    let conditionDesc = '';
+    let nextTriggerStatus = triggerStatus;
+    let flowRateLph = 0;
+    let windowOutflowLiters = 0;
+    let timeWindowStr = '';
+
+    if (condType === 'none') {
+        return { conditionMet: true, nextTriggerStatus: 'NORMAL', conditionDesc: 'Run unconditionally', flowRateLph: 0, windowOutflowLiters: 0, timeWindowStr: '' };
+    }
+
+    if (condType === 'less_than') {
+        const thresholdVal = parseFloat(schedule.condition_value) || 0;
+        if (triggerStatus === 'NORMAL') {
+            if (percent < thresholdVal) {
+                conditionMet = true;
+                nextTriggerStatus = 'TRIGGERED';
+                conditionDesc = `Water Level (${percent.toFixed(1)}%) < Threshold (${thresholdVal}%) - Triggers Alarm`;
+            } else {
+                conditionDesc = `Water Level (${percent.toFixed(1)}%) >= Threshold (${thresholdVal}%)`;
+            }
+        } else {
+            const resetThreshold = thresholdVal + 10;
+            if (percent >= resetThreshold) {
+                nextTriggerStatus = 'NORMAL';
+                conditionDesc = `Water Level (${percent.toFixed(1)}%) >= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
+            } else {
+                conditionDesc = `Water Level (${percent.toFixed(1)}%) is still below reset threshold ${resetThreshold}%`;
+            }
+        }
+    } else if (condType === 'greater_than') {
+        const thresholdVal = parseFloat(schedule.condition_value) || 0;
+        if (triggerStatus === 'NORMAL') {
+            if (percent > thresholdVal) {
+                conditionMet = true;
+                nextTriggerStatus = 'TRIGGERED';
+                conditionDesc = `Water Level (${percent.toFixed(1)}%) > Threshold (${thresholdVal}%) - Triggers Alarm`;
+            } else {
+                conditionDesc = `Water Level (${percent.toFixed(1)}%) <= Threshold (${thresholdVal}%)`;
+            }
+        } else {
+            const resetThreshold = thresholdVal - 10;
+            if (percent <= resetThreshold) {
+                nextTriggerStatus = 'NORMAL';
+                conditionDesc = `Water Level (${percent.toFixed(1)}%) <= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
+            } else {
+                conditionDesc = `Water Level (${percent.toFixed(1)}%) is still above reset threshold ${resetThreshold}%`;
+            }
+        }
+    } else if (condType === 'low_alert') {
+        const alertMin = parseFloat(config.alert_min) || 20.0;
+        if (triggerStatus === 'NORMAL') {
+            if (percent < alertMin) {
+                conditionMet = true;
+                nextTriggerStatus = 'TRIGGERED';
+                conditionDesc = `Water Level (${percent.toFixed(1)}%) < Low Margin (${alertMin}%) - Triggers Alarm`;
+            } else {
+                conditionDesc = `Water Level (${percent.toFixed(1)}%) >= Low Margin (${alertMin}%)`;
+            }
+        } else {
+            const resetThreshold = alertMin + 10;
+            if (percent >= resetThreshold) {
+                nextTriggerStatus = 'NORMAL';
+                conditionDesc = `Water Level (${percent.toFixed(1)}%) >= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
+            } else {
+                conditionDesc = `Water Level (${percent.toFixed(1)}%) is still below reset threshold ${resetThreshold}%`;
+            }
+        }
+    } else if (condType === 'high_alert') {
+        const alertMax = parseFloat(config.alert_max) || 90.0;
+        if (triggerStatus === 'NORMAL') {
+            if (percent > alertMax) {
+                conditionMet = true;
+                nextTriggerStatus = 'TRIGGERED';
+                conditionDesc = `Water Level (${percent.toFixed(1)}%) > High Margin (${alertMax}%) - Triggers Alarm`;
+            } else {
+                conditionDesc = `Water Level (${percent.toFixed(1)}%) <= High Margin (${alertMax}%)`;
+            }
+        } else {
+            const resetThreshold = alertMax - 10;
+            if (percent <= resetThreshold) {
+                nextTriggerStatus = 'NORMAL';
+                conditionDesc = `Water Level (${percent.toFixed(1)}%) <= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
+            } else {
+                conditionDesc = `Water Level (${percent.toFixed(1)}%) is still above reset threshold ${resetThreshold}%`;
+            }
+        }
+    } else if (condType === 'flow_rate_window') {
+        const startTimeStr = (schedule.scheduled_time || '01:00').substring(0, 5);
+        const endTimeStr = (schedule.window_end_time || '02:00').substring(0, 5);
+        timeWindowStr = `${startTimeStr} - ${endTimeStr}`;
+        const inWindow = isLocalTimeInWindow(localTime, startTimeStr, endTimeStr);
+
+        if (!inWindow) {
+            if (triggerStatus === 'TRIGGERED') {
+                nextTriggerStatus = 'NORMAL';
+                conditionDesc = `Current time is outside window (${timeWindowStr}) - Resets Alarm`;
+            } else {
+                conditionDesc = `Current time is outside window (${timeWindowStr})`;
+            }
+        } else {
+            const { startUtc } = getWindowUtcRange(localTime, tzOffset, startTimeStr, endTimeStr);
+            const flowData = await getDeviceOutflowAndFlowRate(deviceId, startUtc, now, config);
+            flowRateLph = flowData.flowRateLph;
+            windowOutflowLiters = flowData.outflowLiters;
+            const thresholdVal = parseFloat(schedule.condition_value) || 0;
+
+            if (triggerStatus === 'NORMAL') {
+                if (flowRateLph > thresholdVal && (flowData.durationHours >= 0.03 || windowOutflowLiters >= 5)) {
+                    conditionMet = true;
+                    nextTriggerStatus = 'TRIGGERED';
+                    conditionDesc = `Flow Rate (${Math.round(flowRateLph)} L/h) > Threshold (${thresholdVal} L/h) in period ${timeWindowStr} - Triggers Alarm`;
+                } else {
+                    conditionDesc = `Flow Rate (${Math.round(flowRateLph)} L/h) <= Threshold (${thresholdVal} L/h) in period ${timeWindowStr}`;
+                }
+            } else {
+                if (flowRateLph <= thresholdVal * 0.8) {
+                    nextTriggerStatus = 'NORMAL';
+                    conditionDesc = `Flow Rate (${Math.round(flowRateLph)} L/h) dropped below reset margin - Resets Alarm`;
+                } else {
+                    conditionDesc = `Flow Rate (${Math.round(flowRateLph)} L/h) is still elevated in period ${timeWindowStr}`;
+                }
+            }
+        }
+    } else if (condType === 'usage_window') {
+        const startTimeStr = (schedule.scheduled_time || '01:00').substring(0, 5);
+        const endTimeStr = (schedule.window_end_time || '02:00').substring(0, 5);
+        timeWindowStr = `${startTimeStr} - ${endTimeStr}`;
+        const inWindow = isLocalTimeInWindow(localTime, startTimeStr, endTimeStr);
+
+        if (!inWindow) {
+            if (triggerStatus === 'TRIGGERED') {
+                nextTriggerStatus = 'NORMAL';
+                conditionDesc = `Current time is outside window (${timeWindowStr}) - Resets Alarm`;
+            } else {
+                conditionDesc = `Current time is outside window (${timeWindowStr})`;
+            }
+        } else {
+            const { startUtc } = getWindowUtcRange(localTime, tzOffset, startTimeStr, endTimeStr);
+            const flowData = await getDeviceOutflowAndFlowRate(deviceId, startUtc, now, config);
+            windowOutflowLiters = flowData.outflowLiters;
+            flowRateLph = flowData.flowRateLph;
+            const thresholdVal = parseFloat(schedule.condition_value) || 0;
+
+            if (triggerStatus === 'NORMAL') {
+                if (windowOutflowLiters > thresholdVal) {
+                    conditionMet = true;
+                    nextTriggerStatus = 'TRIGGERED';
+                    conditionDesc = `Water Usage (${Math.round(windowOutflowLiters)} L) > Threshold (${thresholdVal} L) in period ${timeWindowStr} - Triggers Alarm`;
+                } else {
+                    conditionDesc = `Water Usage (${Math.round(windowOutflowLiters)} L) <= Threshold (${thresholdVal} L) in period ${timeWindowStr}`;
+                }
+            } else {
+                conditionDesc = `Usage alert already triggered for period ${timeWindowStr}`;
+            }
+        }
+    } else if (condType === 'flow_rate_instant') {
+        const fifteenMinsAgo = new Date(now.getTime() - 15 * 60 * 1000);
+        const flowData = await getDeviceOutflowAndFlowRate(deviceId, fifteenMinsAgo, now, config);
+        flowRateLph = flowData.flowRateLph;
+        windowOutflowLiters = flowData.outflowLiters;
+        const thresholdVal = parseFloat(schedule.condition_value) || 0;
+
+        if (triggerStatus === 'NORMAL') {
+            if (flowRateLph > thresholdVal && windowOutflowLiters >= 5) {
+                conditionMet = true;
+                nextTriggerStatus = 'TRIGGERED';
+                conditionDesc = `Instant Flow Rate (${Math.round(flowRateLph)} L/h) > Threshold (${thresholdVal} L/h) - Triggers Alarm`;
+            } else {
+                conditionDesc = `Instant Flow Rate (${Math.round(flowRateLph)} L/h) <= Threshold (${thresholdVal} L/h)`;
+            }
+        } else {
+            if (flowRateLph <= thresholdVal * 0.8) {
+                nextTriggerStatus = 'NORMAL';
+                conditionDesc = `Instant Flow Rate (${Math.round(flowRateLph)} L/h) dropped below reset margin - Resets Alarm`;
+            } else {
+                conditionDesc = `Instant Flow Rate is still elevated (${Math.round(flowRateLph)} L/h)`;
+            }
+        }
+    }
+
+    return { conditionMet, nextTriggerStatus, conditionDesc, flowRateLph, windowOutflowLiters, timeWindowStr };
+}
+
+function formatScheduleMessage(template, schedule, config, ctx, evalRes) {
+    const { percent, displayLevel, displayVolume, tzOffset, deviceId, dailyUsage } = ctx;
+    const { flowRateLph, windowOutflowLiters, timeWindowStr } = evalRes;
+    const condType = schedule.condition_type || 'none';
+
+    let defaultTpl = '';
+    let thresholdValue = '';
+
+    if (condType === 'low_alert') {
+        defaultTpl = '⚠️ ALERT: Water level is critically LOW at [Percent]%! (Below [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
+        thresholdValue = (parseFloat(config.alert_min) || 20.0).toFixed(0);
+    } else if (condType === 'high_alert') {
+        defaultTpl = '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
+        thresholdValue = (parseFloat(config.alert_max) || 90.0).toFixed(0);
+    } else if (condType === 'flow_rate_window') {
+        defaultTpl = '⚠️ HydroSync ALERT: Water flow rate of [FlowRate] exceeded [Threshold] L/h threshold during period [TimeWindow]! (Total Outflow: [WindowUsage], Tank: [Percent]%). Device: [Device]. Time: [Timestamp]';
+        thresholdValue = (parseFloat(schedule.condition_value) || 0.0).toFixed(0);
+    } else if (condType === 'usage_window') {
+        defaultTpl = '⚠️ HydroSync ALERT: Water consumption of [WindowUsage] exceeded [Threshold] L threshold during period [TimeWindow]! (Tank: [Percent]%). Device: [Device]. Time: [Timestamp]';
+        thresholdValue = (parseFloat(schedule.condition_value) || 0.0).toFixed(0);
+    } else if (condType === 'flow_rate_instant') {
+        defaultTpl = '⚠️ HydroSync ALERT: High water flow rate of [FlowRate] detected! (Threshold: [Threshold] L/h, Tank: [Percent]%). Device: [Device]. Time: [Timestamp]';
+        thresholdValue = (parseFloat(schedule.condition_value) || 0.0).toFixed(0);
+    } else if (condType === 'less_than' || condType === 'greater_than') {
+        defaultTpl = '⚠️ ALERT: Water level trigger alert! Current level is [Percent]% (Threshold: [Threshold]%). Device ID: [Device]. Time: [Timestamp]';
+        thresholdValue = (parseFloat(schedule.condition_value) || 0.0).toFixed(0);
+    } else {
+        defaultTpl = 'HydroSync Status: [Device] is currently at [Percent] capacity ([Volume] / [Depth]). Today\'s Usage: [DailyUsage]. Time: [Timestamp].';
+    }
+
+    const tplToUse = template || defaultTpl;
+    const timestamp = getFormattedLocalTimestamp(tzOffset);
+
+    return tplToUse
+        .replace(/\[Percent\]/g, `${percent.toFixed(0)}%`)
+        .replace(/\[Threshold\]/g, thresholdValue)
+        .replace(/\[Device\]/g, deviceId)
+        .replace(/\[Timestamp\]/g, timestamp)
+        .replace(/\[Volume\]/g, `${(Math.round(displayVolume / 10) * 10).toLocaleString()} L`)
+        .replace(/\[Depth\]/g, `${displayLevel.toFixed(1)} cm`)
+        .replace(/\[DailyUsage\]/g, `${Math.round(dailyUsage || 0).toLocaleString()} L`)
+        .replace(/\[Usage\]/g, `${Math.round(dailyUsage || 0).toLocaleString()} L`)
+        .replace(/\[FlowRate\]/g, `${Math.round(flowRateLph || 0)} L/h`)
+        .replace(/\[WindowUsage\]/g, `${Math.round(windowOutflowLiters || 0).toLocaleString()} L`)
+        .replace(/\[TimeWindow\]/g, timeWindowStr || `${(schedule.scheduled_time || '').substring(0, 5)} - ${(schedule.window_end_time || '').substring(0, 5)}`);
+}
+
 async function checkDeviceThresholdAlerts(deviceId, level, volume) {
     try {
         const configRes = await pool.query(
@@ -1441,7 +1821,7 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
 
         // Fetch enabled schedules for this device
         const schedulesRes = await pool.query(
-            `SELECT id, schedule_type, recipient_numbers, days_of_week, message_template, timezone_offset, condition_type, condition_value, trigger_status
+            `SELECT id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, window_end_time::text as window_end_time, days_of_week, message_template, timezone_offset, condition_type, condition_value, trigger_status
              FROM w_sms_schedules
              WHERE device_id = $1 AND is_enabled = TRUE`,
             [deviceId]
@@ -1552,171 +1932,65 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
 
         for (const schedule of schedulesRes.rows) {
             try {
-                const isInstant = (schedule.condition_type === 'less_than' || schedule.condition_type === 'greater_than' || schedule.condition_type === 'low_alert' || schedule.condition_type === 'high_alert');
+                const isInstant = (
+                    schedule.condition_type === 'less_than' ||
+                    schedule.condition_type === 'greater_than' ||
+                    schedule.condition_type === 'low_alert' ||
+                    schedule.condition_type === 'high_alert' ||
+                    schedule.condition_type === 'flow_rate_window' ||
+                    schedule.condition_type === 'usage_window' ||
+                    schedule.condition_type === 'flow_rate_instant'
+                );
+
                 if (!isInstant) {
-                    // Non-instant schedules are skipped in this real-time check. They are processed by runScheduleCheck.
                     continue;
                 }
 
-            const tzOffset = schedule.timezone_offset !== null && schedule.timezone_offset !== undefined ? parseInt(schedule.timezone_offset, 10) : 0;
-            const localTime = new Date(now.getTime() - (tzOffset * 60000));
-            const currentDay = localTime.getUTCDay().toString();
+                const tzOffset = schedule.timezone_offset !== null && schedule.timezone_offset !== undefined ? parseInt(schedule.timezone_offset, 10) : 0;
+                const localTime = new Date(now.getTime() - (tzOffset * 60000));
+                const currentDay = localTime.getUTCDay().toString();
 
-            const days = (schedule.days_of_week || '').split(',').map(d => d.trim());
-            if (!days.includes(currentDay)) {
-                continue;
-            }
-
-            const triggerStatus = schedule.trigger_status || 'NORMAL';
-            let conditionMet = false;
-            let conditionDesc = '';
-            let nextTriggerStatus = triggerStatus;
-            
-            const condType = schedule.condition_type;
-
-            if (condType === 'less_than') {
-                const thresholdVal = parseFloat(schedule.condition_value) || 0;
-                if (triggerStatus === 'NORMAL') {
-                    if (percent < thresholdVal) {
-                        conditionMet = true;
-                        nextTriggerStatus = 'TRIGGERED';
-                        conditionDesc = `Water Level (${percent.toFixed(1)}%) < Threshold (${thresholdVal}%) - Triggers Alarm`;
-                    } else {
-                        conditionMet = false;
-                        conditionDesc = `Water Level (${percent.toFixed(1)}%) >= Threshold (${thresholdVal}%)`;
-                    }
-                } else { // TRIGGERED
-                    const resetThreshold = thresholdVal + 10;
-                    if (percent >= resetThreshold) {
-                        nextTriggerStatus = 'NORMAL';
-                        conditionDesc = `Water Level (${percent.toFixed(1)}%) >= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
-                    } else {
-                        conditionDesc = `Water Level (${percent.toFixed(1)}%) is still below reset threshold ${resetThreshold}%`;
-                    }
-                    conditionMet = false;
-                }
-            } else if (condType === 'greater_than') {
-                const thresholdVal = parseFloat(schedule.condition_value) || 0;
-                if (triggerStatus === 'NORMAL') {
-                    if (percent > thresholdVal) {
-                        conditionMet = true;
-                        nextTriggerStatus = 'TRIGGERED';
-                        conditionDesc = `Water Level (${percent.toFixed(1)}%) > Threshold (${thresholdVal}%) - Triggers Alarm`;
-                    } else {
-                        conditionMet = false;
-                        conditionDesc = `Water Level (${percent.toFixed(1)}%) <= Threshold (${thresholdVal}%)`;
-                    }
-                } else { // TRIGGERED
-                    const resetThreshold = thresholdVal - 10;
-                    if (percent <= resetThreshold) {
-                        nextTriggerStatus = 'NORMAL';
-                        conditionDesc = `Water Level (${percent.toFixed(1)}%) <= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
-                    } else {
-                        conditionDesc = `Water Level (${percent.toFixed(1)}%) is still above reset threshold ${resetThreshold}%`;
-                    }
-                    conditionMet = false;
-                }
-            } else if (condType === 'low_alert') {
-                const alertMin = parseFloat(config.alert_min) || 20.0;
-                if (triggerStatus === 'NORMAL') {
-                    if (percent < alertMin) {
-                        conditionMet = true;
-                        nextTriggerStatus = 'TRIGGERED';
-                        conditionDesc = `Water Level (${percent.toFixed(1)}%) < Low Margin (${alertMin}%) - Triggers Alarm`;
-                    } else {
-                        conditionMet = false;
-                        conditionDesc = `Water Level (${percent.toFixed(1)}%) >= Low Margin (${alertMin}%)`;
-                    }
-                } else { // TRIGGERED
-                    const resetThreshold = alertMin + 10;
-                    if (percent >= resetThreshold) {
-                        nextTriggerStatus = 'NORMAL';
-                        conditionDesc = `Water Level (${percent.toFixed(1)}%) >= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
-                    } else {
-                        conditionDesc = `Water Level (${percent.toFixed(1)}%) is still below reset threshold ${resetThreshold}%`;
-                    }
-                    conditionMet = false;
-                }
-            } else if (condType === 'high_alert') {
-                const alertMax = parseFloat(config.alert_max) || 90.0;
-                if (triggerStatus === 'NORMAL') {
-                    if (percent > alertMax) {
-                        conditionMet = true;
-                        nextTriggerStatus = 'TRIGGERED';
-                        conditionDesc = `Water Level (${percent.toFixed(1)}%) > High Margin (${alertMax}%) - Triggers Alarm`;
-                    } else {
-                        conditionMet = false;
-                        conditionDesc = `Water Level (${percent.toFixed(1)}%) <= High Margin (${alertMax}%)`;
-                    }
-                } else { // TRIGGERED
-                    const resetThreshold = alertMax - 10;
-                    if (percent <= resetThreshold) {
-                        nextTriggerStatus = 'NORMAL';
-                        conditionDesc = `Water Level (${percent.toFixed(1)}%) <= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
-                    } else {
-                        conditionDesc = `Water Level (${percent.toFixed(1)}%) is still above reset threshold ${resetThreshold}%`;
-                    }
-                    conditionMet = false;
-                }
-            }
-
-            if (nextTriggerStatus !== triggerStatus) {
-                // ATOMIC STATE CHANGE: Update trigger_status atomically to ensure only one process triggers the SMS
-                const updateTriggerRes = await pool.query(
-                    `UPDATE w_sms_schedules SET trigger_status = $1 WHERE id = $2 AND trigger_status = $3`,
-                    [nextTriggerStatus, schedule.id, triggerStatus]
-                );
-                if (updateTriggerRes.rowCount === 0) {
-                    conditionMet = false;
-                    console.log(`[Instant SMS Triggers] Schedule ID ${schedule.id} trigger_status update failed (concurrent update). Skipping SMS.`);
-                } else {
-                    console.log(`[Instant SMS Triggers] Schedule ID ${schedule.id} trigger_status updated from ${triggerStatus} to ${nextTriggerStatus}. Reason: ${conditionDesc}`);
-                }
-            }
-
-            if (conditionMet) {
-                console.log(`[Instant SMS Triggers] Triggering schedule ID ${schedule.id} (${schedule.schedule_type}) for device ${deviceId}...`);
-
-                let template = schedule.message_template || '';
-                let thresholdValue = '';
-                
-                if (condType === 'low_alert') {
-                    template = template || '⚠️ ALERT: Water level is critically LOW at [Percent]%! (Below [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
-                    thresholdValue = (parseFloat(config.alert_min) || 20.0).toFixed(0);
-                } else if (condType === 'high_alert') {
-                    template = template || '⚠️ ALERT: Water level is critically HIGH at [Percent]%! (Above [Threshold]% threshold). Device ID: [Device]. Time: [Timestamp]';
-                    thresholdValue = (parseFloat(config.alert_max) || 90.0).toFixed(0);
-                } else {
-                    template = template || '⚠️ ALERT: Water level trigger alert! Current level is [Percent]% (Threshold: [Threshold]%). Device ID: [Device]. Time: [Timestamp]';
-                    thresholdValue = (parseFloat(schedule.condition_value) || 0.0).toFixed(0);
+                const days = (schedule.days_of_week || '').split(',').map(d => d.trim());
+                if (!days.includes(currentDay)) {
+                    continue;
                 }
 
-                const timestamp = getFormattedLocalTimestamp(tzOffset);
-                const dailyUsage = await getTodayDeviceUsage(deviceId, tzOffset, config);
-                let message = template
-                    .replace(/\[Percent\]/g, `${percent.toFixed(0)}%`)
-                    .replace(/\[Threshold\]/g, thresholdValue)
-                    .replace(/\[Device\]/g, deviceId)
-                    .replace(/\[Timestamp\]/g, timestamp)
-                    .replace(/\[Volume\]/g, `${(Math.round(displayVolume / 10) * 10).toLocaleString()} L`)
-                    .replace(/\[Depth\]/g, `${displayLevel.toFixed(1)} cm`)
-                    .replace(/\[DailyUsage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`)
-                    .replace(/\[Usage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`);
+                const triggerStatus = schedule.trigger_status || 'NORMAL';
+                const ctx = { percent, displayLevel, displayVolume, now, localTime, tzOffset, deviceId };
+                const evalRes = await evaluateScheduleCondition(schedule, config, ctx);
 
-                const recipients = (schedule.recipient_numbers || '').split(',').map(n => n.trim()).filter(Boolean);
-                for (let i = 0; i < recipients.length; i++) {
-                    const rec = recipients[i];
-                    if (i > 0) {
-                        console.log(`[Instant SMS Triggers] Waiting 3 seconds before sending to next recipient (${rec})...`);
-                        await new Promise((resolve) => setTimeout(resolve, 3000));
+                if (evalRes.nextTriggerStatus !== triggerStatus) {
+                    const updateTriggerRes = await pool.query(
+                        `UPDATE w_sms_schedules SET trigger_status = $1 WHERE id = $2 AND trigger_status = $3`,
+                        [evalRes.nextTriggerStatus, schedule.id, triggerStatus]
+                    );
+                    if (updateTriggerRes.rowCount === 0) {
+                        evalRes.conditionMet = false;
+                        console.log(`[Instant SMS Triggers] Schedule ID ${schedule.id} trigger_status update failed (concurrent update). Skipping SMS.`);
+                    } else {
+                        console.log(`[Instant SMS Triggers] Schedule ID ${schedule.id} trigger_status updated from ${triggerStatus} to ${evalRes.nextTriggerStatus}. Reason: ${evalRes.conditionDesc}`);
                     }
-                    const res = await sendSmsMessageDirectly(config, rec, message);
-                    console.log(`[Instant SMS Triggers] Dispatch to ${rec}: ${res.success ? 'Success' : 'Failed (' + res.error + ')'}`);
-                    await saveSmsLog(deviceId, rec, message, res.success ? 'SUCCESS' : 'FAILED', res.success ? null : res.error);
                 }
 
-                await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP WHERE id = $1', [schedule.id]);
-            }
+                if (evalRes.conditionMet) {
+                    console.log(`[Instant SMS Triggers] Triggering schedule ID ${schedule.id} (${schedule.schedule_type}) for device ${deviceId}...`);
+                    ctx.dailyUsage = await getTodayDeviceUsage(deviceId, tzOffset, config);
+                    const message = formatScheduleMessage(schedule.message_template, schedule, config, ctx, evalRes);
+
+                    const recipients = (schedule.recipient_numbers || '').split(',').map(n => n.trim()).filter(Boolean);
+                    for (let i = 0; i < recipients.length; i++) {
+                        const rec = recipients[i];
+                        if (i > 0) {
+                            console.log(`[Instant SMS Triggers] Waiting 3 seconds before sending to next recipient (${rec})...`);
+                            await new Promise((resolve) => setTimeout(resolve, 3000));
+                        }
+                        const res = await sendSmsMessageDirectly(config, rec, message);
+                        console.log(`[Instant SMS Triggers] Dispatch to ${rec}: ${res.success ? 'Success' : 'Failed (' + res.error + ')'}`);
+                        await saveSmsLog(deviceId, rec, message, res.success ? 'SUCCESS' : 'FAILED', res.success ? null : res.error);
+                    }
+
+                    await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP WHERE id = $1', [schedule.id]);
+                }
             } catch (innerErr) {
                 console.error(`[SMS Real-Time Triggers Check Loop Error] Failed to process schedule ID ${schedule.id}:`, innerErr);
             }
@@ -1733,7 +2007,7 @@ async function runScheduleCheck() {
         const now = new Date();
 
         const result = await pool.query(
-            `SELECT id, device_id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, days_of_week, message_template, last_run, timezone_offset, condition_type, condition_value, trigger_status
+            `SELECT id, device_id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, window_end_time::text as window_end_time, days_of_week, message_template, last_run, timezone_offset, condition_type, condition_value, trigger_status
              FROM w_sms_schedules
              WHERE is_enabled = TRUE`
         );
@@ -1744,7 +2018,15 @@ async function runScheduleCheck() {
                 const localTime = new Date(now.getTime() - (tzOffset * 60000));
                 const currentDay = localTime.getUTCDay().toString();
 
-                const isInstant = (schedule.condition_type === 'less_than' || schedule.condition_type === 'greater_than' || schedule.condition_type === 'low_alert' || schedule.condition_type === 'high_alert');
+                const isInstant = (
+                    schedule.condition_type === 'less_than' ||
+                    schedule.condition_type === 'greater_than' ||
+                    schedule.condition_type === 'low_alert' ||
+                    schedule.condition_type === 'high_alert' ||
+                    schedule.condition_type === 'flow_rate_window' ||
+                    schedule.condition_type === 'usage_window' ||
+                    schedule.condition_type === 'flow_rate_instant'
+                );
 
                 const days = (schedule.days_of_week || '').split(',').map(d => d.trim());
                 if (!days.includes(currentDay)) {
@@ -1755,7 +2037,7 @@ async function runScheduleCheck() {
                     // Scheduled time checks
                     const [schedHour, schedMin] = (schedule.scheduled_time || '00:00').split(':').map(Number);
                     
-                    // Construct scheduled time today in local timezone (represented in UTC fields of shifted Date)
+                    // Construct scheduled time today in local timezone
                     const schedLocalToday = new Date(localTime);
                     schedLocalToday.setUTCHours(schedHour, schedMin, 0, 0);
 
@@ -1772,8 +2054,6 @@ async function runScheduleCheck() {
                     // Has it already run for this scheduled occurrence?
                     if (schedule.last_run) {
                         const lastRunLocal = new Date(new Date(schedule.last_run).getTime() - (tzOffset * 60000));
-                        
-                        // If last_run local is on the same day as localTime, and it was run after or equal to the scheduled local time
                         const isSameDay = lastRunLocal.getUTCFullYear() === localTime.getUTCFullYear() &&
                                           lastRunLocal.getUTCMonth() === localTime.getUTCMonth() &&
                                           lastRunLocal.getUTCDate() === localTime.getUTCDate();
@@ -1783,7 +2063,7 @@ async function runScheduleCheck() {
                         }
                     }
 
-                    // ATOMIC LOCK: Claim this execution instance atomically in PostgreSQL before sending SMS to avoid multiple parallel runs
+                    // ATOMIC LOCK: Claim this execution instance atomically in PostgreSQL before sending SMS
                     const updateRes = await pool.query(
                         `UPDATE w_sms_schedules 
                          SET last_run = CURRENT_TIMESTAMP 
@@ -1808,181 +2088,75 @@ async function runScheduleCheck() {
                 }
                 const config = configRes.rows[0];
 
-                // Evaluate condition if configured
-                const condType = schedule.condition_type || 'none';
-                if (condType !== 'none') {
-                    const telRes = await pool.query(
-                        `SELECT level FROM w_telemetry WHERE device_id = $1 ORDER BY timestamp DESC LIMIT 1`,
-                        [schedule.device_id]
+                // Fetch latest telemetry for status and condition evaluation
+                const telRes = await pool.query(
+                    `SELECT level, volume FROM w_telemetry WHERE device_id = $1 ORDER BY timestamp DESC LIMIT 1`,
+                    [schedule.device_id]
+                );
+
+                const tankHeight = parseFloat(config.tank_height) || 200.0;
+                const tankDiameter = parseFloat(config.tank_diameter) || 228.0;
+                const numTanks = parseInt(config.num_tanks, 10) || 1;
+                const radius = tankDiameter / 2.0;
+                const crossSectionArea = Math.PI * radius * radius;
+
+                let displayLevel = 0;
+                let displayVolume = 0;
+                let percent = 0;
+
+                if (telRes.rows.length > 0) {
+                    displayLevel = parseFloat(telRes.rows[0].level) || 0;
+                    displayVolume = parseFloat(telRes.rows[0].volume) || 0;
+                    percent = (displayLevel / tankHeight) * 100;
+                    percent = Math.min(Math.max(percent, 0), 100);
+                }
+
+                const ctx = {
+                    percent,
+                    displayLevel,
+                    displayVolume,
+                    now,
+                    localTime,
+                    tzOffset,
+                    deviceId: schedule.device_id
+                };
+
+                const triggerStatus = schedule.trigger_status || 'NORMAL';
+                const evalRes = await evaluateScheduleCondition(schedule, config, ctx);
+
+                if (evalRes.nextTriggerStatus !== triggerStatus) {
+                    const updateTriggerRes = await pool.query(
+                        `UPDATE w_sms_schedules SET trigger_status = $1 WHERE id = $2 AND trigger_status = $3`,
+                        [evalRes.nextTriggerStatus, schedule.id, triggerStatus]
                     );
-                    
-                    let currentPct = null;
-                    if (telRes.rows.length > 0) {
-                        const latestLvl = parseFloat(telRes.rows[0].level) || 0;
-                        const tankHeight = parseFloat(config.tank_height) || 200.0;
-                        currentPct = (latestLvl / tankHeight) * 100;
-                        currentPct = Math.min(Math.max(currentPct, 0), 100);
+                    if (updateTriggerRes.rowCount === 0) {
+                        evalRes.conditionMet = false;
+                        console.log(`[SMS Scheduler] Schedule ID ${schedule.id} trigger_status update failed (concurrent update). Skipping SMS.`);
+                    } else {
+                        console.log(`[SMS Scheduler] Schedule ID ${schedule.id} trigger_status updated from ${triggerStatus} to ${evalRes.nextTriggerStatus}. Reason: ${evalRes.conditionDesc}`);
                     }
+                }
 
-                    if (currentPct === null) {
-                        console.log(`[SMS Scheduler] Schedule ID ${schedule.id} has condition ${condType} but no telemetry data is available for device ${schedule.device_id}. Skipping.`);
-                        continue;
-                    }
-
-                    const triggerStatus = schedule.trigger_status || 'NORMAL';
-                    let conditionMet = false;
-                    let conditionDesc = '';
-                    let nextTriggerStatus = triggerStatus;
-                    
-                    if (condType === 'less_than') {
-                        const thresholdVal = parseFloat(schedule.condition_value) || 0;
-                        if (triggerStatus === 'NORMAL') {
-                            if (currentPct < thresholdVal) {
-                                conditionMet = true;
-                                nextTriggerStatus = 'TRIGGERED';
-                                conditionDesc = `Water Level (${currentPct.toFixed(1)}%) < Threshold (${thresholdVal}%) - Triggers Alarm`;
-                            } else {
-                                conditionMet = false;
-                                conditionDesc = `Water Level (${currentPct.toFixed(1)}%) >= Threshold (${thresholdVal}%)`;
-                            }
-                        } else { // TRIGGERED
-                            const resetThreshold = thresholdVal + 10;
-                            if (currentPct >= resetThreshold) {
-                                nextTriggerStatus = 'NORMAL';
-                                conditionDesc = `Water Level (${currentPct.toFixed(1)}%) >= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
-                            } else {
-                                conditionDesc = `Water Level (${currentPct.toFixed(1)}%) is still below reset threshold ${resetThreshold}%`;
-                            }
-                            conditionMet = false;
-                        }
-                    } else if (condType === 'greater_than') {
-                        const thresholdVal = parseFloat(schedule.condition_value) || 0;
-                        if (triggerStatus === 'NORMAL') {
-                            if (currentPct > thresholdVal) {
-                                conditionMet = true;
-                                nextTriggerStatus = 'TRIGGERED';
-                                conditionDesc = `Water Level (${currentPct.toFixed(1)}%) > Threshold (${thresholdVal}%) - Triggers Alarm`;
-                            } else {
-                                conditionMet = false;
-                                conditionDesc = `Water Level (${currentPct.toFixed(1)}%) <= Threshold (${thresholdVal}%)`;
-                            }
-                        } else { // TRIGGERED
-                            const resetThreshold = thresholdVal - 10;
-                            if (currentPct <= resetThreshold) {
-                                nextTriggerStatus = 'NORMAL';
-                                conditionDesc = `Water Level (${currentPct.toFixed(1)}%) <= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
-                            } else {
-                                conditionDesc = `Water Level (${currentPct.toFixed(1)}%) is still above reset threshold ${resetThreshold}%`;
-                            }
-                            conditionMet = false;
-                        }
-                    } else if (condType === 'low_alert') {
-                        const alertMin = parseFloat(config.alert_min) || 20.0;
-                        if (triggerStatus === 'NORMAL') {
-                            if (currentPct < alertMin) {
-                                conditionMet = true;
-                                nextTriggerStatus = 'TRIGGERED';
-                                conditionDesc = `Water Level (${currentPct.toFixed(1)}%) < Low Margin (${alertMin}%) - Triggers Alarm`;
-                            } else {
-                                conditionMet = false;
-                                conditionDesc = `Water Level (${currentPct.toFixed(1)}%) >= Low Margin (${alertMin}%)`;
-                            }
-                        } else { // TRIGGERED
-                            const resetThreshold = alertMin + 10;
-                            if (currentPct >= resetThreshold) {
-                                nextTriggerStatus = 'NORMAL';
-                                conditionDesc = `Water Level (${currentPct.toFixed(1)}%) >= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
-                            } else {
-                                conditionDesc = `Water Level (${currentPct.toFixed(1)}%) is still below reset threshold ${resetThreshold}%`;
-                            }
-                            conditionMet = false;
-                        }
-                    } else if (condType === 'high_alert') {
-                        const alertMax = parseFloat(config.alert_max) || 90.0;
-                        if (triggerStatus === 'NORMAL') {
-                            if (currentPct > alertMax) {
-                                conditionMet = true;
-                                nextTriggerStatus = 'TRIGGERED';
-                                conditionDesc = `Water Level (${currentPct.toFixed(1)}%) > High Margin (${alertMax}%) - Triggers Alarm`;
-                            } else {
-                                conditionMet = false;
-                                conditionDesc = `Water Level (${currentPct.toFixed(1)}%) <= High Margin (${alertMax}%)`;
-                            }
-                        } else { // TRIGGERED
-                            const resetThreshold = alertMax - 10;
-                            if (currentPct <= resetThreshold) {
-                                nextTriggerStatus = 'NORMAL';
-                                conditionDesc = `Water Level (${currentPct.toFixed(1)}%) <= Reset Threshold (${resetThreshold}%) - Resets Alarm`;
-                            } else {
-                                conditionDesc = `Water Level (${currentPct.toFixed(1)}%) is still above reset threshold ${resetThreshold}%`;
-                            }
-                            conditionMet = false;
+                if (!evalRes.conditionMet) {
+                    if (!isInstant) {
+                        console.log(`[SMS Scheduler] Schedule ID ${schedule.id} skipped because condition was not met: ${evalRes.conditionDesc}`);
+                        const recipients = (schedule.recipient_numbers || '').split(',').map(n => n.trim()).filter(Boolean);
+                        const skipMsg = `[Automation Skipped] Condition not met: ${evalRes.conditionDesc}`;
+                        for (const rec of recipients) {
+                            await saveSmsLog(schedule.device_id, rec, skipMsg, 'SKIPPED', `Condition not met: ${evalRes.conditionDesc}`);
                         }
                     }
-
-                    if (nextTriggerStatus !== triggerStatus) {
-                        // ATOMIC STATE CHANGE: Update trigger_status atomically to ensure only one process triggers the SMS
-                        const updateTriggerRes = await pool.query(
-                            `UPDATE w_sms_schedules SET trigger_status = $1 WHERE id = $2 AND trigger_status = $3`,
-                            [nextTriggerStatus, schedule.id, triggerStatus]
-                        );
-                        if (updateTriggerRes.rowCount === 0) {
-                            conditionMet = false;
-                            console.log(`[SMS Scheduler] Schedule ID ${schedule.id} trigger_status update failed (concurrent update). Skipping SMS.`);
-                        } else {
-                            console.log(`[SMS Scheduler] Schedule ID ${schedule.id} trigger_status updated from ${triggerStatus} to ${nextTriggerStatus}. Reason: ${conditionDesc}`);
-                        }
-                    }
-
-                    if (!conditionMet) {
-                        if (!isInstant) {
-                            console.log(`[SMS Scheduler] Schedule ID ${schedule.id} skipped because condition was not met: ${conditionDesc}`);
-                            const recipients = (schedule.recipient_numbers || '').split(',').map(n => n.trim()).filter(Boolean);
-                            const skipMsg = `[Automation Skipped] Condition not met: ${conditionDesc}`;
-                            for (const rec of recipients) {
-                                await saveSmsLog(schedule.device_id, rec, skipMsg, 'SKIPPED', `Condition not met: ${conditionDesc}`);
-                            }
-                        }
-                        continue;
-                    }
+                    continue;
                 }
 
                 console.log(`[SMS Scheduler] Triggering schedule ID ${schedule.id} (${schedule.schedule_type}) for device ${schedule.device_id}...`);
                 checkedCount++;
 
+                ctx.dailyUsage = await getTodayDeviceUsage(schedule.device_id, schedule.timezone_offset, config);
                 let message = '';
                 
                 if (schedule.schedule_type === 'status_update') {
-                    const telRes = await pool.query(
-                        `SELECT level, volume, timestamp FROM w_telemetry WHERE device_id = $1 ORDER BY timestamp DESC LIMIT 1`,
-                        [schedule.device_id]
-                    );
-
-                    let percent = 0;
-                    let volume = 0;
-                    let depth = 0;
-                    if (telRes.rows.length > 0) {
-                        const row = telRes.rows[0];
-                        depth = parseFloat(row.level) || 0;
-                        volume = parseFloat(row.volume) || 0;
-                        
-                        const tankHeight = parseFloat(config.tank_height) || 200.0;
-                        const tankDiameter = parseFloat(config.tank_diameter) || 228.0;
-                        const numTanks = parseInt(config.num_tanks, 10) || 1;
-                        percent = (depth / tankHeight) * 100;
-                        percent = Math.min(Math.max(percent, 0), 100);
-                    }
-
-                    message = schedule.message_template || `HydroSync Status for Device [Device]: Level is [Percent], Volume is [Volume], Depth is [Depth].`;
-                    const dailyUsage = await getTodayDeviceUsage(schedule.device_id, schedule.timezone_offset, config);
-                    message = message
-                        .replace(/\[Device\]/g, schedule.device_id)
-                        .replace(/\[Percent\]/g, `${percent.toFixed(0)}%`)
-                        .replace(/\[Volume\]/g, `${(Math.round(volume / 10) * 10).toLocaleString()} L`)
-                        .replace(/\[Depth\]/g, `${depth.toFixed(1)} cm`)
-                        .replace(/\[Timestamp\]/g, getFormattedLocalTimestamp(schedule.timezone_offset))
-                        .replace(/\[DailyUsage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`)
-                        .replace(/\[Usage\]/g, `${Math.round(dailyUsage).toLocaleString()} L`);
+                    message = formatScheduleMessage(schedule.message_template, schedule, config, ctx, evalRes);
                 } else if (schedule.schedule_type === 'motor_on') {
                     message = schedule.message_template || 'MOTOR ON';
                     await publishMqttMessage(`${schedule.device_id}/cmd/motor`, 'ON', false);

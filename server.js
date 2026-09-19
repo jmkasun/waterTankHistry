@@ -1276,7 +1276,12 @@ async function sendSmsMessageDirectlyRaw(config, recipient, messageText) {
                 resolve({ success: false, error: err.message });
             });
 
+            smsReq.setTimeout(12000, () => {
+                smsReq.destroy(new Error('Gateway connection timed out after 12s'));
+            });
+
             if (method === 'POST' && payload) {
+                options.headers['Content-Length'] = Buffer.byteLength(payload);
                 smsReq.write(payload);
             }
             smsReq.end();
@@ -2033,6 +2038,9 @@ async function runScheduleCheck() {
                     continue;
                 }
 
+                const previousLastRun = schedule.last_run;
+                let lockClaimed = false;
+
                 if (!isInstant) {
                     // Scheduled time checks
                     const [schedHour, schedMin] = (schedule.scheduled_time || '00:00').split(':').map(Number);
@@ -2074,6 +2082,7 @@ async function runScheduleCheck() {
                         console.log(`[SMS Scheduler] Schedule ID ${schedule.id} already claimed or updated by concurrent run. Skipping.`);
                         continue;
                     }
+                    lockClaimed = true;
                 }
 
                 const configRes = await pool.query(
@@ -2181,6 +2190,18 @@ async function runScheduleCheck() {
                 await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP WHERE id = $1', [schedule.id]);
             } catch (innerErr) {
                 console.error(`[SMS Scheduler Error] Failed to process schedule ID ${schedule.id}:`, innerErr);
+                if (lockClaimed) {
+                    try {
+                        // Revert atomic lock so scheduler can retry on the next interval instead of permanently dropping the schedule
+                        await pool.query('UPDATE w_sms_schedules SET last_run = $1 WHERE id = $2', [previousLastRun, schedule.id]);
+                        const recipients = (schedule.recipient_numbers || '').split(',').map(n => n.trim()).filter(Boolean);
+                        for (const rec of recipients) {
+                            await saveSmsLog(schedule.device_id, rec, `Automation failed: ${innerErr.message}`, 'FAILED', innerErr.message);
+                        }
+                    } catch (revertErr) {
+                        console.error('[SMS Scheduler Revert Error]:', revertErr);
+                    }
+                }
             }
         }
     } catch (err) {

@@ -1,5 +1,10 @@
 {
   "version": 2,
+  "functions": {
+    "api/server.js": {
+      "maxDuration": 60
+    }
+  },
   "rewrites": [
     {
       "source": "/waterlevel.ino.bin",
@@ -11,3 +16,4 @@
     }
   ]
 }
+

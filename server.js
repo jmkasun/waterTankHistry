@@ -2071,15 +2071,17 @@ async function runScheduleCheck() {
                         }
                     }
 
-                    // ATOMIC LOCK: Claim this execution instance atomically in PostgreSQL before sending SMS
+                    // ATOMIC LEASE LOCK: Claim a 90-second execution lease in PostgreSQL before sending SMS.
+                    // DO NOT stamp last_run prematurely; if the serverless function times out or network drops,
+                    // the lease will expire naturally and allow retrying instead of dropping the schedule for the whole day!
                     const updateRes = await pool.query(
                         `UPDATE w_sms_schedules 
-                         SET last_run = CURRENT_TIMESTAMP 
-                         WHERE id = $1 AND (last_run IS NULL OR last_run = $2 OR last_run < CURRENT_TIMESTAMP - INTERVAL '1 minute')`,
-                        [schedule.id, schedule.last_run]
+                         SET locked_until = CURRENT_TIMESTAMP + INTERVAL '90 seconds' 
+                         WHERE id = $1 AND (locked_until IS NULL OR locked_until < CURRENT_TIMESTAMP)`,
+                        [schedule.id]
                     );
                     if (updateRes.rowCount === 0) {
-                        console.log(`[SMS Scheduler] Schedule ID ${schedule.id} already claimed or updated by concurrent run. Skipping.`);
+                        console.log(`[SMS Scheduler] Schedule ID ${schedule.id} already leased by concurrent run. Skipping.`);
                         continue;
                     }
                     lockClaimed = true;
@@ -2093,6 +2095,9 @@ async function runScheduleCheck() {
                 
                 if (configRes.rows.length === 0) {
                     console.warn(`[SMS Scheduler] Configuration not found for device ${schedule.device_id}. Skipping.`);
+                    if (lockClaimed) {
+                        await pool.query('UPDATE w_sms_schedules SET locked_until = NULL WHERE id = $1', [schedule.id]);
+                    }
                     continue;
                 }
                 const config = configRes.rows[0];
@@ -2147,6 +2152,9 @@ async function runScheduleCheck() {
                 }
 
                 if (!evalRes.conditionMet) {
+                    if (lockClaimed) {
+                        await pool.query('UPDATE w_sms_schedules SET locked_until = NULL WHERE id = $1', [schedule.id]);
+                    }
                     if (!isInstant) {
                         console.log(`[SMS Scheduler] Schedule ID ${schedule.id} skipped because condition was not met: ${evalRes.conditionDesc}`);
                         const recipients = (schedule.recipient_numbers || '').split(',').map(n => n.trim()).filter(Boolean);
@@ -2187,13 +2195,14 @@ async function runScheduleCheck() {
                     await saveSmsLog(schedule.device_id, rec, message, res.success ? 'SUCCESS' : 'FAILED', res.success ? null : res.error);
                 }
 
-                await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP WHERE id = $1', [schedule.id]);
+                // Successful completion: record last_run timestamp and release the lease lock
+                await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP, locked_until = NULL WHERE id = $1', [schedule.id]);
             } catch (innerErr) {
                 console.error(`[SMS Scheduler Error] Failed to process schedule ID ${schedule.id}:`, innerErr);
                 if (lockClaimed) {
                     try {
-                        // Revert atomic lock so scheduler can retry on the next interval instead of permanently dropping the schedule
-                        await pool.query('UPDATE w_sms_schedules SET last_run = $1 WHERE id = $2', [previousLastRun, schedule.id]);
+                        // Release lock lease so scheduler can retry on the next interval instead of permanently dropping the schedule
+                        await pool.query('UPDATE w_sms_schedules SET locked_until = NULL WHERE id = $1', [schedule.id]);
                         const recipients = (schedule.recipient_numbers || '').split(',').map(n => n.trim()).filter(Boolean);
                         for (const rec of recipients) {
                             await saveSmsLog(schedule.device_id, rec, `Automation failed: ${innerErr.message}`, 'FAILED', innerErr.message);

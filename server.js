@@ -117,9 +117,10 @@ mqttClient.on('message', async (topic, message) => {
             });
 
             // Also check for scheduled SMS tasks using telemetry as a reliable active clock heartbeat
-            runScheduleCheckWithRateLimit().catch(err => {
+            runScheduleCheckWithRateLimit(deviceId).catch(err => {
                 console.error('[MQTT Schedule Check Error] Failed to run schedule check:', err);
             });
+
         }
     } catch (err) {
         console.error('[MQTT Server Listener] Error processing packet:', err);
@@ -310,10 +311,11 @@ const server = http.createServer(async (req, res) => {
 
                 // Also check for scheduled SMS tasks using telemetry as a reliable active clock heartbeat (awaited to prevent serverless freeze)
                 try {
-                    await runScheduleCheckWithRateLimit();
+                    await runScheduleCheckWithRateLimit(device_id);
                 } catch (err) {
                     console.error('[HTTP Schedule Check Error] Failed to run schedule check:', err);
                 }
+
                 
                 // Get or create device configuration
                 let configRes = await pool.query(
@@ -1276,8 +1278,8 @@ async function sendSmsMessageDirectlyRaw(config, recipient, messageText) {
                 resolve({ success: false, error: err.message });
             });
 
-            smsReq.setTimeout(12000, () => {
-                smsReq.destroy(new Error('Gateway connection timed out after 12s'));
+            smsReq.setTimeout(8000, () => {
+                smsReq.destroy(new Error('Gateway connection timed out after 8s'));
             });
 
             if (method === 'POST' && payload) {
@@ -1295,13 +1297,13 @@ async function sendSmsMessageDirectlyRaw(config, recipient, messageText) {
 
 async function sendSmsMessageDirectly(config, recipient, messageText) {
     let lastResult = { success: false, error: 'Unknown error' };
-    const maxAttempts = 3;
+    const maxAttempts = 2;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
             if (attempt > 1) {
                 console.log(`[SMS Retry] Retrying transmission to ${recipient}. Attempt ${attempt} of ${maxAttempts}...`);
-                // Wait for 3 seconds before retrying to prevent rapid-fire failures
-                await new Promise((resolve) => setTimeout(resolve, 3000));
+                // Wait for 2 seconds before retrying to prevent rapid-fire failures
+                await new Promise((resolve) => setTimeout(resolve, 2000));
             }
             lastResult = await sendSmsMessageDirectlyRaw(config, recipient, messageText);
             if (lastResult.success) {
@@ -1321,17 +1323,18 @@ async function sendSmsMessageDirectly(config, recipient, messageText) {
 
 let lastScheduleCheckTime = 0;
 
-async function runScheduleCheckWithRateLimit() {
+async function runScheduleCheckWithRateLimit(targetDeviceId = null) {
     const now = Date.now();
     if (now - lastScheduleCheckTime >= 25000) {
         lastScheduleCheckTime = now;
         try {
-            await runScheduleCheck();
+            await runScheduleCheck(targetDeviceId);
         } catch (err) {
             console.error('[Telemetry Schedule Check Error]:', err);
         }
     }
 }
+
 
 function getFormattedLocalTimestamp(offsetInMinutes) {
     const tzOffset = (offsetInMinutes !== undefined && offsetInMinutes !== null) ? parseInt(offsetInMinutes, 10) : 0;
@@ -2005,19 +2008,25 @@ async function checkDeviceThresholdAlerts(deviceId, level, volume) {
     }
 }
 
-// Standalone function to execute the scheduled SMS automation checks
-async function runScheduleCheck() {
+async function runScheduleCheck(targetDeviceId = null) {
     let checkedCount = 0;
     try {
         const now = new Date();
 
-        const result = await pool.query(
-            `SELECT id, device_id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, window_end_time::text as window_end_time, days_of_week, message_template, last_run, timezone_offset, condition_type, condition_value, trigger_status
+        const queryParams = [];
+        let querySql = `SELECT id, device_id, schedule_type, recipient_numbers, scheduled_time::text as scheduled_time, window_end_time::text as window_end_time, days_of_week, message_template, last_run, timezone_offset, condition_type, condition_value, trigger_status
              FROM w_sms_schedules
-             WHERE is_enabled = TRUE`
-        );
+             WHERE is_enabled = TRUE`;
+        if (targetDeviceId) {
+            querySql += ` AND device_id = $1`;
+            queryParams.push(targetDeviceId);
+        }
+
+        const result = await pool.query(querySql, queryParams);
 
         for (const schedule of result.rows) {
+            let lockClaimed = false;
+            const previousLastRun = schedule.last_run;
             try {
                 const tzOffset = schedule.timezone_offset !== null && schedule.timezone_offset !== undefined ? parseInt(schedule.timezone_offset, 10) : 0;
                 const localTime = new Date(now.getTime() - (tzOffset * 60000));
@@ -2038,9 +2047,6 @@ async function runScheduleCheck() {
                     continue;
                 }
 
-                const previousLastRun = schedule.last_run;
-                let lockClaimed = false;
-
                 if (!isInstant) {
                     // Scheduled time checks
                     const [schedHour, schedMin] = (schedule.scheduled_time || '00:00').split(':').map(Number);
@@ -2059,7 +2065,7 @@ async function runScheduleCheck() {
                         continue;
                     }
 
-                    // Has it already run for this scheduled occurrence?
+                    // Has it already run for this scheduled occurrence today in local timezone?
                     if (schedule.last_run) {
                         const lastRunLocal = new Date(new Date(schedule.last_run).getTime() - (tzOffset * 60000));
                         const isSameDay = lastRunLocal.getUTCFullYear() === localTime.getUTCFullYear() &&
@@ -2071,17 +2077,22 @@ async function runScheduleCheck() {
                         }
                     }
 
-                    // ATOMIC LEASE LOCK: Claim a 90-second execution lease in PostgreSQL before sending SMS.
-                    // DO NOT stamp last_run prematurely; if the serverless function times out or network drops,
-                    // the lease will expire naturally and allow retrying instead of dropping the schedule for the whole day!
+                    // ATOMIC ONCE-PER-CALENDAR-DAY CLAIM in PostgreSQL:
+                    // Atomically claims this execution for today in the database.
+                    // Even if multiple concurrent serverless Lambda invocations or dual devices arrive at the exact same millisecond,
+                    // PostgreSQL evaluates the local date comparison atomically and only permits EXACTLY ONE execution per calendar day!
                     const updateRes = await pool.query(
                         `UPDATE w_sms_schedules 
-                         SET locked_until = CURRENT_TIMESTAMP + INTERVAL '90 seconds' 
-                         WHERE id = $1 AND (locked_until IS NULL OR locked_until < CURRENT_TIMESTAMP)`,
-                        [schedule.id]
+                         SET last_run = CURRENT_TIMESTAMP, locked_until = CURRENT_TIMESTAMP + INTERVAL '5 minutes'
+                         WHERE id = $1 
+                           AND (
+                             last_run IS NULL 
+                             OR (last_run AT TIME ZONE 'UTC' - ($2 || ' minutes')::interval)::date < (CURRENT_TIMESTAMP AT TIME ZONE 'UTC' - ($2 || ' minutes')::interval)::date
+                           )`,
+                        [schedule.id, tzOffset]
                     );
                     if (updateRes.rowCount === 0) {
-                        console.log(`[SMS Scheduler] Schedule ID ${schedule.id} already leased by concurrent run. Skipping.`);
+                        console.log(`[SMS Scheduler] Schedule ID ${schedule.id} already claimed or executed today. Skipping duplicate.`);
                         continue;
                     }
                     lockClaimed = true;
@@ -2096,7 +2107,7 @@ async function runScheduleCheck() {
                 if (configRes.rows.length === 0) {
                     console.warn(`[SMS Scheduler] Configuration not found for device ${schedule.device_id}. Skipping.`);
                     if (lockClaimed) {
-                        await pool.query('UPDATE w_sms_schedules SET locked_until = NULL WHERE id = $1', [schedule.id]);
+                        await pool.query('UPDATE w_sms_schedules SET last_run = $1, locked_until = NULL WHERE id = $2', [previousLastRun, schedule.id]);
                     }
                     continue;
                 }
@@ -2153,7 +2164,7 @@ async function runScheduleCheck() {
 
                 if (!evalRes.conditionMet) {
                     if (lockClaimed) {
-                        await pool.query('UPDATE w_sms_schedules SET locked_until = NULL WHERE id = $1', [schedule.id]);
+                        await pool.query('UPDATE w_sms_schedules SET last_run = $1, locked_until = NULL WHERE id = $2', [previousLastRun, schedule.id]);
                     }
                     if (!isInstant) {
                         console.log(`[SMS Scheduler] Schedule ID ${schedule.id} skipped because condition was not met: ${evalRes.conditionDesc}`);
@@ -2195,14 +2206,14 @@ async function runScheduleCheck() {
                     await saveSmsLog(schedule.device_id, rec, message, res.success ? 'SUCCESS' : 'FAILED', res.success ? null : res.error);
                 }
 
-                // Successful completion: record last_run timestamp and release the lease lock
-                await pool.query('UPDATE w_sms_schedules SET last_run = CURRENT_TIMESTAMP, locked_until = NULL WHERE id = $1', [schedule.id]);
+                // Successful completion: release lease lock while keeping today's atomic last_run stamp
+                await pool.query('UPDATE w_sms_schedules SET locked_until = NULL WHERE id = $1', [schedule.id]);
             } catch (innerErr) {
                 console.error(`[SMS Scheduler Error] Failed to process schedule ID ${schedule.id}:`, innerErr);
                 if (lockClaimed) {
                     try {
-                        // Release lock lease so scheduler can retry on the next interval instead of permanently dropping the schedule
-                        await pool.query('UPDATE w_sms_schedules SET locked_until = NULL WHERE id = $1', [schedule.id]);
+                        // Revert atomic lock so scheduler can retry on failure instead of remaining marked as completed
+                        await pool.query('UPDATE w_sms_schedules SET last_run = $1, locked_until = NULL WHERE id = $2', [previousLastRun, schedule.id]);
                         const recipients = (schedule.recipient_numbers || '').split(',').map(n => n.trim()).filter(Boolean);
                         for (const rec of recipients) {
                             await saveSmsLog(schedule.device_id, rec, `Automation failed: ${innerErr.message}`, 'FAILED', innerErr.message);

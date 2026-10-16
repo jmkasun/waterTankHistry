@@ -34,6 +34,7 @@ const mqttClient = mqtt.connect(mqttBroker, {
 const deviceCache = {};
 const recentDeviceConnections = {};
 const recentTelemetryRequests = []; // Stores recent incoming telemetry HTTP requests with headers & forensic classifications
+const deviceRenameMap = {}; // Maps old_device_id -> new_device_id for automatic over-the-air ESP32 re-identification
 
 // Automatic telemetry retention tracking (1 month / 30 days)
 let lastRetentionRun = null;
@@ -567,7 +568,7 @@ const server = http.createServer(async (req, res) => {
                 
                 // Get or create device configuration
                 let configRes = await pool.query(
-                    `SELECT tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url, api_url
+                    `SELECT device_id, wifi_ssid, wifi_pass, tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url, api_url
                      FROM w_device_config WHERE device_id = $1`,
                     [device_id]
                 );
@@ -580,6 +581,9 @@ const server = http.createServer(async (req, res) => {
                         [device_id]
                     );
                     deviceConfig = {
+                        device_id: device_id,
+                        wifi_ssid: '',
+                        wifi_pass: '',
                         tank_height: 200.0,
                         sensor_height: 45.0,
                         tank_diameter: 228.0,
@@ -595,11 +599,14 @@ const server = http.createServer(async (req, res) => {
 
                 console.log(`[HTTP API Log] Successfully saved telemetry for ${device_id}: Level=${levelVal}cm, Volume=${volumeVal}L, DataUsage=${dataUsageVal} Bytes, Version=${versionVal}`);
                 
-                // Send JSON back to ESP32 with latest configurations & pending OTA URLs
+                // Send JSON back to ESP32 with latest configurations, WiFi credentials & pending OTA URLs
                 sendJSON(res, { 
                     success: true, 
                     message: 'Telemetry logged successfully',
                     config: {
+                        device_id: deviceRenameMap[device_id] || deviceConfig.device_id || device_id,
+                        wifi_ssid: deviceConfig.wifi_ssid || '',
+                        wifi_pass: deviceConfig.wifi_pass || '',
                         tank_height: parseFloat(deviceConfig.tank_height),
                         sensor_height: parseFloat(deviceConfig.sensor_height),
                         tank_diameter: parseFloat(deviceConfig.tank_diameter),
@@ -623,7 +630,7 @@ const server = http.createServer(async (req, res) => {
         try {
             const deviceId = reqUrl.searchParams.get('device_id') || 'mytank123';
             const result = await pool.query(
-                `SELECT tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url, api_url, motor1_rate, motor2_rate, pump_threshold, alert_min, alert_max
+                `SELECT device_id, device_name, wifi_ssid, wifi_pass, tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url, api_url, motor1_rate, motor2_rate, pump_threshold, alert_min, alert_max
                  FROM w_device_config 
                  WHERE device_id = $1`,
                 [deviceId]
@@ -634,6 +641,10 @@ const server = http.createServer(async (req, res) => {
                 sendJSON(res, { 
                     success: true, 
                     config: {
+                        device_id: config.device_id || deviceId,
+                        device_name: config.device_name || '',
+                        wifi_ssid: config.wifi_ssid || '',
+                        wifi_pass: config.wifi_pass || '',
                         tank_height: parseFloat(config.tank_height),
                         sensor_height: parseFloat(config.sensor_height),
                         tank_diameter: parseFloat(config.tank_diameter),
@@ -654,6 +665,10 @@ const server = http.createServer(async (req, res) => {
                 sendJSON(res, { 
                     success: true, 
                     config: {
+                        device_id: deviceId,
+                        device_name: '',
+                        wifi_ssid: '',
+                        wifi_pass: '',
                         tank_height: 200.0,
                         sensor_height: 45.0,
                         tank_diameter: 228.0,
@@ -677,7 +692,7 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // API: Save configuration for a specific device (OTA, height, diameter, interval, etc.)
+    // API: Save configuration for a specific device (WiFi, OTA, height, diameter, interval, etc.)
     if (urlPath === '/api/device/config' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => {
@@ -686,7 +701,7 @@ const server = http.createServer(async (req, res) => {
         req.on('end', async () => {
             try {
                 const data = JSON.parse(body);
-                const { device_id, tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url, api_url, motor1_rate, motor2_rate, pump_threshold, alert_min, alert_max } = data;
+                const { device_id, wifi_ssid, wifi_pass, device_name, tank_height, sensor_height, tank_diameter, num_tanks, telemetry_interval, gsm_numbers, ota_url, api_url, motor1_rate, motor2_rate, pump_threshold, alert_min, alert_max } = data;
 
                 if (!device_id) {
                     sendJSON(res, { success: false, error: 'device_id is required' }, 400);
@@ -701,6 +716,18 @@ const server = http.createServer(async (req, res) => {
                 const values = [];
                 let paramIndex = 1;
 
+                if (wifi_ssid !== undefined) {
+                    fields.push(`wifi_ssid = $${paramIndex++}`);
+                    values.push(wifi_ssid.toString().trim());
+                }
+                if (wifi_pass !== undefined) {
+                    fields.push(`wifi_pass = $${paramIndex++}`);
+                    values.push(wifi_pass.toString());
+                }
+                if (device_name !== undefined) {
+                    fields.push(`device_name = $${paramIndex++}`);
+                    values.push(device_name.toString().trim());
+                }
                 if (tank_height !== undefined) {
                     fields.push(`tank_height = $${paramIndex++}`);
                     values.push(parseFloat(tank_height));
@@ -772,6 +799,8 @@ const server = http.createServer(async (req, res) => {
 
                 // Instantly sync settings and OTA command with the physical device via MQTT
                 const syncPromises = [];
+                if (wifi_ssid !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/wifi_ssid`, wifi_ssid.toString().trim(), true));
+                if (wifi_pass !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/wifi_pass`, wifi_pass.toString(), true));
                 if (tank_height !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/height`, tank_height, true));
                 if (sensor_height !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/sensor_height`, sensor_height, true));
                 if (tank_diameter !== undefined) syncPromises.push(publishMqttMessage(`${device_id}/config/diameter`, tank_diameter, true));
@@ -798,6 +827,95 @@ const server = http.createServer(async (req, res) => {
                 sendJSON(res, { success: true, message: 'Device configuration saved successfully.' });
             } catch (err) {
                 console.error('[API Error] POST /api/device/config:', err);
+                sendJSON(res, { success: false, error: err.message }, 500);
+            }
+        });
+        return;
+    }
+
+    // API: Change/Rename Device ID and migrate telemetry/config records
+    if (urlPath === '/api/device/change-id' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', async () => {
+            try {
+                const data = JSON.parse(body);
+                const oldDeviceId = (data.old_device_id || '').trim();
+                const newDeviceId = (data.new_device_id || '').trim();
+                const migrateHistory = data.migrate_history !== false;
+
+                if (!oldDeviceId || !newDeviceId) {
+                    sendJSON(res, { success: false, error: 'Both old_device_id and new_device_id are required.' }, 400);
+                    return;
+                }
+
+                if (!/^[a-zA-Z0-9_\-]+$/.test(newDeviceId)) {
+                    sendJSON(res, { success: false, error: 'New Device ID can only contain letters, numbers, hyphens, and underscores.' }, 400);
+                    return;
+                }
+
+                if (oldDeviceId === newDeviceId) {
+                    sendJSON(res, { success: true, message: 'Device ID is already current.', device_id: newDeviceId });
+                    return;
+                }
+
+                console.log(`[Device ID Change] Changing Device ID from "${oldDeviceId}" to "${newDeviceId}" (migrateHistory=${migrateHistory})`);
+
+                // 1. Update w_device_config
+                const existingConfig = await pool.query('SELECT 1 FROM w_device_config WHERE device_id = $1', [newDeviceId]);
+                if (existingConfig.rows.length > 0) {
+                    await pool.query('DELETE FROM w_device_config WHERE device_id = $1', [oldDeviceId]);
+                } else {
+                    await pool.query('UPDATE w_device_config SET device_id = $1, updated_at = CURRENT_TIMESTAMP WHERE device_id = $2', [newDeviceId, oldDeviceId]);
+                }
+
+                // 2. Update w_devices
+                const existingDevice = await pool.query('SELECT 1 FROM w_devices WHERE device_id = $1', [newDeviceId]);
+                if (existingDevice.rows.length > 0) {
+                    await pool.query('DELETE FROM w_devices WHERE device_id = $1', [oldDeviceId]);
+                } else {
+                    await pool.query('UPDATE w_devices SET device_id = $1 WHERE device_id = $2', [newDeviceId, oldDeviceId]);
+                }
+
+                let migratedCount = 0;
+                if (migrateHistory) {
+                    // 3. Migrate telemetry
+                    const telRes = await pool.query('UPDATE w_telemetry SET device_id = $1 WHERE device_id = $2', [newDeviceId, oldDeviceId]);
+                    migratedCount = telRes.rowCount;
+
+                    // 4. Migrate SMS logs
+                    await pool.query('UPDATE w_sms_logs SET device_id = $1 WHERE device_id = $2', [newDeviceId, oldDeviceId]);
+
+                    // 5. Migrate SMS schedules
+                    await pool.query('UPDATE w_sms_schedules SET device_id = $1 WHERE device_id = $2', [newDeviceId, oldDeviceId]);
+
+                    // 6. Migrate user devices
+                    await pool.query('UPDATE w_user_devices SET device_id = $1 WHERE device_id = $2', [newDeviceId, oldDeviceId]);
+
+                    // 7. Migrate user tanks
+                    await pool.query('UPDATE w_user_tanks SET device_id = $1 WHERE device_id = $2', [newDeviceId, oldDeviceId]);
+                }
+
+                // Register in-memory rename mapping so when ESP32 checks in with old ID, response syncs new ID to device NVS
+                deviceRenameMap[oldDeviceId] = newDeviceId;
+                registeredDevices.delete(oldDeviceId);
+                registeredDevices.add(newDeviceId);
+
+                // Publish MQTT notification to inform subscribers of ID migration
+                publishMqttMessage(`${oldDeviceId}/cmd/rename`, newDeviceId, false);
+                publishMqttMessage(`${newDeviceId}/cmd/rename`, newDeviceId, false);
+
+                sendJSON(res, {
+                    success: true,
+                    message: `Device ID successfully updated to "${newDeviceId}" (${migratedCount} telemetry rows migrated). The ESP32 hardware will automatically update its flash memory on its next telemetry sync.`,
+                    old_device_id: oldDeviceId,
+                    new_device_id: newDeviceId,
+                    migrated_count: migratedCount
+                });
+            } catch (err) {
+                console.error('[API Error] POST /api/device/change-id:', err);
                 sendJSON(res, { success: false, error: err.message }, 500);
             }
         });
@@ -843,7 +961,15 @@ const server = http.createServer(async (req, res) => {
     if (urlPath === '/api/devices' && req.method === 'GET') {
         try {
             const result = await pool.query(
-                `SELECT DISTINCT device_id FROM w_telemetry ORDER BY device_id ASC`
+                `SELECT DISTINCT device_id FROM (
+                    SELECT device_id FROM w_device_config
+                    UNION
+                    SELECT device_id FROM w_devices
+                    UNION
+                    SELECT device_id FROM w_telemetry
+                ) AS all_devs
+                WHERE device_id IS NOT NULL AND device_id != ''
+                ORDER BY device_id ASC`
             );
             const devices = result.rows.map(row => row.device_id);
             // Default list if database is empty

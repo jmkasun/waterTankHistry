@@ -915,25 +915,62 @@
 
                 <!-- Column 2: Identification, Guides & Operations -->
                 <div class="flex flex-col gap-6">
-                    <!-- Device Identification Card -->
+                    <!-- Device Identification & Renaming Card -->
                     <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
-                        <div class="flex items-center gap-3">
-                            <div class="p-2 bg-blue-500/10 rounded-lg border border-blue-500/30">
-                                <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
-                                </svg>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="p-2 bg-blue-500/10 rounded-lg border border-blue-500/30">
+                                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-bold text-white tracking-tight">Device Identification</h3>
+                                    <p class="text-[11px] text-slate-400">Match active hardware identifier or rename device</p>
+                                </div>
                             </div>
-                            <div>
-                                <h3 class="text-sm font-bold text-white tracking-tight">Device Identification</h3>
-                                <p class="text-[11px] text-slate-400">Match active hardware identifier</p>
-                            </div>
+                            <span id="badgeActiveDeviceId" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-400 border border-blue-500/30">mytank123</span>
                         </div>
 
-                        <div class="space-y-3 text-xs">
+                        <div class="space-y-4 text-xs">
+                            <!-- Switch active device dropdown or manual entry -->
                             <div class="flex flex-col gap-1.5">
-                                <label class="font-semibold text-slate-400">Active Device ID</label>
-                                <input id="topicPrefix" type="text" value="mytank123" onchange="onDeviceIdChange()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-300 font-mono focus:outline-none focus:border-cyan-500">
-                                <p class="text-[10px] text-slate-500">This must match the <code>DEVICE_ID</code> constant compiled inside the ESP32 hardware firmware.</p>
+                                <div class="flex items-center justify-between">
+                                    <label class="font-semibold text-slate-300">Active Device ID</label>
+                                    <span class="text-[10px] text-slate-500">Select or enter ID</span>
+                                </div>
+                                <div class="flex gap-2">
+                                    <select id="deviceSelectDropdown" onchange="onDeviceSelectDropdownChange(this.value)" class="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-cyan-500 min-w-[130px]">
+                                        <option value="mytank123">mytank123</option>
+                                    </select>
+                                    <input id="topicPrefix" type="text" value="mytank123" onchange="onDeviceIdChange()" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-slate-200 font-mono focus:outline-none focus:border-cyan-500">
+                                </div>
+                                <p class="text-[10px] text-slate-500">The active device used to query telemetry, logs, calibration, and alerts.</p>
+                            </div>
+
+                            <!-- Rename Device ID section -->
+                            <div class="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                        <svg class="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                        Rename Device ID
+                                    </span>
+                                    <span class="text-[9px] uppercase font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">OTA Auto-Update</span>
+                                </div>
+                                <p class="text-[11px] text-slate-400 leading-relaxed">
+                                    Change this device's identifier. The ESP32 hardware will automatically receive the new ID on its next telemetry sync and commit it to flash memory.
+                                </p>
+                                <div class="flex flex-col sm:flex-row gap-2">
+                                    <input type="text" id="newDeviceIdInput" placeholder="Enter new Device ID (e.g. tank_roof_01)" class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500">
+                                    <button type="button" id="btnChangeDeviceId" onclick="handleChangeDeviceId()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-xl text-xs tracking-wide transition flex items-center justify-center gap-1.5 shrink-0 shadow-lg shadow-blue-600/15">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        Apply New ID
+                                    </button>
+                                </div>
+                                <label class="flex items-center gap-2 cursor-pointer select-none pt-1">
+                                    <input type="checkbox" id="chkMigrateHistory" checked class="w-3.5 h-3.5 rounded text-cyan-500 focus:ring-0 bg-slate-900 border-slate-700">
+                                    <span class="text-[11px] text-slate-400">Migrate existing telemetry history, SMS logs & schedules to the new ID</span>
+                                </label>
                             </div>
 
                             <!-- Hidden inputs to prevent JS failures -->
@@ -1052,44 +1089,84 @@
                         </div>
                     </div>
 
-                    <!-- WiFi Network Config Card (Setup Guide) -->
+                    <!-- WiFi Network Credentials & Remote Sync Card -->
                     <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
-                        <div class="flex items-center gap-3">
-                            <div class="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/30">
-                                <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071a9 9 0 0112.14 0M1.929 8.929a13 13 0 0118.142 0"/>
-                                </svg>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/30">
+                                    <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071a9 9 0 0112.14 0M1.929 8.929a13 13 0 0118.142 0"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-bold text-white tracking-tight">WiFi Network Credentials</h3>
+                                    <p class="text-[11px] text-slate-400">Manage ESP32 Wi-Fi connection over-the-air</p>
+                                </div>
                             </div>
-                            <div>
-                                <h3 class="text-sm font-bold text-white tracking-tight">WiFi Setup Guide</h3>
-                                <p class="text-[11px] text-slate-400">Configure local network credentials over-the-air safely</p>
-                            </div>
+                            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center gap-1.5">
+                                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                                OTA Sync
+                            </span>
                         </div>
 
-                        <div class="space-y-3 text-xs">
-                            <div class="flex gap-3 items-start bg-slate-950/40 p-3 rounded-xl border border-slate-800/50">
-                                <span class="flex items-center justify-center w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold text-[10px] shrink-0 mt-0.5">1</span>
+                        <div class="space-y-4 text-xs">
+                            <p class="text-[11px] text-slate-400 leading-relaxed">
+                                Enter the local 2.4 GHz Wi-Fi router credentials. Once saved, they are automatically delivered to the ESP32 on its next telemetry sync and written into onboard non-volatile flash (NVS).
+                            </p>
+
+                            <div class="space-y-3">
                                 <div>
-                                    <p class="font-semibold text-slate-200">Connect to Module AP</p>
-                                    <p class="text-[11px] text-slate-400 mt-0.5">Connect your device to offline Wi-Fi: <strong class="text-cyan-400 select-all">ESP32_HydroSync_AP</strong></p>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">WiFi Network Name (SSID)</label>
+                                    <div class="relative">
+                                        <input type="text" id="wifiSsidInput" placeholder="e.g. MyHome_WiFi_2.4G" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                                        <span class="absolute right-3.5 top-3 text-slate-500">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071a9 9 0 0112.14 0M1.929 8.929a13 13 0 0118.142 0"/></svg>
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">WiFi Password</label>
+                                    <div class="relative">
+                                        <input type="password" id="wifiPassInput" placeholder="Enter Wi-Fi password" class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-11 py-3 text-sm focus:outline-none focus:border-cyan-500 text-white placeholder-slate-600 transition">
+                                        <button type="button" onclick="toggleWifiPasswordVisibility()" class="absolute right-3 top-3 text-slate-400 hover:text-white transition p-0.5" title="Toggle password visibility">
+                                            <svg id="iconWifiPassShow" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                            <svg id="iconWifiPassHide" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg>
+                                        </button>
+                                    </div>
+                                    <p class="text-[10px] text-slate-500 mt-1">Leave empty or update to reconfigure ESP32 network connection.</p>
                                 </div>
                             </div>
 
-                            <div class="flex gap-3 items-start bg-slate-950/40 p-3 rounded-xl border border-slate-800/50">
-                                <span class="flex items-center justify-center w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold text-[10px] shrink-0 mt-0.5">2</span>
-                                <div>
-                                    <p class="font-semibold text-slate-200">Open Setup Portal</p>
-                                    <p class="text-[11px] text-slate-400 mt-0.5">In your web browser, open: <a href="http://192.168.4.1" target="_blank" class="text-cyan-400 hover:underline font-semibold font-mono">http://192.168.4.1/</a></p>
-                                </div>
-                            </div>
+                            <button type="button" id="btnSaveWifiOnly" onclick="saveWifiCredentialsOnly()" class="w-full bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/30 text-cyan-300 font-bold py-2.5 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+                                Save WiFi Credentials
+                            </button>
 
-                            <div class="flex gap-3 items-start bg-slate-950/40 p-3 rounded-xl border border-slate-800/50">
-                                <span class="flex items-center justify-center w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold text-[10px] shrink-0 mt-0.5">3</span>
-                                <div>
-                                    <p class="font-semibold text-slate-200">Save & Reboot</p>
-                                    <p class="text-[11px] text-slate-400 mt-0.5">Fill in credentials and click <strong class="text-slate-200">Connect & Sync</strong>.</p>
+                            <!-- Accordion: Offline Captive Portal Guide -->
+                            <details class="group bg-slate-950/60 rounded-2xl border border-slate-800/80 p-3.5 transition">
+                                <summary class="flex items-center justify-between cursor-pointer list-none font-bold text-slate-300 text-xs">
+                                    <span class="flex items-center gap-2">
+                                        <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                        Offline Setup (Captive Portal AP Mode)
+                                    </span>
+                                    <svg class="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                </summary>
+                                <div class="mt-3 pt-3 border-t border-slate-800/80 space-y-2 text-[11px] text-slate-400">
+                                    <div class="flex gap-2 items-start">
+                                        <span class="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">1</span>
+                                        <span>If the router is unreachable, connect your phone/PC to Wi-Fi: <strong class="text-cyan-400 select-all font-mono">ESP32_HydroSync_AP</strong></span>
+                                    </div>
+                                    <div class="flex gap-2 items-start">
+                                        <span class="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">2</span>
+                                        <span>Open in browser: <a href="http://192.168.4.1" target="_blank" class="text-cyan-400 font-mono font-bold hover:underline">http://192.168.4.1/</a></span>
+                                    </div>
+                                    <div class="flex gap-2 items-start">
+                                        <span class="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">3</span>
+                                        <span>Enter SSID, Password, and Device ID, then click <strong>Connect & Sync</strong>.</span>
+                                    </div>
                                 </div>
-                            </div>
+                            </details>
                         </div>
                     </div>
 
@@ -2065,6 +2142,26 @@
                         alertMaxInput.value = c.alert_max;
                         alertThresholds.max = parseFloat(c.alert_max);
                     }
+
+                    // Update WiFi network credentials inputs
+                    const wifiSsidInput = document.getElementById('wifiSsidInput');
+                    if (wifiSsidInput && c.wifi_ssid !== undefined) {
+                        wifiSsidInput.value = c.wifi_ssid || '';
+                    }
+                    const wifiPassInput = document.getElementById('wifiPassInput');
+                    if (wifiPassInput && c.wifi_pass !== undefined) {
+                        wifiPassInput.value = c.wifi_pass || '';
+                    }
+
+                    // Update active device badge and selector
+                    const badgeDev = document.getElementById('badgeActiveDeviceId');
+                    if (badgeDev && (c.device_id || deviceId)) {
+                        badgeDev.innerText = c.device_id || deviceId;
+                    }
+                    const devSelect = document.getElementById('deviceSelectDropdown');
+                    if (devSelect && (c.device_id || deviceId)) {
+                        devSelect.value = c.device_id || deviceId;
+                    }
                     
                     updateConfigFromUI();
                     saveSettingsToLocalStorage();
@@ -2224,8 +2321,13 @@
                 return;
             }
 
+            const wifi_ssid = document.getElementById('wifiSsidInput') ? document.getElementById('wifiSsidInput').value.trim() : '';
+            const wifi_pass = document.getElementById('wifiPassInput') ? document.getElementById('wifiPassInput').value : '';
+
             const payload = {
                 device_id: deviceId,
+                wifi_ssid: wifi_ssid,
+                wifi_pass: wifi_pass,
                 tank_height: config.height,
                 sensor_height: config.sensorHeight,
                 tank_diameter: config.diameter,
@@ -2371,6 +2473,16 @@
             } else {
                 gsmNumbers = [];
             }
+            const savedWifiSsid = localStorage.getItem('hydrosync_wifi_ssid');
+            const savedWifiPass = localStorage.getItem('hydrosync_wifi_pass');
+            if (savedWifiSsid) {
+                const ssidEl = document.getElementById('wifiSsidInput');
+                if (ssidEl) ssidEl.value = savedWifiSsid;
+            }
+            if (savedWifiPass) {
+                const passEl = document.getElementById('wifiPassInput');
+                if (passEl) passEl.value = savedWifiPass;
+            }
         }
 
         function saveSettingsToLocalStorage() {
@@ -2398,6 +2510,11 @@
             localStorage.setItem('hydrosync_api_url', api_url);
             localStorage.setItem('hydrosync_gsm_numbers', JSON.stringify(gsmNumbers));
 
+            const wifiSsid = document.getElementById('wifiSsidInput') ? document.getElementById('wifiSsidInput').value : '';
+            const wifiPass = document.getElementById('wifiPassInput') ? document.getElementById('wifiPassInput').value : '';
+            localStorage.setItem('hydrosync_wifi_ssid', wifiSsid);
+            localStorage.setItem('hydrosync_wifi_pass', wifiPass);
+
             localStorage.setItem('hydrosync_calc_method', calcMethod);
             localStorage.setItem('hydrosync_motor1_rate', motor1Rate);
             localStorage.setItem('hydrosync_motor2_rate', motor2Rate);
@@ -2405,6 +2522,153 @@
 
             localStorage.setItem('hydrosync_alert_min', alertThresholds.min.toString());
             localStorage.setItem('hydrosync_alert_max', alertThresholds.max.toString());
+        }
+
+        // --- WiFi & Device ID Management Handlers ---
+        function toggleWifiPasswordVisibility() {
+            const passInput = document.getElementById('wifiPassInput');
+            const iconShow = document.getElementById('iconWifiPassShow');
+            const iconHide = document.getElementById('iconWifiPassHide');
+            if (!passInput) return;
+            if (passInput.type === 'password') {
+                passInput.type = 'text';
+                if (iconShow) iconShow.classList.add('hidden');
+                if (iconHide) iconHide.classList.remove('hidden');
+            } else {
+                passInput.type = 'password';
+                if (iconShow) iconShow.classList.remove('hidden');
+                if (iconHide) iconHide.classList.add('hidden');
+            }
+        }
+
+        async function saveWifiCredentialsOnly() {
+            const deviceId = document.getElementById('topicPrefix').value || 'mytank123';
+            const ssid = document.getElementById('wifiSsidInput') ? document.getElementById('wifiSsidInput').value.trim() : '';
+            const pass = document.getElementById('wifiPassInput') ? document.getElementById('wifiPassInput').value : '';
+
+            const btn = document.getElementById('btnSaveWifiOnly');
+            const originalHTML = btn ? btn.innerHTML : 'Save WiFi Credentials';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="animate-spin inline-block mr-1">🌀</span> Saving WiFi...`;
+            }
+
+            try {
+                const response = await fetch('/api/device/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        device_id: deviceId,
+                        wifi_ssid: ssid,
+                        wifi_pass: pass
+                    })
+                });
+                const res = await response.json();
+                if (res.success) {
+                    saveSettingsToLocalStorage();
+                    showToast(`WiFi credentials for "${deviceId}" saved! The ESP32 will receive them on its next HTTP sync and update its onboard NVS.`, 'success');
+                } else {
+                    showToast(`Failed to save WiFi credentials: ${res.error}`, 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Network error saving WiFi credentials.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                }
+            }
+        }
+
+        function onDeviceSelectDropdownChange(val) {
+            if (!val) return;
+            const input = document.getElementById('topicPrefix');
+            if (input && input.value !== val) {
+                input.value = val;
+                onDeviceIdChange();
+            }
+        }
+
+        async function handleChangeDeviceId() {
+            const currentDeviceId = (document.getElementById('topicPrefix').value || 'mytank123').trim();
+            const newIdInput = document.getElementById('newDeviceIdInput');
+            const newDeviceId = newIdInput ? newIdInput.value.trim() : '';
+            const migrateHistory = document.getElementById('chkMigrateHistory') ? document.getElementById('chkMigrateHistory').checked : true;
+
+            if (!newDeviceId) {
+                showToast('Please enter a new Device ID.', 'warning');
+                if (newIdInput) newIdInput.focus();
+                return;
+            }
+
+            if (!/^[a-zA-Z0-9_\-]+$/.test(newDeviceId)) {
+                showToast('Device ID can only contain letters, numbers, hyphens, and underscores.', 'error');
+                return;
+            }
+
+            if (newDeviceId === currentDeviceId) {
+                showToast(`Device ID is already "${currentDeviceId}".`, 'info');
+                return;
+            }
+
+            const confirmMsg = `Are you sure you want to change Device ID from "${currentDeviceId}" to "${newDeviceId}"?` +
+                (migrateHistory ? '\n\nAll existing telemetry history, calibration, and SMS schedules will be migrated to the new ID.' : '');
+
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+
+            const btn = document.getElementById('btnChangeDeviceId');
+            const originalHTML = btn ? btn.innerHTML : 'Apply New ID';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="animate-spin inline-block mr-1">🌀</span> Renaming...`;
+            }
+
+            try {
+                const response = await fetch('/api/device/change-id', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        old_device_id: currentDeviceId,
+                        new_device_id: newDeviceId,
+                        migrate_history: migrateHistory
+                    })
+                });
+
+                const res = await response.json();
+                if (res.success) {
+                    showToast(res.message || `Device ID successfully changed to "${newDeviceId}"!`, 'success');
+                    
+                    // Update Active Device ID input
+                    const topicPrefixInput = document.getElementById('topicPrefix');
+                    if (topicPrefixInput) topicPrefixInput.value = newDeviceId;
+
+                    const badgeDev = document.getElementById('badgeActiveDeviceId');
+                    if (badgeDev) badgeDev.innerText = newDeviceId;
+
+                    if (newIdInput) newIdInput.value = '';
+
+                    // Reload device lists across tabs
+                    if (typeof loadAnalyticsDevices === 'function') {
+                        await loadAnalyticsDevices();
+                    }
+
+                    // Trigger device switch logic to reload config & data for new ID
+                    onDeviceIdChange();
+                } else {
+                    showToast(`Error changing Device ID: ${res.error}`, 'error');
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Network error while changing Device ID.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                }
+            }
         }
 
         // --- Water Level Threshold Alerts Logic ---

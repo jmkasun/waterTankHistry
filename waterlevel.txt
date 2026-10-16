@@ -908,6 +908,23 @@ void handleHttpResponseConfig(String response) {
         changed = true;
     }
 
+    // 1b. WiFi Network Credentials Sync
+    String newSsid = parseJsonString(response, "wifi_ssid");
+    if (newSsid.length() > 0 && newSsid != wifiSSID) {
+        wifiSSID = newSsid;
+        preferences.putString("ssid", wifiSSID);
+        Serial.printf("[HTTP Sync] Updated WiFi SSID: %s\n", wifiSSID.c_str());
+        changed = true;
+    }
+
+    String newPass = parseJsonString(response, "wifi_pass");
+    if (newPass.length() > 0 && newPass != wifiPASS) {
+        wifiPASS = newPass;
+        preferences.putString("pass", wifiPASS);
+        Serial.printf("[HTTP Sync] Updated WiFi Password in NVS.\n");
+        changed = true;
+    }
+
     // 2. Tank Height
     String heightStr = parseJsonString(response, "tank_height");
     if (heightStr.length() > 0) {

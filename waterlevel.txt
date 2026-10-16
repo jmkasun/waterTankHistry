@@ -71,7 +71,7 @@
 // BOARD & PIN DEFINITIONS
 // =========================================================================================
 
-#define FIRMWARE_VERSION "1.702"
+#define FIRMWARE_VERSION "1.703"
 #define PREF_NAMESPACE   "hydrosync-cfg"
 
 // Hardware Pin Configuration
@@ -925,6 +925,16 @@ void handleHttpResponseConfig(String response) {
         changed = true;
     }
 
+    // 1c. Background Logging Server HTTP URL Sync (api_url)
+    String newApiUrl = parseJsonString(response, "api_url");
+    newApiUrl.trim();
+    if (newApiUrl.length() > 0 && (newApiUrl.startsWith("http://") || newApiUrl.startsWith("https://")) && newApiUrl != apiServerUrl) {
+        apiServerUrl = newApiUrl;
+        preferences.putString("api_url", apiServerUrl);
+        Serial.printf("[HTTP Sync] Updated Background Logging API URL in NVS: %s\n", apiServerUrl.c_str());
+        changed = true;
+    }
+
     // 2. Tank Height
     String heightStr = parseJsonString(response, "tank_height");
     if (heightStr.length() > 0) {
@@ -1319,8 +1329,11 @@ void setup() {
 
     wifiSSID = preferences.getString("ssid", "");
     wifiPASS = preferences.getString("pass", "");
-    deviceId = preferences.getString("deviceId", "plg_paribogika");
-    apiServerUrl = preferences.getString("api_url", "");
+    deviceId = preferences.getString("deviceId", "mytank123");
+    String storedApiUrl = preferences.getString("api_url", "");
+    if (storedApiUrl.length() > 0) {
+        apiServerUrl = storedApiUrl;
+    }
     tankHeight = preferences.getFloat("height", 200.0);
     sensorHeight = preferences.getFloat("sensor_height", 45.0);
     tankDiameter = preferences.getFloat("diameter", 228.0);

@@ -1093,29 +1093,72 @@
                         </div>
                     </div>
 
-                    <!-- Database & History Management -->
+                    <!-- Database & Retention Management -->
                     <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
-                        <div class="flex items-center gap-3">
-                            <div class="p-2 bg-rose-500/10 rounded-lg border border-rose-500/30">
-                                <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                                </svg>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="p-2 bg-emerald-500/10 rounded-lg border border-emerald-500/30">
+                                    <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-bold text-white tracking-tight">Data Retention & History</h3>
+                                    <p class="text-[11px] text-slate-400">Automated 1-month lifecycle & storage optimization</p>
+                                </div>
                             </div>
-                            <div>
-                                <h3 class="text-sm font-bold text-white tracking-tight">Database Management</h3>
-                                <p class="text-[11px] text-slate-400">Manage saved historical analytics and logs</p>
-                            </div>
+                            <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                Active Policy
+                            </span>
                         </div>
 
-                        <div class="space-y-3">
-                            <p class="text-[11px] text-slate-400 leading-normal">
-                                Permanently clear saved historical telemetry data points. This is useful for resetting telemetry history.
-                            </p>
-                            <button id="btnClearData" onclick="clearHistoricalData()" class="w-full bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 hover:border-rose-500 text-rose-400 hover:text-white font-bold py-3 px-4 rounded-xl text-xs tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-rose-500/5">
+                        <!-- Retention Policy Status Box -->
+                        <div class="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 space-y-3">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="space-y-0.5">
+                                    <span class="text-xs font-bold text-slate-200">Auto-Purge Telemetry Older Than 1 Month</span>
+                                    <p class="text-[11px] text-slate-400 leading-relaxed">
+                                        Telemetry data older than 30 days is automatically deleted in the background every 6 hours and at system startup to prevent database overflow.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-800/80 text-[11px]">
+                                <div class="bg-slate-900/60 p-2.5 rounded-xl border border-slate-850">
+                                    <span class="text-slate-500 text-[10px] block uppercase font-bold">Retention Window</span>
+                                    <span class="font-mono font-bold text-emerald-400">30 Days (1 Month)</span>
+                                </div>
+                                <div class="bg-slate-900/60 p-2.5 rounded-xl border border-slate-850">
+                                    <span class="text-slate-500 text-[10px] block uppercase font-bold">Older Than 1 Month</span>
+                                    <span id="retentionOldCount" class="font-mono font-bold text-white">0 records</span>
+                                </div>
+                                <div class="bg-slate-900/60 p-2.5 rounded-xl border border-slate-850 col-span-2 sm:col-span-1">
+                                    <span class="text-slate-500 text-[10px] block uppercase font-bold">Current Total Stored</span>
+                                    <span id="retentionTotalCount" class="font-mono font-bold text-slate-300">Loading...</span>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-between text-[10px] text-slate-500 pt-1">
+                                <span>Schedule: <strong class="text-slate-400">Every 6h + Server Boot</strong></span>
+                                <span>Last Cleaned: <strong id="retentionLastRun" class="text-slate-400 font-mono">Recently</strong></span>
+                            </div>
+
+                            <button id="btnRunRetention" onclick="triggerManualRetentionCleanup()" class="w-full bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 text-emerald-300 font-bold py-2.5 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1.5">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                </svg>
+                                Run Retention Cleanup Now
+                            </button>
+                        </div>
+
+                        <!-- Manual Emergency Clear Option -->
+                        <div class="pt-2 border-t border-slate-800/80">
+                            <button id="btnClearData" onclick="clearHistoricalData()" class="w-full bg-rose-500/10 hover:bg-rose-500 border border-rose-500/20 hover:border-rose-500 text-rose-400 hover:text-white font-bold py-2.5 px-4 rounded-xl text-xs tracking-wide transition flex items-center justify-center gap-2 shadow-lg shadow-rose-500/5">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                                 </svg>
-                                Clear Telemetry History Data
+                                Clear All Historical Telemetry
                             </button>
                         </div>
                     </div>
@@ -2957,6 +3000,69 @@
             }
         }
 
+        // Telemetry Data Retention Status & Manual Trigger (1 month / 30 days)
+        async function loadRetentionStatus() {
+            try {
+                const res = await fetch('/api/retention/status');
+                const data = await res.json();
+                if (!data.success) return;
+
+                const oldCountEl = document.getElementById('retentionOldCount');
+                const totalCountEl = document.getElementById('retentionTotalCount');
+                const lastRunEl = document.getElementById('retentionLastRun');
+
+                if (oldCountEl) {
+                    oldCountEl.innerText = `${(data.older_than_month_count || 0).toLocaleString()} records`;
+                    if (data.older_than_month_count > 0) {
+                        oldCountEl.className = "font-mono font-bold text-amber-400";
+                    } else {
+                        oldCountEl.className = "font-mono font-bold text-emerald-400";
+                    }
+                }
+                if (totalCountEl) {
+                    totalCountEl.innerText = `${(data.total_records || 0).toLocaleString()} records`;
+                }
+                if (lastRunEl) {
+                    if (data.last_run) {
+                        const d = new Date(data.last_run);
+                        lastRunEl.innerText = `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                    } else {
+                        lastRunEl.innerText = "Automatic (scheduled)";
+                    }
+                }
+            } catch (err) {
+                console.warn('[Retention] Failed to fetch status:', err);
+            }
+        }
+
+        async function triggerManualRetentionCleanup() {
+            const btn = document.getElementById('btnRunRetention');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="animate-spin inline-block mr-1">⏳</span> Pruning old records...`;
+            }
+            try {
+                const res = await fetch('/api/retention/run', { method: 'POST' });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Retention cleanup failed');
+                showToast(`Retention cleanup completed! Purged ${Number(data.deleted_count || 0).toLocaleString()} records older than 1 month.`, 'success');
+                await loadRetentionStatus();
+                if (typeof loadAnalyticsDevices === 'function') loadAnalyticsDevices();
+            } catch (err) {
+                showToast(`Cleanup error: ${err.message}`, 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = `
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        </svg>
+                        Run Retention Cleanup Now
+                    `;
+                }
+            }
+        }
+
         // Fetch daily usage statistics and water level history for the given time period
         async function fetchAnalyticsData() {
             const select = document.getElementById('analyticsDeviceSelect');
@@ -3172,6 +3278,7 @@
                 // Ensure correct sub-tab states are active
                 const currentSubTab = window.activeSettingsSubTab || 'device_config';
                 switchSettingsSubTab(currentSubTab);
+                loadRetentionStatus();
             }
         }
 
@@ -3565,7 +3672,7 @@
             }
 
             if (!filtered || filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="9" class="py-8 text-center text-slate-500 italic font-sans text-xs">No telemetry records match the current filter.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="10" class="py-8 text-center text-slate-500 italic font-sans text-xs">No telemetry records match the current filter.</td></tr>`;
                 return;
             }
 
@@ -3582,6 +3689,23 @@
                     : (r.device_id === 'rofilter' 
                         ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
                         : 'bg-purple-500/10 text-purple-400 border-purple-500/30');
+
+                const isGenuineHw = (r.source_type === 'ESP32_HARDWARE' || r.version === '1.702');
+                const isReplay = (r.source_type === 'WEBSITE_REPLAY' || r.version === '1.656');
+
+                const originBadgeHtml = isGenuineHw ? `
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30" title="Genuine ESP32 Hardware Microcontroller">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>ESP32 Device
+                    </span>
+                ` : isReplay ? `
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30" title="Synthetic or Website Replay Call">
+                        <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>Website / Replay
+                    </span>
+                ` : `
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                        API Node
+                    </span>
+                `;
 
                 return `
                     <tr class="hover:bg-slate-800/40 transition">
@@ -3605,6 +3729,7 @@
                             <span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[9px] font-mono border border-slate-700">v${r.version}</span>
                         </td>
                         <td class="py-2.5 px-3.5 text-slate-400 text-[10px] font-mono truncate max-w-[110px]" title="${ipStr}">${ipStr}</td>
+                        <td class="py-2.5 px-3.5 text-center">${originBadgeHtml}</td>
                         <td class="py-2.5 px-3.5 text-center">
                             <button onclick="openRawPacketModal(${r.id})" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-emerald-500/20 text-slate-300 hover:text-emerald-300 border border-slate-700 hover:border-emerald-500/30 text-[10px] font-sans font-bold transition">
                                 View JSON
@@ -3770,6 +3895,221 @@
             showToast('CSV export downloaded successfully!', 'success');
         }
 
+        function openDeviceVerificationModal(deviceId) {
+            const modal = document.getElementById('deviceVerificationModal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                setTimeout(() => {
+                    modal.classList.remove('opacity-0');
+                    modal.querySelector('.transform').classList.remove('scale-95');
+                }, 10);
+            }
+            runDeviceVerificationCheck(deviceId);
+        }
+
+        function closeDeviceVerificationModal() {
+            const modal = document.getElementById('deviceVerificationModal');
+            if (modal) {
+                modal.classList.add('opacity-0');
+                modal.querySelector('.transform').classList.add('scale-95');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                }, 200);
+            }
+        }
+
+        async function runDeviceVerificationCheck(deviceId) {
+            const dev = deviceId || rawDataSelectedDevice || 'mytank123';
+            const targetDev = dev === 'all' ? 'mytank123' : dev;
+            const container = document.getElementById('deviceVerificationModalBody');
+            const badge = document.getElementById('lblVerificationBadge');
+
+            if (container) {
+                container.innerHTML = `
+                    <div class="py-10 text-center flex flex-col items-center justify-center gap-3">
+                        <div class="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                        <p class="text-xs text-slate-300 font-medium">Running deep cryptographic & sensor physics verification for node <span class="font-mono text-indigo-400 font-bold">${targetDev}</span>...</p>
+                        <p class="text-[11px] text-slate-500">Inspecting HTTP request headers, fluid surface acoustic ripples, and RAM data usage monotonicity</p>
+                    </div>
+                `;
+            }
+
+            try {
+                const res = await fetch(`/api/device/verify-request?device_id=${encodeURIComponent(targetDev)}`);
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Failed to verify request origin');
+
+                const verdict = data.verdict;
+                let badgeClass = 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30';
+                let verdictTitle = 'Analysis Complete';
+                let verdictIcon = '🔍';
+
+                if (verdict === 'GENUINE_ESP32') {
+                    badgeClass = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+                    verdictTitle = '✓ Authentic ESP32 Hardware Confirmed';
+                    verdictIcon = '🛡️';
+                } else if (verdict === 'DUAL_SOURCE_BLOCKED' || verdict === 'DUAL_SOURCE_DETECTED') {
+                    badgeClass = 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+                    verdictTitle = '🛑 Fake Website Replay BLOCKED & STOPPED';
+                    verdictIcon = '🛡️';
+                } else if (verdict === 'FAKE_WEBSITE_OR_SCRIPT' || verdict === 'FAKE_WEBSITE_BLOCKED') {
+                    badgeClass = 'bg-rose-500/20 text-rose-300 border-rose-500/30';
+                    verdictTitle = '🚫 Synthetic Website Call Actively Blocked';
+                    verdictIcon = '⛔';
+                }
+
+                if (badge) {
+                    badge.className = `text-[10px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider border ${badgeClass}`;
+                    badge.innerText = verdict;
+                }
+
+                const hasBlockedRecords = (data.version_analysis || []).some(v => v.is_blocked && v.count > 0);
+
+                const versionsHtml = (data.version_analysis || []).map(v => {
+                    const isReal = v.is_real_device;
+                    const isBlocked = v.is_blocked;
+                    const cardBg = isBlocked 
+                        ? 'bg-rose-950/20 border-rose-500/30' 
+                        : (isReal ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-amber-950/20 border-amber-500/30');
+                    const pillBg = isBlocked 
+                        ? 'bg-rose-500/20 text-rose-400 border-rose-500/30' 
+                        : (isReal ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border-amber-500/30');
+                    const statusText = isBlocked 
+                        ? '🛑 BLOCKED & STOPPED' 
+                        : (isReal ? '✓ Genuine ESP32 Microcontroller' : '⚠️ Synthetic / Website Replay Call');
+
+                    return `
+                        <div class="p-3.5 rounded-2xl border ${cardBg} flex flex-col gap-2">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-mono font-bold text-xs text-white">Firmware v${v.version}</span>
+                                    <span class="text-[9px] px-2 py-0.5 rounded-full font-bold uppercase border ${pillBg}">
+                                        ${statusText}
+                                    </span>
+                                </div>
+                                <span class="text-[10px] font-mono text-slate-400">${(v.count || 0).toLocaleString()} packets in DB</span>
+                            </div>
+                            <p class="text-xs text-slate-300 leading-relaxed">${v.summary}</p>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-800/80 text-[10px]">
+                                <div>
+                                    <span class="text-slate-500 block uppercase font-bold">Status:</span>
+                                    <span class="font-mono font-semibold ${isBlocked ? 'text-rose-400' : (isReal ? 'text-emerald-400' : 'text-amber-400')}">
+                                        ${v.status || (isBlocked ? 'BLOCKED' : 'ACTIVE')}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-500 block uppercase font-bold">Water Ripple Delta:</span>
+                                    <span class="font-mono font-semibold text-slate-200">${v.level_delta_cm} cm</span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-500 block uppercase font-bold">Data Byte Trend:</span>
+                                    <span class="font-mono font-semibold text-slate-200">${v.data_usage_trend}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                const purgeActionHtml = hasBlockedRecords ? `
+                    <div class="p-3.5 rounded-2xl bg-rose-950/30 border border-rose-500/30 flex items-center justify-between gap-3 text-xs">
+                        <div class="space-y-0.5">
+                            <span class="font-bold text-rose-300 block">Clean Up Historical Fake Records</span>
+                            <span class="text-[11px] text-slate-400">Purge old synthetic v1.656 rows from the database to save storage space.</span>
+                        </div>
+                        <button onclick="purgeFakeTelemetryRecords()" id="btnPurgeFake" class="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs transition shrink-0 flex items-center gap-1.5 shadow-lg shadow-rose-950/40">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                            Purge 1.656 Records
+                        </button>
+                    </div>
+                ` : '';
+
+                container.innerHTML = `
+                    <!-- Verdict Summary Banner -->
+                    <div class="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 flex flex-col gap-2.5">
+                        <div class="flex items-center gap-2">
+                            <span class="text-lg">${verdictIcon}</span>
+                            <h4 class="text-sm font-bold text-white">${verdictTitle}</h4>
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed">${data.summary}</p>
+                    </div>
+
+                    <!-- Purge Action if blocked rows exist -->
+                    ${purgeActionHtml}
+
+                    <!-- Versions Breakdown -->
+                    <div class="space-y-2">
+                        <h5 class="text-[11px] uppercase tracking-wider font-bold text-slate-400">Firmware & Hardware Telemetry Analysis:</h5>
+                        <div class="space-y-2.5">${versionsHtml}</div>
+                    </div>
+
+                    <!-- Forensic Comparison Card -->
+                    <div class="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/80 space-y-2.5 text-xs">
+                        <h5 class="text-[11px] uppercase tracking-wider font-bold text-slate-400 flex items-center gap-1.5">
+                            <span>🔬</span> Protection & Differentiation Overview:
+                        </h5>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">
+                            <div class="p-3 bg-emerald-950/15 border border-emerald-500/20 rounded-xl space-y-1.5">
+                                <span class="font-bold text-emerald-400 block">✓ Genuine ESP32 Hardware Profile (ACCEPTED):</span>
+                                <ul class="list-disc list-inside space-y-1 text-slate-300">
+                                    <li>Firmware: Matches <code class="text-emerald-300 font-mono">waterlevel.cpp</code> (v1.702)</li>
+                                    <li>User-Agent: <code class="text-emerald-300 font-mono">ESP32HTTPClient</code></li>
+                                    <li>Headers: NO browser <code class="text-slate-400 font-mono">Origin</code> or <code class="text-slate-400 font-mono">Referer</code></li>
+                                    <li>RAM Data Usage: Increments steadily by <code class="text-emerald-300 font-mono">+408 Bytes</code> per transmission</li>
+                                    <li>Fluid Sensor: Natural acoustic ripples (~0.5 - 2 cm fluctuations)</li>
+                                </ul>
+                            </div>
+                            <div class="p-3 bg-rose-950/15 border border-rose-500/20 rounded-xl space-y-1.5">
+                                <span class="font-bold text-rose-400 block">🛑 Fake Website / Replay Profile (BLOCKED):</span>
+                                <ul class="list-disc list-inside space-y-1 text-slate-300">
+                                    <li>Version: <code class="text-rose-300 font-mono">1.656</code> (Hardcoded static test payload)</li>
+                                    <li>Database Rule: <code class="text-rose-300 font-mono">deduplicate_telemetry()</code> BEFORE INSERT trigger silently discards all 1.656 rows</li>
+                                    <li>Server Gateway: Returns <code class="text-rose-300 font-mono">HTTP 403 Forbidden</code> for v1.656 / browser origins</li>
+                                    <li>Status: Fully blocked and halted</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (err) {
+                container.innerHTML = `
+                    <div class="p-6 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-center space-y-2">
+                        <p class="text-xs text-rose-300 font-semibold">Verification check failed: ${err.message}</p>
+                        <p class="text-[11px] text-slate-400">Ensure the server is running and database is accessible.</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function purgeFakeTelemetryRecords() {
+            const btn = document.getElementById('btnPurgeFake');
+            if (!confirm('Are you sure you want to permanently purge all historical fake / synthetic v1.656 records from the database? This will retain genuine ESP32 hardware telemetry.')) {
+                return;
+            }
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="animate-spin inline-block mr-1">⏳</span> Purging...`;
+            }
+            try {
+                const res = await fetch('/api/device/purge-fake-telemetry', { method: 'POST' });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error || 'Failed to purge fake records');
+                showToast(`Successfully purged ${Number(data.deleted_count).toLocaleString()} fake v1.656 records!`, 'success');
+                // Refresh verification modal and raw telemetry table
+                runDeviceVerificationCheck();
+                if (typeof loadRawTelemetryPage === 'function') {
+                    loadRawTelemetryPage(1);
+                }
+            } catch (err) {
+                showToast(`Purge failed: ${err.message}`, 'error');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerText = 'Purge 1.656 Records';
+                }
+            }
+        }
+
         window.activeSettingsSubTab = 'device_config';
 
         function switchSettingsSubTab(subTab) {
@@ -3784,6 +4124,7 @@
                 if (tabSms) tabSms.classList.add('hidden');
                 if (btnDevice) btnDevice.className = "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all bg-cyan-500 text-slate-950";
                 if (btnSms) btnSms.className = "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all text-slate-400 hover:text-slate-200";
+                loadRetentionStatus();
             } else if (subTab === 'sms_automation') {
                 if (tabSms) tabSms.classList.remove('hidden');
                 if (tabDevice) tabDevice.classList.add('hidden');

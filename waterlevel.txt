@@ -1,427 +1,178 @@
 /*
- * =========================================================================
- *                    IoT HydroSync - Water Level Controller
- *          Designed for ESP32 & ESP32-C3 series with HC-SR04/US-100
- * =========================================================================
+ * =========================================================================================
+ *                              IoT HydroSync - Water Level Controller
+ *                              Source File: waterlevel.cpp / waterlevel.app
+ *               Engineered for ESP32 DevKit V1 and ESP32-C3 SuperMini Modules
+ * =========================================================================================
  * 
- * Hardware Connections:
- * - HC-SR04 / US-100 TRIG Pin: GPIO 2 (Configurable)
- * - HC-SR04 / US-100 ECHO Pin: GPIO 3 (Configurable)
- * - VCC: 5V (or 3.3V for US-100 low voltage operations)
- * - GND: GND
+ * CRITICAL ARDUINO IDE COMPILATION SETTINGS:
+ * -----------------------------------------------------------------------------------------
+ * If using ESP32-C3 SuperMini (via USB-C cable):
+ *   1. Tools -> Board -> "ESP32C3 Dev Module"
+ *   2. Tools -> USB CDC On Boot -> "Enabled"  <--- (MUST BE ENABLED to see Serial Monitor over USB-C!)
+ *   3. Tools -> Upload Speed -> 921600 or 115200
+ *   4. Serial Monitor Baud Rate -> 115200
  * 
- * Features:
- * - Persistent configurations (SSID, Password, Tank Height, Tank Diameter, Topic Prefix) in NVS.
- * - Wi-Fi Captive AP Configuration Portal (runs automatically when Wi-Fi is disconnected).
- * - Live Over-The-Air (OTA) configuration updates via MQTT.
- * - Exponential moving average (EMA) noise filter to prevent ultrasonic reading spikes.
- * - Graceful visual feedback using built-in LED blinking.
- * - Mo token - apit-Om19yalJpKm8wstr27MsPN4jutMrrCe4-O31c4
+ * If using Classic ESP32 DevKit V1 (WROOM-32 / 30 or 38 pins):
+ *   1. Tools -> Board -> "DOIT ESP32 DEVKIT V1" (or "ESP32 Dev Module")
+ *   2. Serial Monitor Baud Rate -> 115200
+ * 
+ * -----------------------------------------------------------------------------------------
+ * HARDWARE PIN ALLOCATION (Carefully isolated to prevent conflicts):
+ * 
+ * [ESP32-C3 SuperMini Profile]:
+ *   - Built-in Blue LED: GPIO 8 (Active-LOW: LOW = ON, HIGH = OFF)
+ *   - Ultrasonic TRIG:  GPIO 2
+ *   - Ultrasonic ECHO:  GPIO 3
+ *   - GSM RX / TX:      GPIO 6 / GPIO 7 (NEVER use GPIO 20/21: they are the main USB UART0!)
+ * 
+ * [Classic ESP32 DevKit V1 Profile]:
+ *   - Built-in Blue LED: GPIO 2 (Active-HIGH: HIGH = ON, LOW = OFF)
+ *   - Ultrasonic TRIG:  GPIO 4 (NEVER GPIO 2: avoids LED collision!)
+ *   - Ultrasonic ECHO:  GPIO 5 (NEVER GPIO 3: avoids Serial RX collision!)
+ *   - GSM RX / TX:      GPIO 16 / GPIO 17 (HardwareSerial 2)
+ * 
+ * -----------------------------------------------------------------------------------------
+ * BEHAVIOR SPECIFICATIONS:
+ * 1. SERIAL OUTPUT:
+ *    - 115200 baud rate with non-blocking TX timeout and explicit flushing.
+ *    - Outputs full startup diagnostics, pin map, and real-time sensor measurements.
+ *    - Console UART pins (GPIO 20 & 21 on C3, GPIO 1 & 3 on standard) are strictly protected.
+ * 
+ * 2. LED INDICATION (STRICT SOLID ON/OFF):
+ *    - Built-in LED is strictly and unconditionally OFF during boot, connection attempts,
+ *      in Captive AP Setup Portal mode (192.168.4.1), and whenever Wi-Fi is lost.
+ *    - Built-in LED illuminates solid steady ON ONLY when actively connected to Wi-Fi.
+ *    - No blinking, no pulsing, and no sensor trigger pulses ever leak to the LED pin.
+ * 
+ * 3. 24/7 COMMUNICATION WITH THIS WEB APP:
+ *    - Single-Channel Direct HTTP REST API (POST /api/telemetry):
+ *      Transmits level, volume, cumulative data usage, and version directly to the web app
+ *      server every telemetry cycle (default: 15s). The response updates calibrations
+ *      (tank dimensions, GSM whitelist, intervals) and triggers remote OTA updates.
+ *      Zero third-party brokers, no MQTT, pure direct HTTPS/HTTP communication.
+ *    - Wi-Fi Captive Portal with Dynamic Network Scanner:
+ *      Scans 2.4GHz networks with deduplication and live /api/scan endpoint.
+ * =========================================================================================
  */
 
 #include <WiFi.h>
 #include <WebServer.h>
 #include <Preferences.h>
-#include <PubSubClient.h>
 #include <Update.h>
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
 #include <WiFiClientSecure.h>
+#include <esp_wifi.h>
+#include <vector>
+#include <algorithm>
 
-// --- Configuration Pins ---
-#define LED_PIN BUILTIN_LED  // GPIO 8 on most ESP32-C3 SuperMini, GPIO 2 on standard DevKits
-#define TRIG_PIN 2           // HC-SR04 Trigger input
-#define ECHO_PIN 3           // HC-SR04 Echo output
+// =========================================================================================
+// BOARD & PIN DEFINITIONS
+// =========================================================================================
 
-// --- Storage Namespaces ---
-#define PREF_NAMESPACE "hydrosync-cfg"
+#define FIRMWARE_VERSION "1.702"
+#define PREF_NAMESPACE   "hydrosync-cfg"
 
-// --- Firmware Version ---
-#define FIRMWARE_VERSION "1.656"
+// Hardware Pin Configuration
+#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(ESP32C3)
+  // ESP32-C3 SuperMini Defaults
+  #define HARDWARE_DEFAULT_LED_PIN        8      // GPIO 8 onboard blue LED
+  #define HARDWARE_DEFAULT_LED_ACTIVE_LOW true   // Active-LOW on ESP32-C3 SuperMini
+  #define HARDWARE_DEFAULT_TRIG_PIN       2      // GPIO 2
+  #define HARDWARE_DEFAULT_ECHO_PIN       3      // GPIO 3
+  #define GSM_RX_PIN                      6      // GPIO 6 (NEVER 20/21: reserved for console Serial!)
+  #define GSM_TX_PIN                      7      // GPIO 7 (NEVER 20/21: reserved for console Serial!)
+#else
+  // Standard ESP32 DevKit V1 Defaults
+  #define HARDWARE_DEFAULT_LED_PIN        2      // GPIO 2 onboard blue LED
+  #define HARDWARE_DEFAULT_LED_ACTIVE_LOW false  // Active-HIGH on standard ESP32
+  #define HARDWARE_DEFAULT_TRIG_PIN       4      // GPIO 4 (NOT pin 2 to avoid LED conflict!)
+  #define HARDWARE_DEFAULT_ECHO_PIN       5      // GPIO 5 (NOT pin 3 to avoid Serial RX conflict!)
+  #define GSM_RX_PIN                      16     // GPIO 16 (RX2)
+  #define GSM_TX_PIN                      17     // GPIO 17 (TX2)
+#endif
 
-// --- Global Classes ---
+// Set to true ONLY if physical SIM800L / GSM module is wired to GSM_RX_PIN and GSM_TX_PIN
+#define ENABLE_GSM_HARDWARE false
+
+// =========================================================================================
+// GLOBAL OBJECTS & STATE VARIABLES
+// =========================================================================================
+
 WebServer server(80);
 Preferences preferences;
-WiFiClient espClient;
-PubSubClient mqttClient(espClient);
+HardwareSerial SerialGSM(1);
 
-// --- Operational States ---
+// Hardware Pins (Loaded from NVS or set to compile-time defaults)
+int pinLed = HARDWARE_DEFAULT_LED_PIN;
+bool ledActiveLow = HARDWARE_DEFAULT_LED_ACTIVE_LOW;
+int pinTrig = HARDWARE_DEFAULT_TRIG_PIN;
+int pinEcho = HARDWARE_DEFAULT_ECHO_PIN;
+
+// Operational States
 bool isConfigMode = false;
 unsigned long lastMeasureTime = 0;
 unsigned long lastSensorMeasureTime = 0;
-unsigned long lastLedBlinkTime = 0;
-bool ledState = false;
 bool pendingReboot = false;
 unsigned long rebootTimer = 0;
 
-// --- Wi-Fi watchdog states ---
+// Wi-Fi Connection Watchdog Timers
 unsigned long lastWifiReconnectAttempt = 0;
 unsigned long firstWifiDisconnectTime = 0;
 
-// --- Physical calibration (Saved & Loaded via NVS Preferences) ---
-float tankHeight = 200.0;    // Max Water Height of the tank (cm)
-float sensorHeight = 45.0;   // Sensor offset height from Max Water Height to physical sensor (cm)
-float tankDiameter = 228.0;  // Inner tank diameter (cm) - Arpico 10,000L
-int numTanks = 1;            // Number of parallel connected tanks
-int telemetryInterval = 15;  // Telemetry logging interval in seconds (default to 15 seconds)
-String mqttPrefix = "mytank123";
-String apiServerUrl = "";    // Web App Server HTTP URL (for 24/7 background logging)
+// Tank Calibration Parameters (Saved in NVS)
+float tankHeight = 200.0;     // Max Water Height of the tank in cm
+float sensorHeight = 45.0;    // Offset height from Max Water Level to physical sensor in cm
+float tankDiameter = 228.0;   // Inner diameter in cm (default: Arpico 10,000L = 228cm)
+int numTanks = 1;             // Number of parallel connected tanks
+int telemetryInterval = 15;   // Telemetry interval in seconds (default: 15s)
 
-// --- Consumption Calculation parameters (Saved & Loaded via NVS Preferences) ---
-float motor1Rate = 1000.0;   // Motor 1 (1-inch) Pump Flow Rate (L/hr)
-float motor2Rate = 5000.0;   // Motor 2 (2-inch) Pump Flow Rate (L/hr)
-float pumpThreshold = 2500.0; // Pump Detection Threshold (L/hr)
-float alertMinLevel = 20.0;   // Water Level Alert Min Threshold (%)
-float alertMaxLevel = 90.0;   // Water Level Alert Max Threshold (%)
+// Identification & Server URLs (Saved in NVS)
+String deviceId = "mytank123";  // Unique Device ID
+String apiServerUrl = "https://mwater.vercel.app";            // Hosted Web App Server URL (e.g. https://ais-dev-...run.app)
+String wifiSSID = "Xiaomi_FC28";
+String wifiPASS = "19990814";
 
-// --- GSM Missed Call & SMS Alert Parameters ---
-#define GSM_RX_PIN 20
-#define GSM_TX_PIN 21
-HardwareSerial SerialGSM(1); // Use HardwareSerial 1
-String gsmNumbersList = "";  // Comma-separated whitelist of phone numbers loaded from NVS
-String gsmBuffer = "";       // Line buffer for GSM AT responses
+// GSM Whitelist & Buffers
+String gsmNumbersList = "";   // Comma-separated whitelist of phone numbers
+String gsmBuffer = "";
 bool gsmInitialized = false;
 
-// --- Cache for latest measurements (for SMS query fallback) ---
+// Cached Latest Measurements
 float currentDepthValue = 0.0;
 float currentVolumeValue = 0.0;
-unsigned long totalBytesSent = 0; // Cumulative data usage in bytes
+unsigned long totalBytesSent = 0; // Cumulative telemetry data usage in bytes
 
-// --- Connection Credential Variables ---
-String wifiSSID = "";
-String wifiPASS = "";
-const char* mqttServer = "broker.hivemq.com";
-const int mqttPort = 1883;
-
-// --- Filter State Variables ---
+// Exponential Moving Average (EMA) Sensor Filter
 float smoothedDistance = -1.0;
-const float filterAlpha = 0.35; // Speed of response vs noise reduction (0 < Alpha <= 1)
+const float filterAlpha = 0.35; // Responsive yet stable noise reduction factor
 
-// --- HTML Captive Welcome Portal Layout ---
-const char* HTML_PORTAL_PAGE = R"rawliteral(
-<!DOCTYPE html>
-<html>
-<head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HydroSync Setup AP</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-            color: #f8fafc;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-        .container {
-            background-color: rgba(15, 23, 42, 0.85);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(16px);
-            border-radius: 20px;
-            padding: 30px;
-            width: 100%;
-            max-width: 420px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-            text-align: center;
-        }
-        h1 {
-            font-size: 24px;
-            font-weight: 700;
-            margin-bottom: 8px;
-            letter-spacing: -0.025em;
-            color: #22d3ee;
-        }
-        p {
-            font-size: 13px;
-            color: #94a3b8;
-            margin-bottom: 24px;
-            line-height: 1.5;
-        }
-        .form-group {
-            text-align: left;
-            margin-bottom: 18px;
-        }
-        label {
-            display: block;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #cbd5e1;
-            margin-bottom: 6px;
-        }
-        input[type="text"], input[type="password"] {
-            width: 100%;
-            padding: 12px 14px;
-            background: rgba(0, 0, 0, 0.3);
-            box-sizing: border-box;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            color: #f8fafc;
-            font-size: 14px;
-            transition: border-color 0.2s;
-        }
-        input[type="text"]:focus, input[type="password"]:focus {
-            outline: none;
-            border-color: #22d3ee;
-        }
-        button {
-            width: 100%;
-            padding: 14px 20px;
-            background: #22d3ee;
-            color: #0f172a;
-            border: none;
-            border-radius: 10px;
-            font-weight: 700;
-            font-size: 14px;
-            cursor: pointer;
-            transition: background-color 0.2s, transform 0.1s;
-            margin-top: 10px;
-            letter-spacing: 0.025em;
-        }
-        button:hover {
-            background: #06b6d4;
-        }
-        button:active {
-            transform: scale(0.98);
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>HydroSync Setup</h1>
-        <p>Set credentials to connect the water level module to your home network.</p>
-        <form action="/save" method="GET">
-            <div class="form-group">
-                <label>Wi-Fi SSID</label>
-                <input type="text" name="ssid" value="%SSID%" placeholder="Your Network Name" required>
-            </div>
-            <div class="form-group">
-                <label>Wi-Fi Password</label>
-                <input type="password" name="password" value="%PASS%" placeholder="WPA2 Security Key">
-            </div>
-            <div class="form-group">
-                <label>Topic Path Prefix</label>
-                <input type="text" name="prefix" value="%PREFIX%" placeholder="mytank123">
-            </div>
-            <div class="form-group">
-                <label>Number of Tanks Connected</label>
-                <input type="text" name="tanks" value="%TANKS%" placeholder="1">
-            </div>
-            <div class="form-group">
-                <label>Authorized GSM Numbers (Comma separated)</label>
-                <input type="text" name="gsm_nums" value="%GSM_NUMS%" placeholder="e.g. +94771234567, +94777654321">
-            </div>
-            <div class="form-group">
-                <label>Telemetry Logging Interval (seconds)</label>
-                <input type="number" name="interval" value="%INTERVAL%" placeholder="15" min="5">
-            </div>
-            <div class="form-group">
-                <label>Web App Server URL (for 24/7 background logging)</label>
-                <input type="text" name="api_url" value="%API_URL%" placeholder="https://your-app.vercel.app">
-            </div>
-            <div class="form-group">
-                <label>Motor 1 (1-inch) Pump Flow Rate (L/hr)</label>
-                <input type="text" name="motor1_rate" value="%MOTOR1_RATE%" placeholder="1000.0">
-            </div>
-            <div class="form-group">
-                <label>Motor 2 (2-inch) Pump Flow Rate (L/hr)</label>
-                <input type="text" name="motor2_rate" value="%MOTOR2_RATE%" placeholder="5000.0">
-            </div>
-            <div class="form-group">
-                <label>Pump Detection Threshold (L/hr)</label>
-                <input type="text" name="pump_thresh" value="%PUMP_THRESH%" placeholder="2500.0">
-            </div>
-            <div class="form-group">
-                <label>Min Alert Level (%)</label>
-                <input type="text" name="alert_min" value="%ALERT_MIN%" placeholder="20.0">
-            </div>
-            <div class="form-group">
-                <label>Max Alert Level (%)</label>
-                <input type="text" name="alert_max" value="%ALERT_MAX%" placeholder="90.0">
-            </div>
-            <button type="submit">Connect & Sync</button>
-        </form>
-    </div>
-</body>
-</html>
-)rawliteral";
+// Wi-Fi Scanner Struct & Cache
+struct WifiNetworkInfo {
+    String ssid;
+    int32_t rssi;
+    uint8_t encryptionType;
+};
+std::vector<WifiNetworkInfo> scannedNetworks;
+unsigned long lastScanTimestamp = 0;
 
-// --- Captive web server handlers ---
-void handleRoot() { 
-    preferences.begin(PREF_NAMESPACE, true);
-    bool isConfigured = preferences.getBool("configured", false);
-    String currentSsid, currentPass;
-    if (isConfigured) {
-        currentSsid = preferences.getString("ssid", "");
-        currentPass = preferences.getString("pass", "");
+// =========================================================================================
+// HARDWARE LED CONTROLLER (Strict Solid ON when connected, strictly OFF otherwise)
+// =========================================================================================
+
+void setLedHardware(bool turnOn) {
+    if (turnOn) {
+        digitalWrite(pinLed, ledActiveLow ? LOW : HIGH);
     } else {
-        currentSsid = "Xiaomi_FC28";
-        currentPass = "19990814";
+        digitalWrite(pinLed, ledActiveLow ? HIGH : LOW);
     }
-    String currentPrefix = preferences.getString("prefix", "mytank123");
-    int currentTanks = preferences.getInt("tanks", 1);
-    int currentInterval = preferences.getInt("interval", 15);
-    String currentGsm = preferences.getString("gsm_nums", "");
-    String currentApiUrl = preferences.getString("api_url", "");
-    float currentMotor1 = preferences.getFloat("motor1_rate", 1000.0);
-    float currentMotor2 = preferences.getFloat("motor2_rate", 5000.0);
-    float currentThresh = preferences.getFloat("pump_thresh", 2500.0);
-    float currentAlertMin = preferences.getFloat("alert_min", 20.0);
-    float currentAlertMax = preferences.getFloat("alert_max", 90.0);
-    preferences.end();
-
-    String html = String(HTML_PORTAL_PAGE);
-    html.replace("%SSID%", currentSsid);
-    html.replace("%PASS%", currentPass);
-    html.replace("%PREFIX%", currentPrefix);
-    html.replace("%TANKS%", String(currentTanks));
-    html.replace("%INTERVAL%", String(currentInterval));
-    html.replace("%GSM_NUMS%", currentGsm);
-    html.replace("%API_URL%", currentApiUrl);
-    html.replace("%MOTOR1_RATE%", String(currentMotor1, 1));
-    html.replace("%MOTOR2_RATE%", String(currentMotor2, 1));
-    html.replace("%PUMP_THRESH%", String(currentThresh, 1));
-    html.replace("%ALERT_MIN%", String(currentAlertMin, 1));
-    html.replace("%ALERT_MAX%", String(currentAlertMax, 1));
-
-    server.send(200, "text/html", html); 
 }
 
-void handleSave() {
-    String reqSsid = server.arg("ssid");
-    String reqPass = server.arg("password");
-    String reqPrefix = server.arg("prefix");
-    String reqTanks = server.arg("tanks");
-    String reqInterval = server.arg("interval");
-    String reqGsm = server.arg("gsm_nums");
-    String reqApiUrl = server.arg("api_url");
-    reqApiUrl.trim();
-    if (reqApiUrl.length() > 0 && !reqApiUrl.startsWith("http://") && !reqApiUrl.startsWith("https://")) {
-        reqApiUrl = "https://" + reqApiUrl;
-    }
-    String reqMotor1 = server.arg("motor1_rate");
-    String reqMotor2 = server.arg("motor2_rate");
-    String reqThresh = server.arg("pump_thresh");
-    String reqAlertMin = server.arg("alert_min");
-    String reqAlertMax = server.arg("alert_max");
+// =========================================================================================
+// LIGHTWEIGHT JSON PARSER HELPER
+// =========================================================================================
 
-    preferences.begin(PREF_NAMESPACE, false);
-    preferences.putString("ssid", reqSsid);
-    preferences.putString("pass", reqPass);
-    if (reqPrefix.length() > 0) {
-        preferences.putString("prefix", reqPrefix);
-    }
-    if (reqTanks.length() > 0) {
-        preferences.putInt("tanks", reqTanks.toInt());
-    }
-    if (reqInterval.length() > 0) {
-        preferences.putInt("interval", reqInterval.toInt());
-    }
-    preferences.putString("gsm_nums", reqGsm);
-    preferences.putString("api_url", reqApiUrl);
-    if (reqMotor1.length() > 0) {
-        preferences.putFloat("motor1_rate", reqMotor1.toFloat());
-    }
-    if (reqMotor2.length() > 0) {
-        preferences.putFloat("motor2_rate", reqMotor2.toFloat());
-    }
-    if (reqThresh.length() > 0) {
-        preferences.putFloat("pump_thresh", reqThresh.toFloat());
-    }
-    if (reqAlertMin.length() > 0) {
-        preferences.putFloat("alert_min", reqAlertMin.toFloat());
-    }
-    if (reqAlertMax.length() > 0) {
-        preferences.putFloat("alert_max", reqAlertMax.toFloat());
-    }
-    preferences.putBool("configured", true);
-    preferences.end();
-
-    // Verify NVS storage write immediately
-    preferences.begin(PREF_NAMESPACE, true);
-    String savedSsid = preferences.getString("ssid", "");
-    String savedPass = preferences.getString("pass", "");
-    bool savedConfigured = preferences.getBool("configured", false);
-    preferences.end();
-
-    Serial.printf("[NVS Verification] Saved SSID: '%s' | Saved Password Length: %d | Configured Flag: %s\n", 
-                  savedSsid.c_str(), savedPass.length(), savedConfigured ? "TRUE" : "FALSE");
-
-    Serial.println("[NVS] Network, physical settings and GSM numbers updated. Rebooting ESP32 device...");
-    server.send(200, "text/plain", "WiFi Configurations Stored! Rebooting device to connect...");
-    delay(1500);
-    ESP.restart();
-}
-
-// --- Configures Web Server endpoints (Config Mode Only) ---
-void setupWebServer() {
-    server.on("/", handleRoot);
-    server.on("/save", handleSave);
-
-    server.begin();
-    Serial.println("[SYS] Local Web Portal active on Port 80.");
-}
-
-// --- Configures local AP for setting Wi-Fi ---
-void startConfigMode() {
-    isConfigMode = true;
-    Serial.println("[SYS] Booting Config AP Portal...");
-    if (wifiSSID != "") {
-        // Run in dual AP + STA mode so we can auto-reconnect in the background
-        WiFi.mode(WIFI_AP_STA);
-        WiFi.setAutoReconnect(true); // Enable built-in driver auto-reconnect
-        WiFi.begin(wifiSSID.c_str(), wifiPASS.c_str());
-        Serial.println("[SYS] Configured as AP_STA. Still trying to connect to saved Wi-Fi in background...");
-    } else {
-        WiFi.mode(WIFI_AP);
-    }
-    WiFi.softAP("ESP32_HydroSync_AP");
-    setupWebServer();
-    Serial.println("[SYS] Captive Portal up! Connect to SSID: 'ESP32_HydroSync_AP' (Open Network)");
-}
-
-// --- High Precision Distance Measurement with Median Pre-Filter ---
-float getDistanceRaw() {
-    digitalWrite(TRIG_PIN, LOW);
-    delayMicroseconds(4);
-    digitalWrite(TRIG_PIN, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(TRIG_PIN, LOW);
-    
-    // Echo pulse measurement (30ms timeout equivalent to ~5 meters range)
-    long duration = pulseIn(ECHO_PIN, HIGH, 30000);
-    if (duration == 0) {
-        return -1.0; // Fail flag indicating sensor bounds exception
-    }
-    
-    // Speed of sound calculation (0.0343 cm per microsecond / 2.0 for bounce trip)
-    return (duration * 0.0343) / 2.0;
-}
-
-// --- Reliable Filtered Measurement Loop ---
-float getFilteredDistance() {
-    float raw = getDistanceRaw();
-    if (raw < 0.0 || raw > (tankHeight + sensorHeight) + 20.0) {
-        // Return current filtered spacing if sensor reads a failure glitch spike
-        return (smoothedDistance >= 0.0) ? smoothedDistance : (tankHeight + sensorHeight);
-    }
-    
-    if (smoothedDistance < 0.0) {
-        // Warm up filter on first successful read
-        smoothedDistance = raw;
-    } else {
-        // Apply EMA filter
-        smoothedDistance = (raw * filterAlpha) + (smoothedDistance * (1.0 - filterAlpha));
-    }
-    return smoothedDistance;
-}
-
-// --- Lightweight JSON Parsing Helper ---
 String parseJsonString(String json, String key) {
     String searchKey = "\"" + key + "\":\"";
     int startIdx = json.indexOf(searchKey);
@@ -445,17 +196,719 @@ String parseJsonString(String json, String key) {
     return json.substring(startIdx, endIdx);
 }
 
-// Forward declaration for triggerHttpOta
-void triggerHttpOta(String url);
+// Extract version string (e.g. "1.701") from binary URL / filename
+String extractVersionFromUrl(String url) {
+    int lastSlash = url.lastIndexOf('/');
+    String filename = (lastSlash != -1) ? url.substring(lastSlash + 1) : url;
+    int dotIdx = filename.indexOf('.');
+    if (dotIdx != -1) {
+        int vStart = dotIdx;
+        while (vStart > 0 && (isDigit(filename[vStart - 1]) || filename[vStart - 1] == 'v' || filename[vStart - 1] == 'V')) {
+            vStart--;
+        }
+        int vEnd = dotIdx + 1;
+        while (vEnd < filename.length() && isDigit(filename[vEnd])) {
+            vEnd++;
+        }
+        if (vStart < dotIdx && vEnd > dotIdx + 1) {
+            String ver = filename.substring(vStart, vEnd);
+            if (ver.startsWith("v") || ver.startsWith("V")) {
+                ver = ver.substring(1);
+            }
+            return ver;
+        }
+    }
+    return "";
+}
 
-// --- Process server-provided configurations received via HTTP response ---
+// Forward Declarations
+void triggerHttpOta(String url);
+void subscribeToConfig();
+void publishCurrentConfig();
+
+// =========================================================================================
+// ULTRASONIC SENSOR MEASUREMENT & FILTERING
+// =========================================================================================
+
+float getDistanceRaw() {
+    digitalWrite(pinTrig, LOW);
+    delayMicroseconds(4);
+    digitalWrite(pinTrig, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(pinTrig, LOW);
+    
+    // Echo pulse measurement (30ms timeout ~= 5 meters maximum range)
+    long duration = pulseIn(pinEcho, HIGH, 30000);
+    if (duration == 0) {
+        return -1.0; // Timeout or sensor out of range
+    }
+    
+    // Speed of sound: 0.0343 cm/us divided by 2 (round-trip)
+    return (duration * 0.0343) / 2.0;
+}
+
+float getFilteredDistance() {
+    float raw = getDistanceRaw();
+    if (raw < 0.0 || raw > (tankHeight + sensorHeight) + 30.0) {
+        return (smoothedDistance >= 0.0) ? smoothedDistance : (tankHeight + sensorHeight);
+    }
+    
+    if (smoothedDistance < 0.0) {
+        smoothedDistance = raw;
+    } else {
+        smoothedDistance = (raw * filterAlpha) + (smoothedDistance * (1.0 - filterAlpha));
+    }
+    return smoothedDistance;
+}
+
+// =========================================================================================
+// WI-FI NETWORK ACTIVE SCANNER
+// =========================================================================================
+
+void performWifiScan() {
+    Serial.println("[SCAN] Initiating active 2.4GHz Wi-Fi scan...");
+    
+    WiFi.disconnect(false, false);
+    delay(50);
+    
+    int n = WiFi.scanNetworks(false, false, false, 250);
+    scannedNetworks.clear();
+    
+    if (n > 0) {
+        for (int i = 0; i < n; ++i) {
+            String ssid = WiFi.SSID(i);
+            ssid.trim();
+            if (ssid.length() == 0 || ssid.startsWith("ESP32_HydroSync")) {
+                continue;
+            }
+            
+            bool found = false;
+            for (auto &net : scannedNetworks) {
+                if (net.ssid == ssid) {
+                    if (WiFi.RSSI(i) > net.rssi) {
+                        net.rssi = WiFi.RSSI(i);
+                        net.encryptionType = WiFi.encryptionType(i);
+                    }
+                    found = true;
+                    break;
+                }
+            }
+            
+            if (!found) {
+                WifiNetworkInfo info;
+                info.ssid = ssid;
+                info.rssi = WiFi.RSSI(i);
+                info.encryptionType = WiFi.encryptionType(i);
+                scannedNetworks.push_back(info);
+            }
+        }
+        
+        std::sort(scannedNetworks.begin(), scannedNetworks.end(), [](const WifiNetworkInfo &a, const WifiNetworkInfo &b) {
+            return a.rssi > b.rssi;
+        });
+        
+        Serial.printf("[SCAN] Discovered %d unique Wi-Fi access points.\n", (int)scannedNetworks.size());
+    } else {
+        Serial.println("[SCAN] No Wi-Fi networks found or scan timed out.");
+    }
+    
+    WiFi.scanDelete();
+    lastScanTimestamp = millis();
+}
+
+String getWifiScanJson() {
+    String json = "{\"success\":true,\"networks\":[";
+    for (size_t i = 0; i < scannedNetworks.size(); ++i) {
+        if (i > 0) json += ",";
+        json += "{\"ssid\":\"" + scannedNetworks[i].ssid + "\",";
+        json += "\"rssi\":" + String(scannedNetworks[i].rssi) + ",";
+        json += "\"secure\":" + String(scannedNetworks[i].encryptionType != WIFI_AUTH_OPEN ? "true" : "false") + "}";
+    }
+    json += "]}";
+    return json;
+}
+
+// =========================================================================================
+// CAPTIVE AP SETUP PORTAL (HTML / CSS / JS)
+// =========================================================================================
+
+const char* HTML_PORTAL_PAGE = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HydroSync Setup Portal</title>
+    <style>
+        :root {
+            --bg: #090d16;
+            --card: #0f172a;
+            --card-border: #1e293b;
+            --primary: #06b6d4;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --input-bg: #1e293b;
+            --input-border: #334155;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .card {
+            background-color: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 28px;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
+        }
+        .header { text-align: center; margin-bottom: 24px; }
+        .logo { font-size: 24px; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; }
+        .subtitle { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+        .section-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--primary);
+            font-weight: 700;
+            margin: 20px 0 10px 0;
+            border-bottom: 1px solid var(--card-border);
+            padding-bottom: 4px;
+        }
+        .form-group { margin-bottom: 14px; }
+        label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+        input, select {
+            width: 100%;
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 13px;
+            color: var(--text-main);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus, select:focus { border-color: var(--primary); }
+        .row { display: flex; gap: 10px; }
+        .row .form-group { flex: 1; }
+        .scan-container { display: flex; gap: 8px; align-items: center; }
+        .btn-scan {
+            background: #1e293b;
+            border: 1px solid var(--input-border);
+            color: var(--primary);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .btn-scan:hover { background: #334155; }
+        .btn-submit {
+            width: 100%;
+            background: linear-gradient(135deg, #06b6d4, #0284c7);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 22px;
+            box-shadow: 0 4px 12px rgba(6, 182, 212, 0.25);
+        }
+        .btn-submit:hover { opacity: 0.95; }
+        .note { font-size: 11px; color: var(--text-muted); text-align: center; margin-top: 14px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="header">
+            <div class="logo">HydroSync Controller</div>
+            <div class="subtitle">Firmware v%FIRMWARE_VERSION% &bull; Setup AP</div>
+        </div>
+
+        <form action="/save" method="POST">
+            <div class="section-title">1. Wi-Fi Network Credentials</div>
+            
+            <div class="form-group">
+                <label>Select Detected Wi-Fi Network</label>
+                <div class="scan-container">
+                    <select id="wifiDropdown" onchange="onSsidSelected()">
+                        <option value="">Scanning for networks...</option>
+                    </select>
+                    <button type="button" class="btn-scan" onclick="fetchScanResults()">&#x21bb; Rescan</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Wi-Fi SSID (or enter manually)</label>
+                <input type="text" id="ssid" name="ssid" value="%SSID%" required placeholder="e.g. Home_WiFi_2.4G">
+            </div>
+
+            <div class="form-group">
+                <label>Wi-Fi Password</label>
+                <input type="password" id="pass" name="pass" value="%PASS%" placeholder="Enter Wi-Fi Password">
+            </div>
+
+            <div class="section-title">2. Device Identification & Web App</div>
+
+            <div class="form-group">
+                <label>Device ID (Matches Web Dashboard)</label>
+                <input type="text" name="deviceId" value="%DEVICE_ID%" required placeholder="plg_paribogika">
+            </div>
+
+            <div class="form-group">
+                <label>Web App Server URL (HTTP Telemetry 24/7)</label>
+                <input type="url" name="apiUrl" value="%API_URL%" placeholder="https://ais-dev-...run.app">
+            </div>
+
+            <div class="section-title">3. Tank Geometry & Calibration</div>
+
+            <div class="row">
+                <div class="form-group">
+                    <label>Tank Height (cm)</label>
+                    <input type="number" step="0.1" name="tankHeight" value="%TANK_HEIGHT%" required>
+                </div>
+                <div class="form-group">
+                    <label>Sensor Offset (cm)</label>
+                    <input type="number" step="0.1" name="sensorHeight" value="%SENSOR_HEIGHT%" required>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="form-group">
+                    <label>Tank Diameter (cm)</label>
+                    <input type="number" step="0.1" name="tankDiameter" value="%TANK_DIAMETER%" required>
+                </div>
+                <div class="form-group">
+                    <label>Num Tanks</label>
+                    <input type="number" name="numTanks" value="%NUM_TANKS%" required min="1" max="10">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Telemetry Interval (seconds)</label>
+                <input type="number" name="interval" value="%INTERVAL%" required min="5" max="3600">
+            </div>
+
+            <div class="form-group">
+                <label>GSM Whitelist Numbers (comma-separated)</label>
+                <input type="text" name="gsmNumbers" value="%GSM_NUMS%" placeholder="+94771234567, 0712345678">
+            </div>
+
+            <div class="section-title">4. Hardware Pins & Board Profile</div>
+
+            <div class="row">
+                <div class="form-group">
+                    <label>LED GPIO Pin</label>
+                    <input type="number" name="pinLed" value="%PIN_LED%" required>
+                </div>
+                <div class="form-group">
+                    <label>LED Active Polarity</label>
+                    <select name="ledActiveLow">
+                        <option value="1" %LED_ACT_LOW_SEL%>Active LOW (C3 SuperMini)</option>
+                        <option value="0" %LED_ACT_HIGH_SEL%>Active HIGH (DevKit V1)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="form-group">
+                    <label>TRIG GPIO Pin</label>
+                    <input type="number" name="pinTrig" value="%PIN_TRIG%" required>
+                </div>
+                <div class="form-group">
+                    <label>ECHO GPIO Pin</label>
+                    <input type="number" name="pinEcho" value="%PIN_ECHO%" required>
+                </div>
+            </div>
+
+            <div class="section-title">5. Device Memory & OTA Flag</div>
+            <div class="form-group">
+                <label>Active Firmware Version</label>
+                <input type="text" value="v%FIRMWARE_VERSION%" disabled style="opacity:0.75;">
+            </div>
+            <div class="form-group">
+                <label>Stored OTA Memory Flag</label>
+                <div style="font-size:12px;color:var(--text-muted);background:var(--input-bg);padding:10px 12px;border:1px solid var(--input-border);border-radius:8px;word-break:break-all;">
+                    %LAST_OTA_STATUS%
+                </div>
+            </div>
+
+            <button type="submit" class="btn-submit">Save Settings & Connect</button>
+            <div class="note">Settings are committed to onboard NVS Flash memory.</div>
+        </form>
+    </div>
+
+    <script>
+        function onSsidSelected() {
+            var dropdown = document.getElementById('wifiDropdown');
+            var selected = dropdown.value;
+            if (selected) {
+                document.getElementById('ssid').value = selected;
+                document.getElementById('pass').focus();
+            }
+        }
+
+        function fetchScanResults() {
+            var dropdown = document.getElementById('wifiDropdown');
+            dropdown.innerHTML = '<option value="">Scanning nearby networks...</option>';
+            
+            fetch('/api/scan')
+                .then(response => response.json())
+                .then(data => {
+                    dropdown.innerHTML = '<option value="">-- Select a Detected Wi-Fi Network --</option>';
+                    if (data.networks && data.networks.length > 0) {
+                        data.networks.forEach(net => {
+                            var opt = document.createElement('option');
+                            opt.value = net.ssid;
+                            var lock = net.secure ? ' [Secured]' : ' [Open]';
+                            opt.textContent = net.ssid + ' (' + net.rssi + ' dBm)' + lock;
+                            dropdown.appendChild(opt);
+                        });
+                    } else {
+                        dropdown.innerHTML = '<option value="">No Wi-Fi networks found. Enter manually.</option>';
+                    }
+                })
+                .catch(err => {
+                    dropdown.innerHTML = '<option value="">Scan failed. Enter SSID manually.</option>';
+                });
+        }
+
+        window.onload = function() {
+            fetchScanResults();
+        };
+    </script>
+</body>
+</html>
+)rawliteral";
+
+String renderPortalPage() {
+    String html = HTML_PORTAL_PAGE;
+    html.replace("%FIRMWARE_VERSION%", FIRMWARE_VERSION);
+    html.replace("%SSID%", wifiSSID);
+    html.replace("%PASS%", wifiPASS);
+    html.replace("%DEVICE_ID%", deviceId);
+    html.replace("%API_URL%", apiServerUrl);
+    html.replace("%TANK_HEIGHT%", String(tankHeight, 1));
+    html.replace("%SENSOR_HEIGHT%", String(sensorHeight, 1));
+    html.replace("%TANK_DIAMETER%", String(tankDiameter, 1));
+    html.replace("%NUM_TANKS%", String(numTanks));
+    html.replace("%INTERVAL%", String(telemetryInterval));
+    html.replace("%GSM_NUMS%", gsmNumbersList);
+    html.replace("%PIN_LED%", String(pinLed));
+    html.replace("%PIN_TRIG%", String(pinTrig));
+    html.replace("%PIN_ECHO%", String(pinEcho));
+    html.replace("%LED_ACT_LOW_SEL%", ledActiveLow ? "selected" : "");
+    html.replace("%LED_ACT_HIGH_SEL%", !ledActiveLow ? "selected" : "");
+
+    preferences.begin(PREF_NAMESPACE, true);
+    String lastOta = preferences.getString("last_ota_url", "");
+    String lastVer = preferences.getString("last_ota_ver", "");
+    preferences.end();
+
+    String otaStatusHtml = "";
+    if (lastOta.length() > 0) {
+        otaStatusHtml = "<span style='color:#06b6d4;font-weight:bold;'>Locked & Applied:</span> " + lastOta;
+        if (lastVer.length() > 0) {
+            otaStatusHtml += " (v" + lastVer + ")";
+        }
+        otaStatusHtml += "<br><a href='/clear-ota-flag' onclick=\"return confirm('Clear OTA version flag from device memory?');\" style='color:#f43f5e;font-weight:bold;display:inline-block;margin-top:6px;text-decoration:underline;'>[Clear OTA Flag]</a>";
+    } else {
+        otaStatusHtml = "<span style='color:#10b981;'>Initial Factory Firmware</span> &bull; No OTA update recorded.";
+    }
+    html.replace("%LAST_OTA_STATUS%", otaStatusHtml);
+
+    return html;
+}
+
+void setupWebServer() {
+    server.on("/", HTTP_GET, []() {
+        server.send(200, "text/html", renderPortalPage());
+    });
+
+    server.on("/clear-ota-flag", HTTP_GET, []() {
+        preferences.begin(PREF_NAMESPACE, false);
+        preferences.remove("last_ota_url");
+        preferences.remove("last_ota_ver");
+        preferences.remove("ota_applied");
+        preferences.remove("pending_ota");
+        preferences.remove("pending_ota_ver");
+        preferences.remove("ota_fail_cnt");
+        preferences.end();
+        Serial.println("[OTA] Device Memory OTA Version Flag cleared by user.");
+        server.sendHeader("Location", "/");
+        server.send(303);
+    });
+
+    server.on("/api/scan", HTTP_GET, []() {
+        if (millis() - lastScanTimestamp > 10000 || scannedNetworks.empty()) {
+            performWifiScan();
+        }
+        server.send(200, "application/json", getWifiScanJson());
+    });
+
+    server.on("/rescan", HTTP_GET, []() {
+        performWifiScan();
+        server.sendHeader("Location", "/");
+        server.send(303);
+    });
+
+    server.on("/save", HTTP_POST, []() {
+        preferences.begin(PREF_NAMESPACE, false);
+
+        if (server.hasArg("ssid")) {
+            wifiSSID = server.arg("ssid");
+            wifiSSID.trim();
+            preferences.putString("ssid", wifiSSID);
+        }
+        if (server.hasArg("pass")) {
+            wifiPASS = server.arg("pass");
+            wifiPASS.trim();
+            preferences.putString("pass", wifiPASS);
+        }
+        if (server.hasArg("deviceId")) {
+            String newDevId = server.arg("deviceId");
+            newDevId.trim();
+            if (newDevId.length() > 0) {
+                deviceId = newDevId;
+                preferences.putString("deviceId", deviceId);
+            }
+        }
+        if (server.hasArg("apiUrl")) {
+            apiServerUrl = server.arg("apiUrl");
+            apiServerUrl.trim();
+            preferences.putString("api_url", apiServerUrl);
+        }
+        if (server.hasArg("tankHeight")) {
+            float val = server.arg("tankHeight").toFloat();
+            if (val > 0) {
+                tankHeight = val;
+                preferences.putFloat("height", tankHeight);
+            }
+        }
+        if (server.hasArg("sensorHeight")) {
+            float val = server.arg("sensorHeight").toFloat();
+            if (val >= 0) {
+                sensorHeight = val;
+                preferences.putFloat("sensor_height", sensorHeight);
+            }
+        }
+        if (server.hasArg("tankDiameter")) {
+            float val = server.arg("tankDiameter").toFloat();
+            if (val > 0) {
+                tankDiameter = val;
+                preferences.putFloat("diameter", tankDiameter);
+            }
+        }
+        if (server.hasArg("numTanks")) {
+            int val = server.arg("numTanks").toInt();
+            if (val > 0) {
+                numTanks = val;
+                preferences.putInt("tanks", numTanks);
+            }
+        }
+        if (server.hasArg("interval")) {
+            int val = server.arg("interval").toInt();
+            if (val >= 5) {
+                telemetryInterval = val;
+                preferences.putInt("interval", telemetryInterval);
+            }
+        }
+        if (server.hasArg("gsmNumbers")) {
+            gsmNumbersList = server.arg("gsmNumbers");
+            gsmNumbersList.trim();
+            preferences.putString("gsm_nums", gsmNumbersList);
+        }
+        if (server.hasArg("pinLed")) {
+            int val = server.arg("pinLed").toInt();
+            if (val >= 0) {
+                pinLed = val;
+                preferences.putInt("pin_led", pinLed);
+            }
+        }
+        if (server.hasArg("ledActiveLow")) {
+            ledActiveLow = (server.arg("ledActiveLow") == "1");
+            preferences.putBool("led_act_low", ledActiveLow);
+        }
+        if (server.hasArg("pinTrig")) {
+            int val = server.arg("pinTrig").toInt();
+            if (val >= 0) {
+                pinTrig = val;
+                preferences.putInt("pin_trig", pinTrig);
+            }
+        }
+        if (server.hasArg("pinEcho")) {
+            int val = server.arg("pinEcho").toInt();
+            if (val >= 0) {
+                pinEcho = val;
+                preferences.putInt("pin_echo", pinEcho);
+            }
+        }
+
+        preferences.end();
+
+        String response = "<html><body style='font-family:sans-serif;background:#090d16;color:#f8fafc;padding:30px;text-align:center;'>";
+        response += "<h2 style='color:#06b6d4;'>Configuration Successfully Saved!</h2>";
+        response += "<p>Restarting HydroSync controller in 2 seconds to establish connection...</p>";
+        response += "</body></html>";
+        server.send(200, "text/html", response);
+
+        pendingReboot = true;
+        rebootTimer = millis();
+    });
+
+    server.begin();
+    Serial.println("[HTTP] Local Web Configuration Server started.");
+}
+
+void startConfigMode() {
+    isConfigMode = true;
+    
+    // STRICT RULE: Built-in LED is strictly OFF in AP / Config mode
+    setLedHardware(false);
+
+    Serial.println("\n[SYS] Engaging Captive AP Configuration Mode...");
+    WiFi.disconnect(false, false);
+    delay(100);
+
+    WiFi.mode(WIFI_AP_STA);
+    WiFi.softAP("Water_Paribogika");
+    WiFi.setTxPower(WIFI_POWER_11dBm);
+
+    // If configured credentials exist, initiate background Wi-Fi reconnection probe
+    if (wifiSSID.length() > 0) {
+        Serial.printf("[AP Mode] Stored Wi-Fi found ('%s'). Background reconnect active...\n", wifiSSID.c_str());
+        WiFi.begin(wifiSSID.c_str(), wifiPASS.c_str());
+    }
+
+    setupWebServer();
+    performWifiScan();
+    
+    Serial.println("[SYS] Captive Portal active! Connect to SSID: 'ESP32_HydroSync_AP' (192.168.4.1)");
+}
+
+// =========================================================================================
+// OVER-THE-AIR (OTA) FIRMWARE FLASHING WITH DEVICE MEMORY FLAG PROTECTION
+// =========================================================================================
+
+void triggerHttpOta(String url) {
+    url.trim();
+    if (url.length() == 0 || (!url.startsWith("http://") && !url.startsWith("https://"))) {
+        Serial.println("[OTA] Aborted: Invalid OTA URL format.");
+        return;
+    }
+
+    // Safety check against device flash memory: prevent redundant re-flashing loop
+    preferences.begin(PREF_NAMESPACE, false);
+    String lastOtaUrl = preferences.getString("last_ota_url", "");
+    String lastOtaVer = preferences.getString("last_ota_ver", "");
+    preferences.end();
+
+    if (lastOtaUrl.length() > 0 && url.equalsIgnoreCase(lastOtaUrl)) {
+        Serial.printf("[OTA] Skipped: Firmware URL '%s' is already marked as applied in device memory.\n", url.c_str());
+        return;
+    }
+
+    Serial.printf("[OTA] Commencing Over-The-Air firmware upgrade from: %s\n", url.c_str());
+    setLedHardware(false);
+
+    // Save pending_ota flag to flash memory before flashing begins
+    preferences.begin(PREF_NAMESPACE, false);
+    preferences.putString("pending_ota", url);
+    String targetVer = extractVersionFromUrl(url);
+    if (targetVer.length() > 0) {
+        preferences.putString("pending_ota_ver", targetVer);
+    }
+    preferences.end();
+
+    WiFiClientSecure clientSecure;
+    clientSecure.setInsecure();
+    
+    // Explicitly set rebootOnUpdate to false so we can commit the version flag to NVS before restarting
+    httpUpdate.rebootOnUpdate(false);
+    t_httpUpdate_return result = httpUpdate.update(clientSecure, url);
+
+    switch (result) {
+        case HTTP_UPDATE_FAILED:
+            Serial.printf("[OTA] Update Failed! Error (%d): %s\n", 
+                          httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
+            preferences.begin(PREF_NAMESPACE, false);
+            preferences.remove("pending_ota");
+            preferences.remove("pending_ota_ver");
+            // Count download/flashing failures to protect against rapid bootloop on 404 or corrupt URLs
+            {
+                int failCnt = preferences.getInt("ota_fail_cnt", 0) + 1;
+                preferences.putInt("ota_fail_cnt", failCnt);
+                if (failCnt >= 3) {
+                    Serial.println("[OTA] Warning: Repeated OTA download failures. Marking URL as skipped in device memory.");
+                    preferences.putString("last_ota_url", url);
+                    preferences.putInt("ota_fail_cnt", 0);
+                }
+            }
+            preferences.end();
+            setLedHardware(WiFi.status() == WL_CONNECTED);
+            break;
+
+        case HTTP_UPDATE_NO_UPDATES:
+            Serial.println("[OTA] Server reported no updates available.");
+            preferences.begin(PREF_NAMESPACE, false);
+            preferences.remove("pending_ota");
+            preferences.remove("pending_ota_ver");
+            preferences.end();
+            setLedHardware(WiFi.status() == WL_CONNECTED);
+            break;
+
+        case HTTP_UPDATE_OK:
+            Serial.println("[OTA] Firmware Flashing Successfully Completed!");
+            Serial.printf("[OTA] Storing updated version flag for '%s' in device NVS flash memory...\n", url.c_str());
+            preferences.begin(PREF_NAMESPACE, false);
+            preferences.putString("last_ota_url", url);
+            if (targetVer.length() > 0) {
+                preferences.putString("last_ota_ver", targetVer);
+            } else {
+                preferences.putString("last_ota_ver", FIRMWARE_VERSION);
+            }
+            preferences.putBool("ota_applied", true);
+            preferences.remove("pending_ota");
+            preferences.remove("pending_ota_ver");
+            preferences.putInt("ota_fail_cnt", 0);
+            preferences.end();
+            Serial.println("[OTA] Version flag safely committed to device memory. Rebooting controller now...");
+            delay(600);
+            ESP.restart();
+            break;
+    }
+}
+
+// =========================================================================================
+// HTTP TELEMETRY POST (COMMUNICATING DIRECTLY WITH THIS WEB APP)
+// =========================================================================================
+
 void handleHttpResponseConfig(String response) {
     if (response.indexOf("\"success\":true") == -1) return;
-    
+
     preferences.begin(PREF_NAMESPACE, false);
     bool changed = false;
 
-    // 1. Tank Height
+    // 1. Device ID Sync
+    String devStr = parseJsonString(response, "device_id");
+    if (devStr.length() > 0 && devStr != deviceId) {
+        deviceId = devStr;
+        preferences.putString("deviceId", devStr);
+        Serial.printf("[HTTP Sync] Updated Device ID: %s\n", devStr.c_str());
+        changed = true;
+    }
+
+    // 2. Tank Height
     String heightStr = parseJsonString(response, "tank_height");
     if (heightStr.length() > 0) {
         float val = heightStr.toFloat();
@@ -467,7 +920,7 @@ void handleHttpResponseConfig(String response) {
         }
     }
 
-    // 2. Sensor Height Offset
+    // 3. Sensor Offset Height
     String shStr = parseJsonString(response, "sensor_height");
     if (shStr.length() > 0) {
         float val = shStr.toFloat();
@@ -479,709 +932,593 @@ void handleHttpResponseConfig(String response) {
         }
     }
 
-    // 3. Tank Diameter
+    // 4. Tank Diameter
     String diaStr = parseJsonString(response, "tank_diameter");
     if (diaStr.length() > 0) {
         float val = diaStr.toFloat();
         if (val > 0 && val != tankDiameter) {
             tankDiameter = val;
             preferences.putFloat("diameter", val);
-            Serial.printf("[HTTP Sync] Updated diameter: %.1f cm\n", val);
+            Serial.printf("[HTTP Sync] Updated tank diameter: %.1f cm\n", val);
             changed = true;
         }
     }
 
-    // 4. Num Tanks
+    // 5. Num Tanks
     String tanksStr = parseJsonString(response, "num_tanks");
     if (tanksStr.length() > 0) {
         int val = tanksStr.toInt();
         if (val > 0 && val != numTanks) {
             numTanks = val;
             preferences.putInt("tanks", val);
-            Serial.printf("[HTTP Sync] Updated number of tanks: %d\n", val);
+            Serial.printf("[HTTP Sync] Updated num tanks: %d\n", val);
             changed = true;
         }
     }
 
-    // 5. Telemetry Interval
+    // 6. Telemetry Interval
     String intervalStr = parseJsonString(response, "telemetry_interval");
     if (intervalStr.length() > 0) {
         int val = intervalStr.toInt();
         if (val >= 5 && val != telemetryInterval) {
             telemetryInterval = val;
             preferences.putInt("interval", val);
-            Serial.printf("[HTTP Sync] Updated telemetry interval: %d s\n", val);
+            Serial.printf("[HTTP Sync] Updated telemetry interval: %d seconds\n", val);
             changed = true;
         }
     }
 
-    // 6. GSM numbers whitelist
+    // 7. GSM Whitelist
     String gsmStr = parseJsonString(response, "gsm_numbers");
     if (gsmStr.length() > 0 && gsmStr != gsmNumbersList) {
-        if (gsmStr == "none") gsmStr = "";
         gsmNumbersList = gsmStr;
         preferences.putString("gsm_nums", gsmStr);
         Serial.printf("[HTTP Sync] Updated GSM whitelist: %s\n", gsmStr.c_str());
         changed = true;
     }
 
-    // 7. API Server URL
-    String apiStr = parseJsonString(response, "api_url");
-    if (apiStr.length() > 0 && apiStr != apiServerUrl) {
-        apiServerUrl = apiStr;
-        preferences.putString("api_url", apiStr);
-        Serial.printf("[HTTP Sync] Updated API Server URL: %s\n", apiStr.c_str());
-        changed = true;
+    // 8. Pending OTA URL with Device Memory Guard
+    String otaUrl = parseJsonString(response, "ota_url");
+    otaUrl.trim();
+    if (otaUrl.length() > 0 && (otaUrl.startsWith("http://") || otaUrl.startsWith("https://"))) {
+        String lastOtaUrl = preferences.getString("last_ota_url", "");
+        String lastOtaVer = preferences.getString("last_ota_ver", "");
+
+        bool alreadyApplied = false;
+        if (lastOtaUrl.length() > 0 && otaUrl.equalsIgnoreCase(lastOtaUrl)) {
+            alreadyApplied = true;
+        } else if (otaUrl.indexOf(FIRMWARE_VERSION) != -1) {
+            alreadyApplied = true;
+        } else if (lastOtaVer.length() > 0 && otaUrl.indexOf(lastOtaVer) != -1) {
+            alreadyApplied = true;
+        }
+
+        if (alreadyApplied) {
+            Serial.printf("[HTTP Sync] OTA Firmware '%s' already applied on this device (Device Memory Flag Active). Skipping duplicate flash.\n", otaUrl.c_str());
+        } else {
+            Serial.printf("[HTTP Sync] New Pending OTA Firmware URL detected: %s\n", otaUrl.c_str());
+            preferences.end();
+            triggerHttpOta(otaUrl);
+            return;
+        }
     }
 
     preferences.end();
-
-    // 8. Over-The-Air Firmware Trigger
-    String otaStr = parseJsonString(response, "ota_url");
-    if (otaStr.length() > 0 && (otaStr.startsWith("http://") || otaStr.startsWith("https://"))) {
-        Serial.printf("[HTTP Sync] OTA update triggered from HTTP response: %s\n", otaStr.c_str());
-        triggerHttpOta(otaStr);
+    if (changed) {
+        Serial.println("[HTTP Sync] Configuration changes committed to NVS.");
     }
 }
 
-// --- Remote HTTP OTA Firmware Flasher ---
-void triggerHttpOta(String url) {
-    Serial.println("[OTA] Initializing remote Over-The-Air firmware download...");
-    Serial.println("[OTA] Firmware binary URL: " + url);
-    
-    // Wire up progress callback
-    httpUpdate.onProgress([](int current, int total) {
-        Serial.printf("[OTA] Downloading: %d%%\r", (current * 100) / total);
-    });
+void sendHttpTelemetry(float depth, float volume) {
+    if (WiFi.status() != WL_CONNECTED || WiFi.localIP() == IPAddress(0, 0, 0, 0) || apiServerUrl.length() == 0) {
+        return;
+    }
 
-    t_httpUpdate_return result;
+    // Ensure fallback DNS in case router DHCP provided 0.0.0.0
+    if (WiFi.dnsIP() == IPAddress(0, 0, 0, 0)) {
+        WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, IPAddress(8, 8, 8, 8), IPAddress(1, 1, 1, 1));
+    }
 
-    if (url.startsWith("https://")) {
+    HTTPClient http;
+    String endpoint = apiServerUrl;
+    if (!endpoint.endsWith("/")) {
+        endpoint += "/";
+    }
+    endpoint += "api/telemetry";
+
+    // Read stored OTA flags from NVS to acknowledge applied status to server
+    preferences.begin(PREF_NAMESPACE, true);
+    String lastOtaUrl = preferences.getString("last_ota_url", "");
+    bool otaApplied = preferences.getBool("ota_applied", false);
+    preferences.end();
+
+    String jsonPayload = "{\"device_id\":\"" + deviceId + "\","
+                         "\"level\":" + String(depth, 1) + ","
+                         "\"volume\":" + String(volume, 1) + ","
+                         "\"data_usage\":" + String(totalBytesSent) + ","
+                         "\"local_ip\":\"" + WiFi.localIP().toString() + "\","
+                         "\"version\":\"" + String(FIRMWARE_VERSION) + "\"";
+    if (lastOtaUrl.length() > 0) {
+        jsonPayload += ",\"last_ota_url\":\"" + lastOtaUrl + "\"";
+    }
+    if (otaApplied) {
+        jsonPayload += ",\"ota_status\":\"applied\"";
+    }
+    jsonPayload += "}";
+
+    int httpResponseCode = -1;
+
+    Serial.printf("[HTTP API] Transmitting telemetry to: %s\n", endpoint.c_str());
+
+    if (endpoint.startsWith("https://")) {
         WiFiClientSecure clientSecure;
-        clientSecure.setInsecure(); // Skip certificate validation for secure links (useful for GitHub Raw URLs)
-        result = httpUpdate.update(clientSecure, url);
+        clientSecure.setInsecure();
+        clientSecure.setTimeout(10);
+        http.begin(clientSecure, endpoint);
+        http.setTimeout(10000);
+        http.addHeader("Content-Type", "application/json");
+        httpResponseCode = http.POST(jsonPayload);
+
+        if (httpResponseCode > 0) {
+            totalBytesSent += (jsonPayload.length() + 220); // Payload bytes + HTTP header overhead
+            Serial.printf("[HTTP API] Telemetry sent (HTTP %d).\n", httpResponseCode);
+            if (httpResponseCode == 200) {
+                String responseBody = http.getString();
+                handleHttpResponseConfig(responseBody);
+            }
+        } else {
+            Serial.printf("[HTTP API] Telemetry POST failed (%s) to %s\n", http.errorToString(httpResponseCode).c_str(), endpoint.c_str());
+            if (httpResponseCode == -1) {
+                Serial.println("[HTTP Note] Connection refused usually means router WAN/internet uplink is still warming up after Wi-Fi reconnect. Will retry automatically.");
+                delay(60000);
+                pendingReboot = true;
+            }
+        }
+        http.end();
+        clientSecure.stop(); // Release TLS socket immediately from LwIP
     } else {
         WiFiClient client;
-        result = httpUpdate.update(client, url);
-    }
+        client.setTimeout(10);
+        http.begin(client, endpoint);
+        http.setTimeout(10000);
+        http.addHeader("Content-Type", "application/json");
+        httpResponseCode = http.POST(jsonPayload);
 
-    if (result == HTTP_UPDATE_FAILED) {
-        Serial.printf("[OTA] Update failed! Error code: %d | Info: %s\n", 
-                      httpUpdate.getLastError(), 
-                      httpUpdate.getLastErrorString().c_str());
-    } else if (result == HTTP_UPDATE_NO_UPDATES) {
-        Serial.println("[OTA] No firmware differences detected by local host.");
-    } else if (result == HTTP_UPDATE_OK) {
-        Serial.println("[OTA] Firmware written successfully. Rebooting ESP32 device now...");
-        delay(1500);
-        ESP.restart();
-    }
-}
-
-// --- MQTT Incoming Payload Processing Handler ---
-void mqttCallback(char* topic, byte* payload, unsigned int length) {
-    String topicStr = String(topic);
-    String payloadStr = "";
-    for (unsigned int i = 0; i < length; i++) {
-        payloadStr += (char)payload[i];
-    }
-    payloadStr.trim();
-
-    Serial.printf("[MQTT] Rx on: %s | Msg: %s\n", topic, payloadStr.c_str());
-
-    preferences.begin(PREF_NAMESPACE, false);
-
-    if (topicStr.endsWith("/config/height")) {
-        float val = payloadStr.toFloat();
-        if (val > 0) {
-            tankHeight = val;
-            preferences.putFloat("height", val);
-            Serial.printf("[NVS] Tank height saved: %.1f cm\n", val);
-        }
-    } 
-    else if (topicStr.endsWith("/config/sensor_height")) {
-        float val = payloadStr.toFloat();
-        if (val >= 0) {
-            sensorHeight = val;
-            preferences.putFloat("sensor_height", val);
-            Serial.printf("[NVS] Sensor height offset saved: %.1f cm\n", val);
-        }
-    }
-    else if (topicStr.endsWith("/config/diameter")) {
-        float val = payloadStr.toFloat();
-        if (val > 0) {
-            tankDiameter = val;
-            preferences.putFloat("diameter", val);
-            Serial.printf("[NVS] Tank diameter saved: %.1f cm\n", val);
-        }
-    } 
-    else if (topicStr.endsWith("/config/tanks")) {
-        int val = payloadStr.toInt();
-        if (val > 0) {
-            numTanks = val;
-            preferences.putInt("tanks", val);
-            Serial.printf("[NVS] Number of tanks saved: %d\n", val);
-        }
-    }
-    else if (topicStr.endsWith("/config/interval")) {
-        int val = payloadStr.toInt();
-        if (val >= 5) {
-            telemetryInterval = val;
-            preferences.putInt("interval", val);
-            Serial.printf("[NVS] Telemetry interval saved: %d seconds\n", val);
-        }
-    }
-    else if (topicStr.endsWith("/config/gsm_numbers")) {
-        gsmNumbersList = payloadStr;
-        preferences.putString("gsm_nums", payloadStr);
-        Serial.printf("[NVS] Whitelisted GSM phone numbers list saved: %s\n", payloadStr.c_str());
-    }
-    else if (topicStr.endsWith("/config/api_url")) {
-        apiServerUrl = payloadStr;
-        preferences.putString("api_url", payloadStr);
-        Serial.printf("[NVS] Web App Server HTTP URL saved: %s\n", payloadStr.c_str());
-    }
-    else if (topicStr.endsWith("/config/motor1_rate")) {
-        float val = payloadStr.toFloat();
-        if (val >= 0) {
-            motor1Rate = val;
-            preferences.putFloat("motor1_rate", val);
-            Serial.printf("[NVS] Motor 1 Pump Rate saved: %.1f L/hr\n", val);
-        }
-    }
-    else if (topicStr.endsWith("/config/motor2_rate")) {
-        float val = payloadStr.toFloat();
-        if (val >= 0) {
-            motor2Rate = val;
-            preferences.putFloat("motor2_rate", val);
-            Serial.printf("[NVS] Motor 2 Pump Rate saved: %.1f L/hr\n", val);
-        }
-    }
-    else if (topicStr.endsWith("/config/pump_threshold")) {
-        float val = payloadStr.toFloat();
-        if (val >= 0) {
-            pumpThreshold = val;
-            preferences.putFloat("pump_thresh", val);
-            Serial.printf("[NVS] Pump Detection Threshold saved: %.1f L/hr\n", val);
-        }
-    }
-    else if (topicStr.endsWith("/config/alert_min")) {
-        float val = payloadStr.toFloat();
-        if (val >= 0 && val <= 100) {
-            alertMinLevel = val;
-            preferences.putFloat("alert_min", val);
-            Serial.printf("[NVS] Alert Min Level saved: %.1f %%\n", val);
-        }
-    }
-    else if (topicStr.endsWith("/config/alert_max")) {
-        float val = payloadStr.toFloat();
-        if (val >= 0 && val <= 100) {
-            alertMaxLevel = val;
-            preferences.putFloat("alert_max", val);
-            Serial.printf("[NVS] Alert Max Level saved: %.1f %%\n", val);
-        }
-    }
-    else if (topicStr.endsWith("/cmd/ota")) {
-        Serial.println("[OTA] OTA Trigger command received via MQTT!");
-        if (payloadStr.startsWith("http://") || payloadStr.startsWith("https://")) {
-            triggerHttpOta(payloadStr);
-        } else {
-            Serial.println("[OTA] Error: Firmware URL must start with http:// or https://");
-        }
-    }
-
-    preferences.end();
-}
-
-// --- Subscribe to calibration / network parameters ---
-void subscribeToConfig() {
-    String subTopicHeight = mqttPrefix + "/config/height";
-    String subTopicSensorHeight = mqttPrefix + "/config/sensor_height";
-    String subTopicDiameter = mqttPrefix + "/config/diameter";
-    String subTopicTanks = mqttPrefix + "/config/tanks";
-    String subTopicGsm = mqttPrefix + "/config/gsm_numbers";
-    String subTopicInterval = mqttPrefix + "/config/interval";
-    String subTopicApiUrl = mqttPrefix + "/config/api_url";
-    String subTopicMotor1 = mqttPrefix + "/config/motor1_rate";
-    String subTopicMotor2 = mqttPrefix + "/config/motor2_rate";
-    String subTopicThresh = mqttPrefix + "/config/pump_threshold";
-    String subTopicAlertMin = mqttPrefix + "/config/alert_min";
-    String subTopicAlertMax = mqttPrefix + "/config/alert_max";
-    String subTopicOta = mqttPrefix + "/cmd/ota";
-
-    mqttClient.subscribe(subTopicHeight.c_str());
-    mqttClient.subscribe(subTopicSensorHeight.c_str());
-    mqttClient.subscribe(subTopicDiameter.c_str());
-    mqttClient.subscribe(subTopicTanks.c_str());
-    mqttClient.subscribe(subTopicGsm.c_str());
-    mqttClient.subscribe(subTopicInterval.c_str());
-    mqttClient.subscribe(subTopicApiUrl.c_str());
-    mqttClient.subscribe(subTopicMotor1.c_str());
-    mqttClient.subscribe(subTopicMotor2.c_str());
-    mqttClient.subscribe(subTopicThresh.c_str());
-    mqttClient.subscribe(subTopicAlertMin.c_str());
-    mqttClient.subscribe(subTopicAlertMax.c_str());
-    mqttClient.subscribe(subTopicOta.c_str());
-
-    Serial.println("[MQTT] Calibration topics and OTA commands successfully subscribed.");
-}
-
-// --- Publish active settings to Broker so they sync with the Dashboard ---
-void publishCurrentConfig() {
-    if (mqttClient.connected()) {
-        String topicHeight = mqttPrefix + "/config/height";
-        String topicSensorHeight = mqttPrefix + "/config/sensor_height";
-        String topicDiameter = mqttPrefix + "/config/diameter";
-        String topicTanks = mqttPrefix + "/config/tanks";
-        String topicGsm = mqttPrefix + "/config/gsm_numbers";
-        String topicInterval = mqttPrefix + "/config/interval";
-        String topicApiUrl = mqttPrefix + "/config/api_url";
-        String topicMotor1 = mqttPrefix + "/config/motor1_rate";
-        String topicMotor2 = mqttPrefix + "/config/motor2_rate";
-        String topicThresh = mqttPrefix + "/config/pump_threshold";
-        String topicAlertMin = mqttPrefix + "/config/alert_min";
-        String topicAlertMax = mqttPrefix + "/config/alert_max";
-        String topicIp = mqttPrefix + "/status/ip";
-        String topicVersion = mqttPrefix + "/status/version";
-
-        String heightStr = String(tankHeight, 1);
-        String sensorHeightStr = String(sensorHeight, 1);
-        String diameterStr = String(tankDiameter, 1);
-        String tanksStr = String(numTanks);
-        String intervalStr = String(telemetryInterval);
-        String motor1Str = String(motor1Rate, 1);
-        String motor2Str = String(motor2Rate, 1);
-        String threshStr = String(pumpThreshold, 1);
-        String alertMinStr = String(alertMinLevel, 1);
-        String alertMaxStr = String(alertMaxLevel, 1);
-        String ipStr = WiFi.localIP().toString();
-
-        mqttClient.publish(topicHeight.c_str(), heightStr.c_str(), true);
-        mqttClient.publish(topicSensorHeight.c_str(), sensorHeightStr.c_str(), true);
-        mqttClient.publish(topicDiameter.c_str(), diameterStr.c_str(), true);
-        mqttClient.publish(topicTanks.c_str(), tanksStr.c_str(), true);
-        mqttClient.publish(topicGsm.c_str(), gsmNumbersList.c_str(), true);
-        mqttClient.publish(topicInterval.c_str(), intervalStr.c_str(), true);
-        mqttClient.publish(topicApiUrl.c_str(), apiServerUrl.c_str(), true);
-        mqttClient.publish(topicMotor1.c_str(), motor1Str.c_str(), true);
-        mqttClient.publish(topicMotor2.c_str(), motor2Str.c_str(), true);
-        mqttClient.publish(topicThresh.c_str(), threshStr.c_str(), true);
-        mqttClient.publish(topicAlertMin.c_str(), alertMinStr.c_str(), true);
-        mqttClient.publish(topicAlertMax.c_str(), alertMaxStr.c_str(), true);
-        mqttClient.publish(topicIp.c_str(), ipStr.c_str(), true);
-        mqttClient.publish(topicVersion.c_str(), FIRMWARE_VERSION, true);
-
-        // Accumulate configuration packet sizes with network overhead (~45 bytes per packet)
-        totalBytesSent += (topicHeight.length() + heightStr.length() + 45);
-        totalBytesSent += (topicSensorHeight.length() + sensorHeightStr.length() + 45);
-        totalBytesSent += (topicDiameter.length() + diameterStr.length() + 45);
-        totalBytesSent += (topicTanks.length() + tanksStr.length() + 45);
-        totalBytesSent += (topicGsm.length() + gsmNumbersList.length() + 45);
-        totalBytesSent += (topicInterval.length() + intervalStr.length() + 45);
-        totalBytesSent += (topicApiUrl.length() + apiServerUrl.length() + 45);
-        totalBytesSent += (topicMotor1.length() + motor1Str.length() + 45);
-        totalBytesSent += (topicMotor2.length() + motor2Str.length() + 45);
-        totalBytesSent += (topicThresh.length() + threshStr.length() + 45);
-        totalBytesSent += (topicAlertMin.length() + alertMinStr.length() + 45);
-        totalBytesSent += (topicAlertMax.length() + alertMaxStr.length() + 45);
-        totalBytesSent += (topicIp.length() + ipStr.length() + 45);
-        totalBytesSent += (topicVersion.length() + strlen(FIRMWARE_VERSION) + 45);
-
-        Serial.println("[MQTT] Published current specs, phone whitelist, telemetry interval, API URL, consumption parameters, and local IP to broker.");
-    }
-}
-
-unsigned long lastMqttReconnectAttempt = 0;
-
-// --- MQTT Reconnect (Non-Blocking) ---
-void connectMQTTNonBlocking() {
-    unsigned long now = millis();
-    if (now - lastMqttReconnectAttempt > 5000) {
-        lastMqttReconnectAttempt = now;
-        Serial.print("[MQTT] Attempting non-blocking connection to HiveMQ Broker...");
-        String clientId = "HydroSyncClient-" + String(random(0xffff), HEX);
-        if (mqttClient.connect(clientId.c_str())) {
-            Serial.println("CONNECTED!");
-            subscribeToConfig();
-            publishCurrentConfig();
-        } else {
-            Serial.printf("FAILED (rc = %d). Will retry in 5 seconds without blocking physical controller.\n", mqttClient.state());
-        }
-    }
-}
-
-// --- GSM Whitelist & Call Handling Functions ---
-bool isNumberAuthorized(String callingNumber) {
-    if (callingNumber.length() == 0) return false;
-    if (gsmNumbersList.length() == 0) return false;
-
-    callingNumber.trim();
-    String tempConfig = gsmNumbersList;
-    tempConfig.trim();
-    if (tempConfig.length() == 0) return false;
-
-    int startIndex = 0;
-    while (true) {
-        int commaIndex = tempConfig.indexOf(',', startIndex);
-        String savedNum = "";
-        if (commaIndex == -1) {
-            savedNum = tempConfig.substring(startIndex);
-        } else {
-            savedNum = tempConfig.substring(startIndex, commaIndex);
-        }
-        savedNum.trim();
-
-        if (savedNum.length() > 0) {
-            if (callingNumber == savedNum) {
-                return true;
+        if (httpResponseCode > 0) {
+            totalBytesSent += (jsonPayload.length() + 220); // Payload bytes + HTTP header overhead
+            Serial.printf("[HTTP API] Telemetry sent (HTTP %d).\n", httpResponseCode);
+            if (httpResponseCode == 200) {
+                String responseBody = http.getString();
+                handleHttpResponseConfig(responseBody);
             }
-            if (savedNum.length() >= 9 && callingNumber.length() >= 9) {
-                String subSaved = savedNum.substring(savedNum.length() - 9);
-                String subCalling = callingNumber.substring(callingNumber.length() - 9);
-                if (subSaved == subCalling) {
+        } else {
+            Serial.printf("[HTTP API] Telemetry POST failed (%s) to %s\n", http.errorToString(httpResponseCode).c_str(), endpoint.c_str());
+        }
+        http.end();
+        client.stop(); // Release TCP socket immediately
+    }
+
+    // Periodic ping to keep server-side SMS schedules synchronized
+    static unsigned long lastCronCallTime = 0;
+    unsigned long nowMs = millis();
+    if (lastCronCallTime == 0 || nowMs - lastCronCallTime >= 60000) {
+        lastCronCallTime = nowMs;
+        HTTPClient cronHttp;
+        String cronEndpoint = apiServerUrl;
+        if (!cronEndpoint.endsWith("/")) cronEndpoint += "/";
+        cronEndpoint += "api/sms/cron";
+
+        if (cronEndpoint.startsWith("https://")) {
+            WiFiClientSecure cronSec;
+            cronSec.setInsecure();
+            cronSec.setTimeout(6);
+            cronHttp.begin(cronSec, cronEndpoint);
+            cronHttp.setTimeout(6000);
+            cronHttp.GET();
+            cronHttp.end();
+            cronSec.stop();
+        } else {
+            WiFiClient cronCl;
+            cronCl.setTimeout(6);
+            cronHttp.begin(cronCl, cronEndpoint);
+            cronHttp.setTimeout(6000);
+            cronHttp.GET();
+            cronHttp.end();
+            cronCl.stop();
+        }
+    }
+}
+
+
+
+// =========================================================================================
+// GSM / SMS MODULE ROUTINES (HardwareSerial 1)
+// =========================================================================================
+
+void initGSM() {
+#if ENABLE_GSM_HARDWARE
+    Serial.printf("[GSM] Initializing GSM on RX=%d, TX=%d...\n", GSM_RX_PIN, GSM_TX_PIN);
+    SerialGSM.begin(9600, SERIAL_8N1, GSM_RX_PIN, GSM_TX_PIN);
+    delay(500);
+
+    SerialGSM.println("AT");
+    delay(200);
+    SerialGSM.println("ATE0");
+    delay(200);
+    SerialGSM.println("AT+CMGF=1");
+    delay(200);
+    SerialGSM.println("AT+CLIP=1");
+    delay(200);
+
+    gsmInitialized = true;
+    Serial.println("[GSM] GSM interface initialized.");
+#else
+    // GSM hardware disabled: prevents hijacking of GPIO pins or wasting CPU cycles
+#endif
+}
+
+bool isNumberAuthorized(String callingNumber) {
+    if (callingNumber.length() == 0 || gsmNumbersList.length() == 0) return false;
+    callingNumber.trim();
+    String whitelist = gsmNumbersList;
+
+    int startIdx = 0;
+    while (true) {
+        int commaIdx = whitelist.indexOf(',', startIdx);
+        String num = (commaIdx == -1) ? whitelist.substring(startIdx) : whitelist.substring(startIdx, commaIdx);
+        num.trim();
+
+        if (num.length() > 0) {
+            if (callingNumber == num) return true;
+            if (num.length() >= 9 && callingNumber.length() >= 9) {
+                if (num.substring(num.length() - 9) == callingNumber.substring(callingNumber.length() - 9)) {
                     return true;
                 }
             }
         }
 
-        if (commaIndex == -1) break;
-        startIndex = commaIndex + 1;
+        if (commaIdx == -1) break;
+        startIdx = commaIdx + 1;
     }
     return false;
 }
 
-void initGSM() {
-    Serial.println("[GSM] Initialising SIM/GSM Serial Interface (9600 bps)...");
-    SerialGSM.begin(9600, SERIAL_8N1, GSM_RX_PIN, GSM_TX_PIN);
-    delay(1000);
+void sendSmsResponse(String recipient, String message) {
+#if ENABLE_GSM_HARDWARE
+    recipient.trim();
+    if (recipient.length() == 0 || !gsmInitialized) return;
 
-    SerialGSM.println("AT");
-    delay(200);
-    SerialGSM.println("ATE0"); // Disable Echo
-    delay(200);
-    SerialGSM.println("AT+CLIP=1"); // Caller ID Presentation
-    delay(200);
-    SerialGSM.println("AT+CMGF=1"); // SMS Text mode
-    delay(200);
-
-    while (SerialGSM.available()) {
-        SerialGSM.read(); // Clear input buffers
-    }
-
-    gsmInitialized = true;
-    Serial.println("[GSM] Module successfully configured and ready for calls.");
-}
-
-void sendSMS(String number, String message) {
-    Serial.printf("[GSM] Preparing to send SMS to: %s\n", number.c_str());
-    SerialGSM.print("AT+CMGS=\"");
-    SerialGSM.print(number);
-    SerialGSM.println("\"");
-    delay(500); // Allow modem processing time for '>' prompt
-    
+    Serial.printf("[GSM] Sending SMS to %s: %s\n", recipient.c_str(), message.c_str());
+    SerialGSM.println("AT+CMGS=\"" + recipient + "\"");
+    delay(300);
     SerialGSM.print(message);
-    delay(200);
-    SerialGSM.write(26); // Ctrl+Z submission flag character
-    delay(500);
-    Serial.println("[GSM] SMS submission sequence transmitted.");
+    delay(100);
+    SerialGSM.write(26);
+    delay(1000);
+#endif
 }
 
-void updateGSMModule() {
-    if (!gsmInitialized) return;
+void processGsmLine(String line) {
+    line.trim();
+    if (line.length() == 0) return;
 
-    while (SerialGSM.available()) {
-        char c = SerialGSM.read();
-        if (c == '\n') {
-            gsmBuffer.trim();
-            if (gsmBuffer.length() > 0) {
-                Serial.print("[GSM Rx] ");
-                Serial.println(gsmBuffer);
+    if (line.startsWith("+CLIP:")) {
+        int firstQuote = line.indexOf('\"');
+        int secondQuote = line.indexOf('\"', firstQuote + 1);
+        if (firstQuote != -1 && secondQuote != -1) {
+            String caller = line.substring(firstQuote + 1, secondQuote);
+            Serial.printf("[GSM] Incoming Call from: %s\n", caller.c_str());
 
-                if (gsmBuffer.startsWith("+CLIP:")) {
-                    Serial.println("[GSM] Incoming call detected. Parsing details...");
-                    
-                    int firstQuote = gsmBuffer.indexOf('"');
-                    int secondQuote = gsmBuffer.indexOf('"', firstQuote + 1);
+            if (isNumberAuthorized(caller)) {
+                Serial.println("[GSM] Authorized caller. Sending status SMS...");
+                delay(1000);
+                SerialGSM.println("ATH");
+                delay(500);
 
-                    if (firstQuote != -1 && secondQuote != -1) {
-                        String incomingNumber = gsmBuffer.substring(firstQuote + 1, secondQuote);
-                        incomingNumber.trim();
-                        Serial.printf("[GSM] Calling Number parsed: %s\n", incomingNumber.c_str());
+                float depth = (currentDepthValue > 0) ? currentDepthValue : 0.0;
+                float volume = (currentVolumeValue > 0) ? currentVolumeValue : 0.0;
+                float percent = (tankHeight > 0) ? ((depth / tankHeight) * 100.0) : 0.0;
+                if (percent > 100.0) percent = 100.0;
 
-                        // Quick hangup to keep it as a missed call & avoid call charges
-                        SerialGSM.println("ATH");
-                        Serial.println("[GSM] Hang up command sent (ATH).");
+                String sms = "HydroSync [" + deviceId + "]:\n";
+                sms += "Water Level: " + String(percent, 1) + "%\n";
+                sms += "Depth: " + String(depth, 1) + " cm\n";
+                sms += "Volume: " + String(volume, 0) + " L\n";
+                sms += "Wi-Fi: " + String(WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected");
 
-                        if (isNumberAuthorized(incomingNumber)) {
-                            Serial.println("[GSM] Number Authorized! Sending status report SMS...");
-
-                            float percentage = (currentDepthValue / tankHeight) * 100.0;
-                            if (percentage < 0.0) percentage = 0.0;
-                            if (percentage > 100.0) percentage = 100.0;
-
-                            String sms = "HydroSync Water Level Report:\n";
-                            sms += "- Depth: " + String(currentDepthValue, 1) + " cm\n";
-                            sms += "- Sensor Margins: " + String((smoothedDistance >= 0.0) ? smoothedDistance : 0.0, 1) + " cm\n";
-                            sms += "- Fill Rate: " + String(percentage, 0) + "%\n";
-                            sms += "- Volume: " + String(currentVolumeValue, 0) + " Liters\n";
-                            sms += "- Parallel Tanks: " + String(numTanks);
-
-                            sendSMS(incomingNumber, sms);
-                        } else {
-                            Serial.println("[GSM] Number NOT authorized. Call ignored.");
-                        }
-                    }
-                }
+                sendSmsResponse(caller, sms);
+            } else {
+                Serial.println("[GSM] Caller not in whitelist. Dropping call.");
+                SerialGSM.println("ATH");
             }
-            gsmBuffer = "";
-        } else if (c != '\r') {
-            gsmBuffer += c;
         }
     }
 }
 
-// --- Firmware Entry Configuration ---
-void setup() {
-    Serial.begin(115200);
-    delay(500);
-    Serial.println("\n====================================");
-    Serial.println("   IoT HydroSync ESP32 Controller  ");
-    Serial.println("====================================");
-
-    pinMode(TRIG_PIN, OUTPUT);
-    pinMode(ECHO_PIN, INPUT);
-    pinMode(LED_PIN, OUTPUT);
-
-    // Initialise Global GSM modem interface
-    initGSM();
-
-    // Load configurations from NVS Storage
-    preferences.begin(PREF_NAMESPACE, true);
-    bool isConfigured = preferences.getBool("configured", false);
-    if (isConfigured) {
-        wifiSSID = preferences.getString("ssid", "");
-        wifiPASS = preferences.getString("pass", "");
-    } else {
-        wifiSSID = "Xiaomi_FC28";
-        wifiPASS = "19990814";
+void updateGSMModule() {
+#if ENABLE_GSM_HARDWARE
+    if (!gsmInitialized) return;
+    while (SerialGSM.available()) {
+        char c = SerialGSM.read();
+        if (c == '\n') {
+            processGsmLine(gsmBuffer);
+            gsmBuffer = "";
+        } else if (c != '\r') {
+            gsmBuffer += c;
+            if (gsmBuffer.length() > 256) gsmBuffer = "";
+        }
     }
+#endif
+}
+
+// =========================================================================================
+// SYSTEM INITIALIZATION (setup)
+// =========================================================================================
+
+void setup() {
+    // 1. Initialize Serial Console immediately
+    Serial.begin(115200);
+    Serial.setTxTimeoutMs(0); // Prevent blocking if serial terminal is closed
+
+    // Give USB-CDC terminal time to enumerate on modern computers
+    delay(1000);
+
+    // Initial banner
+    Serial.println();
+    Serial.println();
+    Serial.println("==================================================");
+    Serial.println("        IoT HydroSync Water Level Controller");
+    Serial.printf("            Firmware Version: %s\n", FIRMWARE_VERSION);
+    Serial.println("==================================================");
+    Serial.flush();
+
+#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(ESP32C3)
+    Serial.println("[ARCH] Detected Board Architecture: ESP32-C3 (RISC-V)");
+#else
+    Serial.println("[ARCH] Detected Board Architecture: Classic ESP32 (Xtensa)");
+#endif
+
+    // 2. Load persistent calibration and pin configurations from NVS
+    preferences.begin(PREF_NAMESPACE, false);
+
+    // OTA Version Flag Check: if controller just rebooted from an OTA flash, finalize the flag
+    String pendingOta = preferences.getString("pending_ota", "");
+    String pendingVer = preferences.getString("pending_ota_ver", "");
+    if (pendingOta.length() > 0) {
+        Serial.printf("[OTA] Fresh boot verified following OTA update: %s\n", pendingOta.c_str());
+        preferences.putString("last_ota_url", pendingOta);
+        if (pendingVer.length() > 0) {
+            preferences.putString("last_ota_ver", pendingVer);
+        } else {
+            preferences.putString("last_ota_ver", FIRMWARE_VERSION);
+        }
+        preferences.putBool("ota_applied", true);
+        preferences.remove("pending_ota");
+        preferences.remove("pending_ota_ver");
+        preferences.putInt("ota_fail_cnt", 0);
+    }
+    String lastOtaUrl = preferences.getString("last_ota_url", "");
+    String lastOtaVer = preferences.getString("last_ota_ver", "");
+
+    wifiSSID = preferences.getString("ssid", "");
+    wifiPASS = preferences.getString("pass", "");
+    deviceId = preferences.getString("deviceId", "plg_paribogika");
+    apiServerUrl = preferences.getString("api_url", "");
     tankHeight = preferences.getFloat("height", 200.0);
     sensorHeight = preferences.getFloat("sensor_height", 45.0);
     tankDiameter = preferences.getFloat("diameter", 228.0);
     numTanks = preferences.getInt("tanks", 1);
     telemetryInterval = preferences.getInt("interval", 15);
-    mqttPrefix = preferences.getString("prefix", "mytank123");
     gsmNumbersList = preferences.getString("gsm_nums", "");
-    apiServerUrl = preferences.getString("api_url", "");
-    motor1Rate = preferences.getFloat("motor1_rate", 1000.0);
-    motor2Rate = preferences.getFloat("motor2_rate", 5000.0);
-    pumpThreshold = preferences.getFloat("pump_thresh", 2500.0);
-    alertMinLevel = preferences.getFloat("alert_min", 20.0);
-    alertMaxLevel = preferences.getFloat("alert_max", 90.0);
+
+    // Hardware Pins loaded from NVS or default macros
+    pinLed = preferences.getInt("pin_led", HARDWARE_DEFAULT_LED_PIN);
+    ledActiveLow = preferences.getBool("led_act_low", HARDWARE_DEFAULT_LED_ACTIVE_LOW);
+    pinTrig = preferences.getInt("pin_trig", HARDWARE_DEFAULT_TRIG_PIN);
+    pinEcho = preferences.getInt("pin_echo", HARDWARE_DEFAULT_ECHO_PIN);
     preferences.end();
 
-    Serial.printf("[NVS] Loaded WiFi SSID: '%s' | Password: '%s' | Configured: %s\n", 
-                  wifiSSID.c_str(), wifiPASS.c_str(), isConfigured ? "YES" : "NO");
-    Serial.printf("[NVS] Loaded Web App Server URL: '%s'\n", apiServerUrl.c_str());
-    Serial.printf("[NVS] Tank specs: Height=%.1fcm | SensorOffset=%.1fcm | Diameter=%.1fcm | Tanks=%d | Interval=%d s\n", tankHeight, sensorHeight, tankDiameter, numTanks, telemetryInterval);
-    Serial.printf("[NVS] Consumption: Motor1Rate=%.1f L/h | Motor2Rate=%.1f L/h | PumpThreshold=%.1f L/h\n", motor1Rate, motor2Rate, pumpThreshold);
-    Serial.printf("[NVS] Alerts: Min=%.1f%% | Max=%.1f%%\n", alertMinLevel, alertMaxLevel);
-    Serial.printf("[NVS] Topic config path prefix: %s\n", mqttPrefix.c_str());
+    // 3. Initialize Hardware Pins
+    pinMode(pinTrig, OUTPUT);
+    digitalWrite(pinTrig, LOW);
+    pinMode(pinEcho, INPUT);
+    pinMode(pinLed, OUTPUT);
 
-    if (wifiSSID == "") {
-        Serial.println("[SYS] No network credentials specified.");
-        startConfigMode();
+    // STRICT RULE: Built-in LED is strictly and unconditionally OFF on power-up
+    setLedHardware(false);
+
+    Serial.printf("[HW] LED Pin: GPIO %d (Polarity: %s) -> Initially OFF\n", 
+                  pinLed, ledActiveLow ? "Active-LOW" : "Active-HIGH");
+    Serial.printf("[HW] Sensor TRIG: GPIO %d | ECHO: GPIO %d\n", pinTrig, pinEcho);
+    Serial.printf("[SYS] Device ID: %s | Telemetry Interval: %d sec\n", deviceId.c_str(), telemetryInterval);
+    if (lastOtaUrl.length() > 0) {
+        Serial.printf("[SYS] Device Memory OTA Flag: Last Applied = %s%s\n", 
+                      lastOtaUrl.c_str(), 
+                      lastOtaVer.length() > 0 ? (" (v" + lastOtaVer + ")").c_str() : "");
     } else {
-        Serial.printf("[SYS] Configuring station mode. Connecting to Wi-Fi SSID: %s ...\n", wifiSSID.c_str());
-        
-        // Robust Wi-Fi STA Initialization sequence
-        WiFi.persistent(false);
-        WiFi.disconnect();
-        delay(200);
+        Serial.println("[SYS] Device Memory OTA Flag: Initial/Factory Flash (No OTA stored yet).");
+    }
+    if (apiServerUrl.length() > 0) {
+        Serial.printf("[SYS] Configured Web App URL: %s\n", apiServerUrl.c_str());
+    } else {
+        Serial.println("[SYS] Web App URL: Not set yet (will configure via Captive Portal).");
+    }
+    Serial.flush();
+
+    // 4. Initialize GSM interface if enabled
+    initGSM();
+
+
+
+    // 6. Connect to Wi-Fi or launch AP portal
+    if (wifiSSID.length() > 0) {
+        Serial.printf("[SYS] Connecting to Wi-Fi SSID: '%s'...\n", wifiSSID.c_str());
         WiFi.mode(WIFI_STA);
-        delay(200);
-        WiFi.setAutoReconnect(true); // Enable built-in driver auto-reconnect
-        
+        WiFi.setAutoReconnect(true);
+        WiFi.persistent(true);
         WiFi.begin(wifiSSID.c_str(), wifiPASS.c_str());
-        
+
         int attempts = 0;
         bool connected = false;
-        // Increase loop attempts to 60 (60 * 500ms = 30-second window for DHCP)
-        while (attempts < 60) {
-            if (WiFi.status() == WL_CONNECTED) {
+        while (attempts < 30) {
+            if (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
                 connected = true;
                 break;
             }
-            // Flash LED quickly to represent connection loop
-            digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+            // LED strictly remains OFF during connection attempt (NO BLINKING)
+            setLedHardware(false);
             delay(500);
             Serial.print(".");
             attempts++;
         }
-        
+
         if (connected) {
-            digitalWrite(LED_PIN, HIGH); // Turn on steady when connected
-            Serial.println("\n[SYS] Network Connected OK!");
-            Serial.print("[SYS] IP Address: ");
+            Serial.println("\n[SYS] Wi-Fi Successfully Connected!");
+            Serial.print("[SYS] Assigned IP Address: ");
             Serial.println(WiFi.localIP());
-            
-            setupWebServer(); // Initialize Local WebServer (Config Portal)
-            
-            mqttClient.setServer(mqttServer, mqttPort);
-            mqttClient.setCallback(mqttCallback);
-            connectMQTTNonBlocking();
+            Serial.print("[SYS] Gateway: ");
+            Serial.println(WiFi.gatewayIP());
+            Serial.print("[SYS] DNS Server: ");
+            Serial.println(WiFi.dnsIP());
+
+            if (WiFi.dnsIP() == IPAddress(0, 0, 0, 0)) {
+                Serial.println("[SYS] Configuring public fallback DNS (8.8.8.8, 1.1.1.1)...");
+                WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, IPAddress(8, 8, 8, 8), IPAddress(1, 1, 1, 1));
+            }
+
+            // Turn on built-in LED ONLY when actively connected to Wi-Fi (SOLID ON)
+            setLedHardware(true);
+
+            setupWebServer();
         } else {
-            Serial.println("\n[SYS] Network connection timeout. Entering AP Setup Web Portal...");
+            Serial.println("\n[SYS] Wi-Fi connection timed out. Entering AP Setup Portal...");
+            setLedHardware(false);
             startConfigMode();
         }
+    } else {
+        Serial.println("[SYS] No Wi-Fi credentials found in NVS Flash. Entering AP Setup Portal...");
+        setLedHardware(false);
+        startConfigMode();
     }
 }
 
-// --- Continuous System Application Loop ---
+// =========================================================================================
+// MAIN EXECUTIVE LOOP (loop)
+// =========================================================================================
+
 void loop() {
-    // Process local WebServer requests (Configs) in both modes
     server.handleClient();
 
     if (isConfigMode) {
-        // Fast blinking sequence representing local Config mode active (Double Flash)
-        unsigned long currentMs = millis();
-        if (currentMs - lastLedBlinkTime > 150) {
-            lastLedBlinkTime = currentMs;
-            ledState = !ledState;
-            digitalWrite(LED_PIN, ledState);
-        }
+        // STRICT RULE: Built-in LED is strictly OFF in AP / Config mode
+        setLedHardware(false);
 
-        // Maintain and process incoming SIM/GSM serial communications (so SMS queries still work!)
         updateGSMModule();
 
-        // Feed the filter continuously in the background
+        unsigned long currentMs = millis();
+        if (currentMs - lastSensorMeasureTime > 3000) {
+            lastSensorMeasureTime = currentMs;
+            getFilteredDistance();
+        }
+
+        static unsigned long lastConfigWifiRetry = 0;
+        if (wifiSSID.length() > 0 && currentMs - lastConfigWifiRetry > 30000) {
+            lastConfigWifiRetry = currentMs;
+            if (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0)) {
+                isConfigMode = false;
+                WiFi.softAPdisconnect(true);
+                WiFi.mode(WIFI_STA);
+                setLedHardware(true);
+                Serial.println("\n[SYS] Wi-Fi restored! Automatically exited AP Mode.");
+                Serial.print("[SYS] Assigned IP Address: ");
+                Serial.println(WiFi.localIP());
+
+                if (WiFi.dnsIP() == IPAddress(0, 0, 0, 0)) {
+                    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, IPAddress(8, 8, 8, 8), IPAddress(1, 1, 1, 1));
+                }
+
+                setupWebServer();
+            } else {
+                Serial.printf("[AP Mode] Background scan: Retrying connection to '%s'...\n", wifiSSID.c_str());
+                WiFi.begin(wifiSSID.c_str(), wifiPASS.c_str());
+            }
+        }
+    } else {
+        // Normal Station Mode Execution
+        bool isWifiConnected = (WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0));
+
+        // CONTINUOUS LED ENFORCEMENT:
+        // LED is solid ON ONLY when connected to Wi-Fi.
+        // If Wi-Fi is lost, LED turns OFF immediately.
+        setLedHardware(isWifiConnected);
+
+        static bool wasConnected = true;
+
+        if (!isWifiConnected) {
+            unsigned long currentMs = millis();
+
+            if (wasConnected) {
+                wasConnected = false;
+                Serial.println("[WIFI] Connection lost! LED switched OFF.");
+            }
+
+            if (firstWifiDisconnectTime == 0) {
+                firstWifiDisconnectTime = currentMs ? currentMs : 1;
+                Serial.println("[WIFI] Watchdog armed (5-min fallback to AP portal).");
+            }
+
+            // Clean reconnection sequence instead of raw WiFi.reconnect()
+            if (currentMs - lastWifiReconnectAttempt > 8000) {
+                lastWifiReconnectAttempt = currentMs;
+                Serial.printf("[WIFI] Reconnecting to '%s'...\n", wifiSSID.c_str());
+                WiFi.disconnect();
+                delay(100);
+                WiFi.begin(wifiSSID.c_str(), wifiPASS.c_str());
+            }
+
+            if (currentMs - firstWifiDisconnectTime > 300000) {
+                Serial.println("[WIFI] Disconnected for 5 minutes. Launching AP Portal.");
+                startConfigMode();
+            }
+        } else {
+            if (!wasConnected) {
+                wasConnected = true;
+                firstWifiDisconnectTime = 0;
+                Serial.println("\n[WIFI] Connection successfully restored!");
+                Serial.print("[WIFI] IP Address: ");
+                Serial.println(WiFi.localIP());
+                Serial.print("[WIFI] Gateway: ");
+                Serial.println(WiFi.gatewayIP());
+                Serial.print("[WIFI] DNS Server: ");
+                Serial.println(WiFi.dnsIP());
+
+                if (WiFi.dnsIP() == IPAddress(0, 0, 0, 0)) {
+                    Serial.println("[WIFI] Setting public fallback DNS (8.8.8.8, 1.1.1.1)...");
+                    WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, IPAddress(8, 8, 8, 8), IPAddress(1, 1, 1, 1));
+                }
+
+                setLedHardware(true);
+                delay(300); // Settle network stack
+            }
+        }
+
+        updateGSMModule();
+
+        unsigned long currentMs = millis();
+
+        // High-speed ultrasonic sampling & EMA filtering (every 150ms)
         if (currentMs - lastSensorMeasureTime > 150) {
             lastSensorMeasureTime = currentMs;
             getFilteredDistance();
         }
 
-        // Update GSM cache values occasionally
-        if (currentMs - lastMeasureTime > 30000) {
-            lastMeasureTime = currentMs;
-            float distance = (smoothedDistance >= 0.0) ? smoothedDistance : getFilteredDistance();
-            float depth = (tankHeight + sensorHeight) - distance;
-            if (depth < 0.0) depth = 0.0;
-            if (depth > tankHeight) depth = tankHeight;
-
-            float radius = tankDiameter / 2.0;
-            float volume = ((3.14159265 * radius * radius * depth) / 1000.0) * numTanks;
-
-            currentDepthValue = depth;
-            currentVolumeValue = volume;
-            Serial.printf("[SENS Config AP] Distance: %.1f cm | Depth: %.1f cm | Volume: %.1f L\n", distance, depth, volume);
-        }
-
-        // Check if Wi-Fi successfully connected in the background
-        if (wifiSSID != "") {
-            if (WiFi.status() == WL_CONNECTED) {
-                Serial.println("\n[SYS] Background Wi-Fi connected successfully!");
-                Serial.print("[SYS] IP Address: ");
-                Serial.println(WiFi.localIP());
-
-                // Close the AP mode to save power and clear the airwaves, switch to pure STA station mode
-                WiFi.softAPdisconnect(true);
-                WiFi.mode(WIFI_STA);
-
-                // Configure MQTT
-                mqttClient.setServer(mqttServer, mqttPort);
-                mqttClient.setCallback(mqttCallback);
-                connectMQTTNonBlocking();
-
-                // Set LED stable high (connected)
-                digitalWrite(LED_PIN, HIGH);
-
-                // Exit Config mode
-                isConfigMode = false;
-                Serial.println("[SYS] Transitioned from Config AP Mode to Normal Station Mode automatically.");
-            } else {
-                // Background reconnect retry timer in config mode (every 45 seconds)
-                static unsigned long lastConfigWifiRetry = 0;
-                unsigned long currentMs = millis();
-                if (lastConfigWifiRetry == 0) {
-                    lastConfigWifiRetry = currentMs;
-                }
-                if (currentMs - lastConfigWifiRetry > 45000) {
-                    lastConfigWifiRetry = currentMs;
-                    Serial.printf("[SYS] Background Wi-Fi retry in Config Mode to SSID: %s ...\n", wifiSSID.c_str());
-                    WiFi.disconnect();
-                    delay(100);
-                    WiFi.begin(wifiSSID.c_str(), wifiPASS.c_str());
-                }
-            }
-        }
-    } else {
-        // Robust Wi-Fi Connection watchdog and self-healing engine
-        if (WiFi.status() != WL_CONNECTED) {
-            unsigned long currentMs = millis();
-            if (firstWifiDisconnectTime == 0) {
-                firstWifiDisconnectTime = currentMs ? currentMs : 1; // prevent 0 re-triggering
-                lastWifiReconnectAttempt = currentMs; // Delay the active begin retry to allow auto-reconnect first
-                Serial.println("[WIFI] Wi-Fi link lost! Activating self-healing watchdog...");
-                WiFi.disconnect(false); // Disconnect but keep configurations
-                WiFi.reconnect(); // Trigger background driver auto-reconnection
-            }
-            
-            // Try to actively call WiFi.begin every 60 seconds if automatic driver-level reconnect fails
-            if (currentMs - lastWifiReconnectAttempt > 60000) {
-                lastWifiReconnectAttempt = currentMs;
-                Serial.printf("[WIFI] Watchdog active reconnection attempt to SSID: %s ...\n", wifiSSID.c_str());
-                WiFi.disconnect();
-                delay(100);
-                WiFi.begin(wifiSSID.c_str(), wifiPASS.c_str());
-            }
-            
-            // If disconnected for more than 5 minutes (300,000 ms), reboot ESP32 to self-heal
-            if (currentMs - firstWifiDisconnectTime > 300000) {
-                Serial.println("[WIFI] Wi-Fi offline for >5 mins. Rebooting ESP32 for full stack reset...");
-                delay(1000);
-                ESP.restart();
-            }
-        } else {
-            // Wi-Fi is connected. Reset watchdog timers.
-            if (firstWifiDisconnectTime != 0) {
-                Serial.println("[WIFI] Wi-Fi link successfully restored. Resetting watchdog.");
-                firstWifiDisconnectTime = 0;
-            }
-
-            // Keep MQTT live without blocking when connected
-            if (!mqttClient.connected()) {
-                connectMQTTNonBlocking();
-            } else {
-                mqttClient.loop();
-            }
-        }
-
-        // Maintain and process incoming SIM/GSM serial communications
-        updateGSMModule();
-
-        unsigned long currentMs = millis();
-
-        // Handle deferred reboot safely after some buffer delay
-        if (pendingReboot && (currentMs - rebootTimer > 5000)) {
-            Serial.println("[SYS] Applying fresh WiFi configuration. Rebooting device now...");
-            delay(1000);
-            ESP.restart();
-        }
-
-        // Feed the filter continuously in the background every 150ms for high responsiveness!
-        if (currentMs - lastSensorMeasureTime > 150) {
-            lastSensorMeasureTime = currentMs;
-            getFilteredDistance(); // This continuously reads raw distance and updates smoothedDistance
-        }
-
-        // Perform packet transmission based on configured telemetry interval (default 15s)
+        // Periodic Telemetry Transmission (Interval: default 15s)
         if (currentMs - lastMeasureTime > ((unsigned long)telemetryInterval * 1000)) {
             lastMeasureTime = currentMs;
 
-            // Use the continuously updated smoothedDistance (or compute one if not ready)
             float distance = (smoothedDistance >= 0.0) ? smoothedDistance : getFilteredDistance();
-            
-            // Core calculation formulas: Depth (cm) and Volume (Liters)
+
+            // Core Water Level Calculations
             float depth = (tankHeight + sensorHeight) - distance;
             if (depth < 0.0) depth = 0.0;
             if (depth > tankHeight) depth = tankHeight;
@@ -1189,119 +1526,20 @@ void loop() {
             float radius = tankDiameter / 2.0;
             float volume = ((3.14159265 * radius * radius * depth) / 1000.0) * numTanks;
 
-            // Cache current values securely for GSM SMS queries
             currentDepthValue = depth;
             currentVolumeValue = volume;
 
-            Serial.printf("[SENS] Distance: %.1f cm | Calculated Depth: %.1f cm | Calculated Volume (All Tanks): %.1f L\n", 
+            Serial.printf("[SENS] Distance: %.1f cm | Depth: %.1f cm | Volume: %.1f L\n",
                           distance, depth, volume);
 
-            if (mqttClient.connected()) {
-                // Publish metrics to HydroSync specified channels
-                String topicDepth = mqttPrefix + "/status/level";
-                String topicVolume = mqttPrefix + "/status/volume";
-                String topicData = mqttPrefix + "/status/data_usage";
-
-                String depthStr = String(depth, 1);
-                String volumeStr = String(volume, 1);
-
-                mqttClient.publish(topicDepth.c_str(), depthStr.c_str(), true);
-                mqttClient.publish(topicVolume.c_str(), volumeStr.c_str(), true);
-
-                // Increment data overhead (~45 bytes TCP/IP/MQTT envelope + topic length + value string length)
-                totalBytesSent += (topicDepth.length() + depthStr.length() + 45);
-                totalBytesSent += (topicVolume.length() + volumeStr.length() + 45);
-
-                String dataStr = String(totalBytesSent);
-                mqttClient.publish(topicData.c_str(), dataStr.c_str(), true);
-                totalBytesSent += (topicData.length() + dataStr.length() + 45);
-
-                Serial.printf("[MQTT] Telemetry parameters successfully transmitted to broker. Cumulative Data Usage: %lu bytes.\n", totalBytesSent);
-
-                // Pulse the board LED briefly to acknowledge sensor packet transmission
-                digitalWrite(LED_PIN, LOW);
-                delay(100);
-                digitalWrite(LED_PIN, HIGH);
-            }
-
-            // Send HTTP POST telemetry to keep server logging 24/7 (even when dashboard is closed)
-            if (WiFi.status() == WL_CONNECTED && apiServerUrl.length() > 0) {
-                HTTPClient http;
-                String endpoint = apiServerUrl;
-                if (!endpoint.endsWith("/")) {
-                    endpoint += "/";
-                }
-                endpoint += "api/telemetry";
-                
-                Serial.println("[HTTP] Sending telemetry POST to: " + endpoint);
-                
-                String jsonPayload = "{\"device_id\":\"" + mqttPrefix + "\",\"level\":" + String(depth, 1) + ",\"volume\":" + String(volume, 1) + ",\"data_usage\":" + String(totalBytesSent) + ",\"version\":\"" + String(FIRMWARE_VERSION) + "\"}";
-                int httpResponseCode = -1;
-
-                if (endpoint.startsWith("https://")) {
-                    WiFiClientSecure clientSecure;
-                    clientSecure.setInsecure(); // Skip certificate verification for SSL
-                    http.begin(clientSecure, endpoint);
-                    http.setTimeout(3000); // 3-second timeout to prevent blocking on network hiccups
-                    http.addHeader("Content-Type", "application/json");
-                    httpResponseCode = http.POST(jsonPayload);
-                } else {
-                    WiFiClient client;
-                    http.begin(client, endpoint);
-                    http.setTimeout(3000); // 3-second timeout to prevent blocking on network hiccups
-                    http.addHeader("Content-Type", "application/json");
-                    httpResponseCode = http.POST(jsonPayload);
-                }
-
-                if (httpResponseCode > 0) {
-                    Serial.printf("[HTTP] Telemetry POST success, response: %d\n", httpResponseCode);
-                    if (httpResponseCode == 200) {
-                        String responseBody = http.getString();
-                        handleHttpResponseConfig(responseBody);
-                    }
-                } else {
-                    Serial.printf("[HTTP] Telemetry POST failed, error: %s\n", http.errorToString(httpResponseCode).c_str());
-                }
-                http.end();
-
-                // Trigger the SMS schedule check/cron endpoint on the server to run automation and scheduled SMS tasks
-                // To avoid overloading the server, we rate-limit this GET request to once every 60 seconds.
-                static unsigned long lastCronCallTime = 0;
-                unsigned long nowMs = millis();
-                if (lastCronCallTime == 0 || nowMs - lastCronCallTime >= 60000) {
-                    lastCronCallTime = nowMs;
-                    HTTPClient cronHttp;
-                    String cronEndpoint = apiServerUrl;
-                    if (!cronEndpoint.endsWith("/")) {
-                        cronEndpoint += "/";
-                    }
-                    cronEndpoint += "api/sms/cron";
-                    
-                    Serial.println("[HTTP] Triggering SMS schedule cron: " + cronEndpoint);
-                    int cronResponseCode = -1;
-                    
-                    if (cronEndpoint.startsWith("https://")) {
-                        WiFiClientSecure clientSecure;
-                        clientSecure.setInsecure();
-                        cronHttp.begin(clientSecure, cronEndpoint);
-                        cronHttp.setTimeout(3000);
-                        cronResponseCode = cronHttp.GET();
-                    } else {
-                        WiFiClient client;
-                        cronHttp.begin(client, cronEndpoint);
-                        cronHttp.setTimeout(3000);
-                        cronResponseCode = cronHttp.GET();
-                    }
-                    
-                    if (cronResponseCode > 0) {
-                        Serial.printf("[HTTP] SMS Cron success, response: %d\n", cronResponseCode);
-                        totalBytesSent += 200; // estimated data usage offset
-                    } else {
-                        Serial.printf("[HTTP] SMS Cron failed, error: %s\n", cronHttp.errorToString(cronResponseCode).c_str());
-                    }
-                    cronHttp.end();
-                }
-            }
+            // Primary 24/7 HTTP REST Telemetry POST (Single-channel direct ingestion)
+            sendHttpTelemetry(depth, volume);
         }
+    }
+
+    // Deferred Reboot Execution
+    if (pendingReboot && millis() - rebootTimer > 2000) {
+        Serial.println("[SYS] Rebooting now...");
+        ESP.restart();
     }
 }

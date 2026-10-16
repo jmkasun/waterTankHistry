@@ -139,6 +139,15 @@
                 </svg>
                 Historical Analytics
             </button>
+            <button onclick="switchMainTab('rawdata')" id="btnMainTabRawData" class="flex items-center gap-2 px-5 py-3 border-b-2 border-transparent hover:border-slate-800 text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition relative">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                </svg>
+                <span>ESP32 Raw Data</span>
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1"></span>LIVE
+                </span>
+            </button>
             <button onclick="switchMainTab('settings')" id="btnMainTabSettings" class="flex items-center gap-2 px-5 py-3 border-b-2 border-transparent hover:border-slate-800 text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
@@ -541,6 +550,213 @@
                             <span id="txtPeriodDataUsed" class="text-xl font-bold text-white tracking-tight">0.00 MB</span>
                             <span class="block text-[10px] text-slate-500 mt-0.5">ESP32 transmissions</span>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ESP32 Raw Data & Live Telemetry Stream Tab Content -->
+        <section id="tabContentRawData" class="w-full flex flex-col gap-6 hidden">
+            <!-- Header & Control Bar -->
+            <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 md:p-8 flex flex-col gap-6 relative overflow-hidden">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <div class="p-2.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20 text-emerald-400">
+                                <svg class="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                                </svg>
+                            </div>
+                            <h3 class="text-base font-bold text-white flex items-center gap-2">
+                                ESP32 Raw Data & Hardware Telemetry
+                                <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 uppercase font-semibold tracking-wider">All Devices Live Stream</span>
+                            </h3>
+                        </div>
+                        <p class="text-xs text-slate-400">Real-time incoming packets, raw sensor measurements, volumetric levels, firmware diagnostics, and detected IP network routes across all connected ESP32 tanks.</p>
+                    </div>
+
+                    <!-- Action buttons -->
+                    <div class="flex items-center gap-2 shrink-0">
+                        <button onclick="openDeviceVerificationModal()" id="btnVerifyOriginModal" class="flex items-center gap-1.5 px-3 py-2 bg-indigo-600/90 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-md shadow-indigo-600/20" title="Check whether incoming requests come from an authentic ESP32 or fake website/script">
+                            <svg class="w-3.5 h-3.5 text-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                            </svg>
+                            <span>Origin Check</span>
+                        </button>
+                        <button onclick="exportRawDataToCSV()" class="flex items-center gap-1.5 px-3 py-2 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition" title="Export displayed data to CSV">
+                            <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                            </svg>
+                            Export CSV
+                        </button>
+                        <button onclick="fetchRawTelemetryData(true)" id="btnRefreshRawData" class="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg shadow-emerald-500/10">
+                            <svg id="iconRefreshRaw" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                            <span>Refresh Now</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live Reporting Nodes Status Grid -->
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            Active Reporting ESP32 Devices
+                        </span>
+                        <span id="lblRawDataDeviceCount" class="text-[10px] font-mono text-slate-500">Scanning devices...</span>
+                    </div>
+                    <div id="rawDataDevicesGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl flex items-center justify-center text-slate-500 text-xs italic">
+                            Loading detected devices...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Controls & Filters Bar -->
+                <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800/80">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <!-- Device Selector -->
+                        <div class="flex items-center gap-2 bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-1.5">
+                            <label class="text-[10px] uppercase tracking-wider font-bold text-slate-500">DEVICE:</label>
+                            <select id="rawDataDeviceSelect" onchange="onRawDataDeviceChange()" class="bg-transparent text-xs text-slate-200 font-semibold focus:outline-none border-none cursor-pointer">
+                                <option class="bg-slate-950 text-slate-200" value="all">⚡ All Devices (Live Stream)</option>
+                            </select>
+                        </div>
+
+                        <!-- Limit Selector -->
+                        <div class="flex items-center gap-2 bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-1.5">
+                            <label class="text-[10px] uppercase tracking-wider font-bold text-slate-500">Show:</label>
+                            <select id="rawDataLimitSelect" onchange="fetchRawTelemetryData(true)" class="bg-transparent text-xs text-slate-200 font-semibold focus:outline-none border-none cursor-pointer">
+                                <option class="bg-slate-950 text-slate-200" value="25">25 rows</option>
+                                <option class="bg-slate-950 text-slate-200" value="50" selected>50 rows</option>
+                                <option class="bg-slate-950 text-slate-200" value="100">100 rows</option>
+                                <option class="bg-slate-950 text-slate-200" value="200">200 rows</option>
+                            </select>
+                        </div>
+
+                        <!-- Auto Refresh -->
+                        <div class="flex items-center gap-2 bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-1.5">
+                            <label class="text-[10px] uppercase tracking-wider font-bold text-slate-500">Auto-Sync:</label>
+                            <select id="rawDataRefreshInterval" onchange="updateRawDataPollingInterval()" class="bg-transparent text-xs text-slate-200 font-semibold focus:outline-none border-none cursor-pointer">
+                                <option class="bg-slate-950 text-slate-200" value="5000" selected>Every 5s (Live)</option>
+                                <option class="bg-slate-950 text-slate-200" value="10000">Every 10s</option>
+                                <option class="bg-slate-950 text-slate-200" value="30000">Every 30s</option>
+                                <option class="bg-slate-950 text-slate-200" value="0">Paused</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Search Input -->
+                    <div class="relative w-full sm:w-64">
+                        <input type="text" id="rawDataSearchInput" oninput="filterRawDataTable()" placeholder="Filter by device, level, IP..." class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-1.5 pl-8 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/50">
+                        <svg class="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                    </div>
+                </div>
+
+                <!-- Date Range & Preset Filter Bar -->
+                <div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800/80">
+                    <div class="flex flex-wrap items-center gap-2.5">
+                        <!-- Date Preset Dropdown -->
+                        <div class="flex items-center gap-2 bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-1.5 text-xs">
+                            <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            <label class="text-[10px] uppercase tracking-wider font-bold text-slate-500">Date Range:</label>
+                            <select id="rawDataDatePreset" onchange="onRawDataDatePresetChange(this.value)" class="bg-transparent text-xs text-slate-200 font-semibold focus:outline-none border-none cursor-pointer">
+                                <option class="bg-slate-950 text-slate-200" value="all" selected>All Time (Live Latest)</option>
+                                <option class="bg-slate-950 text-slate-200" value="1h">Last 1 Hour</option>
+                                <option class="bg-slate-950 text-slate-200" value="4h">Last 4 Hours</option>
+                                <option class="bg-slate-950 text-slate-200" value="12h">Last 12 Hours</option>
+                                <option class="bg-slate-950 text-slate-200" value="24h">Last 24 Hours</option>
+                                <option class="bg-slate-950 text-slate-200" value="today">Today</option>
+                                <option class="bg-slate-950 text-slate-200" value="yesterday">Yesterday</option>
+                                <option class="bg-slate-950 text-slate-200" value="3d">Last 3 Days</option>
+                                <option class="bg-slate-950 text-slate-200" value="7d">Last 7 Days</option>
+                                <option class="bg-slate-950 text-slate-200" value="custom">Custom Date Range...</option>
+                            </select>
+                        </div>
+
+                        <!-- Custom Date Pickers Container -->
+                        <div id="rawDataCustomDateInputs" class="flex flex-wrap items-center gap-2">
+                            <div class="flex items-center gap-1.5 bg-slate-950/80 border border-slate-800 rounded-xl px-2.5 py-1">
+                                <span class="text-[10px] uppercase font-bold text-slate-500">From:</span>
+                                <input type="datetime-local" id="rawDataStartDateInput" onchange="onRawDataCustomDateInputChange()" class="bg-transparent text-xs text-slate-200 font-mono focus:outline-none border-none cursor-pointer">
+                            </div>
+                            <div class="flex items-center gap-1.5 bg-slate-950/80 border border-slate-800 rounded-xl px-2.5 py-1">
+                                <span class="text-[10px] uppercase font-bold text-slate-500">To:</span>
+                                <input type="datetime-local" id="rawDataEndDateInput" onchange="onRawDataCustomDateInputChange()" class="bg-transparent text-xs text-slate-200 font-mono focus:outline-none border-none cursor-pointer">
+                            </div>
+                            <button onclick="applyRawDataCustomDateFilter()" id="btnApplyRawDateFilter" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl transition shadow-md shadow-emerald-500/10">
+                                Apply
+                            </button>
+                            <button onclick="clearRawDataDateFilter()" id="btnClearRawDateFilter" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold text-xs rounded-xl transition" title="Clear date filter">
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Active Filter Badge -->
+                    <div id="rawDataActiveFilterBadge" class="hidden flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-[11px] text-emerald-300 font-medium">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span id="rawDataActiveFilterText">Active filter</span>
+                        <button onclick="clearRawDataDateFilter()" class="ml-1 text-slate-400 hover:text-white transition font-bold" title="Clear filter">✕</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Telemetry Stream Table Container -->
+            <div class="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 flex flex-col gap-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                        <h4 class="text-sm font-bold text-white tracking-tight">ESP32 Telemetry Log Stream</h4>
+                        <span id="lblRawDataStats" class="text-[11px] text-slate-400 font-mono">0 records</span>
+                    </div>
+                    <span id="lblRawDataLastSync" class="text-[10px] text-slate-500 font-mono">Syncing...</span>
+                </div>
+
+                <!-- Table -->
+                <div class="overflow-x-auto rounded-2xl border border-slate-800/80">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr class="bg-slate-950/80 text-slate-400 border-b border-slate-800 uppercase text-[10px] font-bold tracking-wider">
+                                <th class="py-3 px-3.5"># Packet ID</th>
+                                <th class="py-3 px-3.5">Device Node</th>
+                                <th class="py-3 px-3.5">Timestamp (Local)</th>
+                                <th class="py-3 px-3.5 text-right">Raw Level</th>
+                                <th class="py-3 px-3.5 text-right">Volume</th>
+                                <th class="py-3 px-3.5 text-right">Data Usage</th>
+                                <th class="py-3 px-3.5 text-center">Firmware</th>
+                                <th class="py-3 px-3.5">Client IP</th>
+                                <th class="py-3 px-3.5 text-center">Origin / Source</th>
+                                <th class="py-3 px-3.5 text-center">Raw Payload</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rawDataStreamTableBody" class="divide-y divide-slate-800/60 font-mono text-[11px] text-slate-300">
+                            <tr>
+                                <td colspan="10" class="py-8 text-center text-slate-500 italic font-sans text-xs">
+                                    Fetching live telemetry packets...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination Footer -->
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400 pt-2">
+                    <div id="lblRawDataPaginationInfo">Showing 0 of 0 records</div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="prevRawDataPage()" id="btnRawDataPrev" disabled class="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition text-xs font-semibold">
+                            Previous
+                        </button>
+                        <span id="lblRawDataCurrentPage" class="font-mono text-xs text-slate-300 px-2">Page 1</span>
+                        <button onclick="nextRawDataPage()" id="btnRawDataNext" disabled class="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition text-xs font-semibold">
+                            Next
+                        </button>
                     </div>
                 </div>
             </div>
@@ -1262,6 +1478,89 @@
             </div>
         </div>
     </div>
+
+    <!-- ESP32 Raw Packet Inspector Modal -->
+    <div id="rawPacketJsonModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[70] hidden transition-opacity duration-300 opacity-0 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-4 transform transition-all scale-95 duration-300">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2">
+                    <div class="p-1.5 bg-emerald-500/10 rounded-lg text-emerald-400">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-sm font-bold text-white tracking-tight" id="lblModalPacketTitle">ESP32 Raw Packet</h3>
+                </div>
+                <button onclick="closeRawPacketModal()" class="text-slate-400 hover:text-white transition p-1 rounded-lg hover:bg-slate-800">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div>
+                <p class="text-[11px] text-slate-400 mb-2">Exact telemetry packet payload received by server:</p>
+                <div class="relative">
+                    <pre id="preRawPacketJson" class="bg-slate-950 border border-slate-800/80 rounded-xl p-4 text-[11px] font-mono text-emerald-300 overflow-x-auto max-h-80 leading-relaxed"></pre>
+                </div>
+            </div>
+            <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                <button onclick="copyModalPacketJson()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-semibold transition">
+                    Copy JSON
+                </button>
+                <button onclick="closeRawPacketModal()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ESP32 Request Origin & Authenticity Inspector Modal -->
+    <div id="deviceVerificationModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-[75] hidden transition-opacity duration-300 opacity-0 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-2xl w-full p-6 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto transform transition-all scale-95 duration-300">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="p-2 bg-indigo-500/10 rounded-xl border border-indigo-500/20 text-indigo-400">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-white tracking-tight flex items-center gap-2">
+                            ESP32 Device vs Website Origin Verification
+                            <span id="lblVerificationBadge" class="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Analyzing...</span>
+                        </h3>
+                        <p class="text-xs text-slate-400">Hardware authenticity diagnosis, sensor physics, and HTTP origin headers analysis</p>
+                    </div>
+                </div>
+                <button onclick="closeDeviceVerificationModal()" class="text-slate-400 hover:text-white transition p-1.5 rounded-xl hover:bg-slate-800">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Content Area -->
+            <div id="deviceVerificationModalBody" class="space-y-4">
+                <div class="py-8 text-center text-slate-400 text-xs italic">
+                    Loading cryptographic and heuristic verification data...
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="flex items-center justify-between pt-3 border-t border-slate-800 text-xs">
+                <button onclick="runDeviceVerificationCheck()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl transition">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    Re-Analyze Now
+                </button>
+                <button onclick="closeDeviceVerificationModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
 
 
 
@@ -2823,18 +3122,27 @@
             activeMainTab = tab;
             const tabMonitor = document.getElementById('tabContentMonitor');
             const tabAnalytics = document.getElementById('tabContentAnalytics');
+            const tabRawData = document.getElementById('tabContentRawData');
             const tabSettings = document.getElementById('tabContentSettings');
             const btnMonitor = document.getElementById('btnMainTabMonitor');
             const btnAnalytics = document.getElementById('btnMainTabAnalytics');
+            const btnRawData = document.getElementById('btnMainTabRawData');
             const btnSettings = document.getElementById('btnMainTabSettings');
 
             // Hide all tab content
             if (tabMonitor) tabMonitor.classList.add('hidden');
             if (tabAnalytics) tabAnalytics.classList.add('hidden');
+            if (tabRawData) tabRawData.classList.add('hidden');
             if (tabSettings) tabSettings.classList.add('hidden');
 
+            // Stop raw data polling if leaving rawdata tab
+            if (tab !== 'rawdata' && window.rawDataPollingTimer) {
+                clearInterval(window.rawDataPollingTimer);
+                window.rawDataPollingTimer = null;
+            }
+
             // Reset tab button states to inactive
-            [btnMonitor, btnAnalytics, btnSettings].forEach(btn => {
+            [btnMonitor, btnAnalytics, btnRawData, btnSettings].forEach(btn => {
                 if (btn) {
                     btn.className = "flex items-center gap-2 px-5 py-3 border-b-2 border-transparent hover:border-slate-800 text-slate-400 hover:text-slate-200 font-bold text-xs tracking-wider uppercase transition";
                 }
@@ -2852,6 +3160,11 @@
                 setTimeout(() => {
                     renderAnalyticsChart();
                 }, 50);
+            } else if (tab === 'rawdata') {
+                if (tabRawData) tabRawData.classList.remove('hidden');
+                if (btnRawData) btnRawData.className = "flex items-center gap-2 px-5 py-3 border-b-2 border-emerald-500 text-emerald-400 font-bold text-xs tracking-wider uppercase transition relative";
+                fetchRawTelemetryData(true);
+                updateRawDataPollingInterval();
             } else if (tab === 'settings') {
                 if (tabSettings) tabSettings.classList.remove('hidden');
                 if (btnSettings) btnSettings.className = "flex items-center gap-2 px-5 py-3 border-b-2 border-cyan-500 text-cyan-400 font-bold text-xs tracking-wider uppercase transition";
@@ -2860,6 +3173,601 @@
                 const currentSubTab = window.activeSettingsSubTab || 'device_config';
                 switchSettingsSubTab(currentSubTab);
             }
+        }
+
+        // ==========================================
+        // ESP32 RAW DATA & ALL DEVICES STREAM LOGIC
+        // ==========================================
+        let rawDataRecords = [];
+        let rawDataDevices = [];
+        let rawDataSelectedDevice = 'all';
+        let rawDataPage = 1;
+        let rawDataLimit = 50;
+        let rawDataTotal = 0;
+        window.rawDataPollingTimer = null;
+        let rawDataActivePacket = null;
+        let rawDataSearchTerm = '';
+        let rawDataStartDate = null;
+        let rawDataEndDate = null;
+        let rawDataDatePreset = 'all';
+
+        function formatDateTimeLocal(d) {
+            const pad = (n) => String(n).padStart(2, '0');
+            const year = d.getFullYear();
+            const month = pad(d.getMonth() + 1);
+            const day = pad(d.getDate());
+            const hours = pad(d.getHours());
+            const minutes = pad(d.getMinutes());
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
+        async function fetchRawTelemetryData(isManual = false) {
+            const btnRefresh = document.getElementById('btnRefreshRawData');
+            const iconRefresh = document.getElementById('iconRefreshRaw');
+            if (isManual && iconRefresh) {
+                iconRefresh.classList.add('animate-spin');
+            }
+
+            try {
+                const deviceSelect = document.getElementById('rawDataDeviceSelect');
+                if (deviceSelect) {
+                    rawDataSelectedDevice = deviceSelect.value || 'all';
+                }
+                const limitSelect = document.getElementById('rawDataLimitSelect');
+                if (limitSelect) {
+                    rawDataLimit = parseInt(limitSelect.value, 10) || 50;
+                }
+
+                const offset = (rawDataPage - 1) * rawDataLimit;
+                let url = `/api/raw-telemetry?device_id=${encodeURIComponent(rawDataSelectedDevice)}&limit=${rawDataLimit}&offset=${offset}`;
+
+                if (rawDataStartDate) {
+                    url += `&start_date=${encodeURIComponent(rawDataStartDate)}`;
+                }
+                if (rawDataEndDate) {
+                    url += `&end_date=${encodeURIComponent(rawDataEndDate)}`;
+                }
+
+                const response = await fetch(url);
+                if (!response.ok) {
+                    console.warn(`[Raw Telemetry] Gateway status ${response.status}. Reconnecting...`);
+                    return;
+                }
+                const contentType = response.headers.get('content-type') || '';
+                if (!contentType.includes('application/json')) {
+                    console.warn('[Raw Telemetry] Warmup or non-JSON response received. Awaiting server readiness...');
+                    return;
+                }
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to fetch raw telemetry');
+                }
+
+                rawDataRecords = data.records || [];
+                rawDataDevices = data.devices || [];
+                rawDataTotal = (data.pagination && data.pagination.total) || 0;
+
+                // Update device dropdown if needed
+                updateRawDataDeviceDropdown(rawDataDevices);
+
+                // Render Active Devices mini-cards
+                renderRawDataDevicesGrid(rawDataDevices);
+
+                // Render Table rows
+                renderRawDataTable(rawDataRecords);
+
+                // Update pagination controls
+                updateRawDataPagination();
+
+                // Update last sync timestamp
+                const lblLastSync = document.getElementById('lblRawDataLastSync');
+                if (lblLastSync) {
+                    lblLastSync.innerText = `Last updated: ${new Date().toLocaleTimeString()}`;
+                }
+
+                const lblStats = document.getElementById('lblRawDataStats');
+                if (lblStats) {
+                    const filterSuffix = rawDataDatePreset !== 'all' ? ' in selected date range' : ' total logged packets';
+                    lblStats.innerText = `${rawDataTotal.toLocaleString()}${filterSuffix}`;
+                }
+
+                const lblDevCount = document.getElementById('lblRawDataDeviceCount');
+                if (lblDevCount) {
+                    const onlineCount = rawDataDevices.filter(d => d.is_online).length;
+                    lblDevCount.innerHTML = `<span class="text-emerald-400 font-bold">${onlineCount}</span> online / <span class="text-slate-300 font-bold">${rawDataDevices.length}</span> connected`;
+                }
+            } catch (err) {
+                console.warn('[Raw Telemetry Fetch Notice]:', err.message);
+                const tbody = document.getElementById('rawDataStreamTableBody');
+                if (tbody && rawDataRecords.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="9" class="py-6 text-center text-slate-400 font-sans text-xs">Connecting to live telemetry stream...</td></tr>`;
+                }
+            } finally {
+                if (iconRefresh) {
+                    setTimeout(() => iconRefresh.classList.remove('animate-spin'), 300);
+                }
+            }
+        }
+
+        function onRawDataDatePresetChange(preset) {
+            rawDataDatePreset = preset;
+            const startInput = document.getElementById('rawDataStartDateInput');
+            const endInput = document.getElementById('rawDataEndDateInput');
+            const badge = document.getElementById('rawDataActiveFilterBadge');
+            const badgeText = document.getElementById('rawDataActiveFilterText');
+
+            if (preset === 'all') {
+                rawDataStartDate = null;
+                rawDataEndDate = null;
+                if (startInput) startInput.value = '';
+                if (endInput) endInput.value = '';
+                if (badge) badge.classList.add('hidden');
+                rawDataPage = 1;
+                fetchRawTelemetryData(true);
+                return;
+            }
+
+            if (preset === 'custom') {
+                if (startInput && !startInput.value) {
+                    const s = new Date(Date.now() - 24 * 3600 * 1000);
+                    startInput.value = formatDateTimeLocal(s);
+                }
+                if (endInput && !endInput.value) {
+                    endInput.value = formatDateTimeLocal(new Date());
+                }
+                return;
+            }
+
+            const now = new Date();
+            let start = new Date();
+            let end = new Date();
+            let label = '';
+
+            if (preset === '1h') {
+                start = new Date(now.getTime() - 1 * 3600 * 1000);
+                label = 'Last 1 Hour';
+            } else if (preset === '4h') {
+                start = new Date(now.getTime() - 4 * 3600 * 1000);
+                label = 'Last 4 Hours';
+            } else if (preset === '12h') {
+                start = new Date(now.getTime() - 12 * 3600 * 1000);
+                label = 'Last 12 Hours';
+            } else if (preset === '24h') {
+                start = new Date(now.getTime() - 24 * 3600 * 1000);
+                label = 'Last 24 Hours';
+            } else if (preset === 'today') {
+                start.setHours(0, 0, 0, 0);
+                label = 'Today';
+            } else if (preset === 'yesterday') {
+                start.setDate(now.getDate() - 1);
+                start.setHours(0, 0, 0, 0);
+                end.setDate(now.getDate() - 1);
+                end.setHours(23, 59, 59, 999);
+                label = 'Yesterday';
+            } else if (preset === '3d') {
+                start.setDate(now.getDate() - 2);
+                start.setHours(0, 0, 0, 0);
+                label = 'Last 3 Days';
+            } else if (preset === '7d') {
+                start.setDate(now.getDate() - 6);
+                start.setHours(0, 0, 0, 0);
+                label = 'Last 7 Days';
+            }
+
+            if (startInput) startInput.value = formatDateTimeLocal(start);
+            if (endInput) endInput.value = formatDateTimeLocal(end);
+
+            rawDataStartDate = start.toISOString();
+            rawDataEndDate = end.toISOString();
+
+            if (badge && badgeText) {
+                badgeText.innerText = `${label} (${start.toLocaleDateString()} ${start.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} - ${end.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})})`;
+                badge.classList.remove('hidden');
+            }
+
+            rawDataPage = 1;
+            fetchRawTelemetryData(true);
+        }
+
+        function onRawDataCustomDateInputChange() {
+            const presetSelect = document.getElementById('rawDataDatePreset');
+            if (presetSelect && presetSelect.value !== 'custom') {
+                presetSelect.value = 'custom';
+                rawDataDatePreset = 'custom';
+            }
+        }
+
+        function applyRawDataCustomDateFilter() {
+            const startInput = document.getElementById('rawDataStartDateInput');
+            const endInput = document.getElementById('rawDataEndDateInput');
+            const badge = document.getElementById('rawDataActiveFilterBadge');
+            const badgeText = document.getElementById('rawDataActiveFilterText');
+
+            if (!startInput || !startInput.value) {
+                showToast('Please select a start date and time', 'warning');
+                return;
+            }
+
+            const startDateObj = new Date(startInput.value);
+            if (isNaN(startDateObj.getTime())) {
+                showToast('Invalid start date', 'error');
+                return;
+            }
+
+            let endDateObj = endInput && endInput.value ? new Date(endInput.value) : new Date();
+            if (isNaN(endDateObj.getTime())) {
+                endDateObj = new Date();
+            }
+
+            if (startDateObj > endDateObj) {
+                showToast('Start date cannot be after end date', 'warning');
+                return;
+            }
+
+            rawDataStartDate = startDateObj.toISOString();
+            rawDataEndDate = endDateObj.toISOString();
+            rawDataDatePreset = 'custom';
+
+            const presetSelect = document.getElementById('rawDataDatePreset');
+            if (presetSelect) presetSelect.value = 'custom';
+
+            if (badge && badgeText) {
+                badgeText.innerText = `Range: ${startDateObj.toLocaleDateString()} ${startDateObj.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} - ${endDateObj.toLocaleDateString()} ${endDateObj.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
+                badge.classList.remove('hidden');
+            }
+
+            rawDataPage = 1;
+            fetchRawTelemetryData(true);
+        }
+
+        function clearRawDataDateFilter() {
+            rawDataStartDate = null;
+            rawDataEndDate = null;
+            rawDataDatePreset = 'all';
+
+            const presetSelect = document.getElementById('rawDataDatePreset');
+            if (presetSelect) presetSelect.value = 'all';
+
+            const startInput = document.getElementById('rawDataStartDateInput');
+            const endInput = document.getElementById('rawDataEndDateInput');
+            if (startInput) startInput.value = '';
+            if (endInput) endInput.value = '';
+
+            const badge = document.getElementById('rawDataActiveFilterBadge');
+            if (badge) badge.classList.add('hidden');
+
+            rawDataPage = 1;
+            fetchRawTelemetryData(true);
+        }
+
+        function updateRawDataDeviceDropdown(devices) {
+            const select = document.getElementById('rawDataDeviceSelect');
+            if (!select) return;
+
+            const currentVal = select.value || rawDataSelectedDevice || 'all';
+            
+            let optionsHtml = `<option class="bg-slate-950 text-slate-200" value="all">⚡ All Devices (Live Stream & Aggregated)</option>`;
+            devices.forEach(dev => {
+                const displayName = dev.device_name && dev.device_name !== dev.device_id ? `${dev.device_name} (${dev.device_id})` : dev.device_id;
+                const statusDot = dev.is_online ? '🟢' : '⚪';
+                optionsHtml += `<option class="bg-slate-950 text-slate-200" value="${dev.device_id}">${statusDot} ${displayName}</option>`;
+            });
+
+            select.innerHTML = optionsHtml;
+            if (Array.from(select.options).some(o => o.value === currentVal)) {
+                select.value = currentVal;
+            } else {
+                select.value = 'all';
+            }
+        }
+
+        function renderRawDataDevicesGrid(devices) {
+            const container = document.getElementById('rawDataDevicesGrid');
+            if (!container) return;
+
+            if (!devices || devices.length === 0) {
+                container.innerHTML = `<div class="col-span-full py-4 text-center text-slate-500 text-xs italic">No devices registered in database.</div>`;
+                return;
+            }
+
+            container.innerHTML = devices.map(dev => {
+                const isOnline = dev.is_online;
+                const statusBadge = isOnline
+                    ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>ONLINE</span>`
+                    : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-800 text-slate-400 border border-slate-700">OFFLINE</span>`;
+
+                const timeSince = formatRelativeTime(dev.last_seen);
+                const levelDisplay = dev.level !== null ? `${dev.level.toFixed(1)} cm` : '—';
+                const volumeDisplay = dev.volume !== null ? `${Math.round(dev.volume).toLocaleString()} L` : '—';
+                const dataKb = dev.data_usage ? (dev.data_usage / 1024).toFixed(1) + ' KB' : '0 KB';
+                const isSelected = rawDataSelectedDevice === dev.device_id;
+                const borderClass = isSelected ? 'border-emerald-500/60 bg-emerald-950/20' : 'border-slate-800/80 bg-slate-950/60 hover:border-slate-700';
+
+                return `
+                    <div onclick="selectRawDataDevice('${dev.device_id}')" class="p-4 rounded-2xl border ${borderClass} flex flex-col justify-between gap-3 cursor-pointer transition duration-200 group">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="truncate">
+                                <h5 class="text-xs font-bold text-white group-hover:text-emerald-400 transition truncate">${dev.device_name || dev.device_id}</h5>
+                                <span class="font-mono text-[10px] text-slate-400">ID: ${dev.device_id}</span>
+                            </div>
+                            ${statusBadge}
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-[11px] pt-2 border-t border-slate-800/60">
+                            <div>
+                                <span class="text-[9px] uppercase tracking-wider text-slate-500 block">Sensor Level</span>
+                                <span class="font-bold font-mono text-cyan-400">${levelDisplay}</span>
+                            </div>
+                            <div>
+                                <span class="text-[9px] uppercase tracking-wider text-slate-500 block">Volume</span>
+                                <span class="font-bold font-mono text-emerald-400">${volumeDisplay}</span>
+                            </div>
+                            <div>
+                                <span class="text-[9px] uppercase tracking-wider text-slate-500 block">Data / Fw</span>
+                                <span class="font-mono text-slate-300 text-[10px]">${dataKb} (v${dev.version})</span>
+                            </div>
+                            <div>
+                                <span class="text-[9px] uppercase tracking-wider text-slate-500 block">Last Seen</span>
+                                <span class="text-slate-400 text-[10px] truncate block" title="${dev.last_seen || ''}">${timeSince}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-[9px] text-slate-500 pt-1 font-mono">
+                            <span class="truncate">IP: ${dev.ip || 'Direct'}</span>
+                            <span class="text-slate-400">${dev.total_records.toLocaleString()} pkts</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function formatRelativeTime(dateStr) {
+            if (!dateStr) return 'Never';
+            const diffMs = Date.now() - new Date(dateStr).getTime();
+            const diffSec = Math.floor(diffMs / 1000);
+            if (diffSec < 5) return 'Just now';
+            if (diffSec < 60) return `${diffSec}s ago`;
+            const diffMin = Math.floor(diffSec / 60);
+            if (diffMin < 60) return `${diffMin}m ago`;
+            const diffHr = Math.floor(diffMin / 60);
+            if (diffHr < 24) return `${diffHr}h ago`;
+            return `${Math.floor(diffHr / 24)}d ago`;
+        }
+
+        function selectRawDataDevice(deviceId) {
+            const select = document.getElementById('rawDataDeviceSelect');
+            if (select) {
+                select.value = deviceId;
+                onRawDataDeviceChange();
+            }
+        }
+
+        function onRawDataDeviceChange() {
+            rawDataPage = 1;
+            fetchRawTelemetryData(true);
+        }
+
+        function renderRawDataTable(records) {
+            const tbody = document.getElementById('rawDataStreamTableBody');
+            if (!tbody) return;
+
+            let filtered = records;
+            if (rawDataSearchTerm) {
+                const term = rawDataSearchTerm.toLowerCase();
+                filtered = records.filter(r => 
+                    (r.device_id && r.device_id.toLowerCase().includes(term)) ||
+                    (r.device_name && r.device_name.toLowerCase().includes(term)) ||
+                    (r.version && r.version.toLowerCase().includes(term)) ||
+                    (r.ip && r.ip.toLowerCase().includes(term)) ||
+                    (r.level !== null && r.level.toString().includes(term)) ||
+                    (r.volume !== null && r.volume.toString().includes(term))
+                );
+            }
+
+            if (!filtered || filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" class="py-8 text-center text-slate-500 italic font-sans text-xs">No telemetry records match the current filter.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(r => {
+                const formattedTime = new Date(r.timestamp).toLocaleString();
+                const relTime = formatRelativeTime(r.timestamp);
+                const levelStr = r.level !== null ? `${r.level.toFixed(1)} cm` : '—';
+                const volStr = r.volume !== null ? `${Math.round(r.volume).toLocaleString()} L` : '—';
+                const dataKb = r.data_usage ? (r.data_usage / 1024).toFixed(1) + ' KB' : '0 KB';
+                const ipStr = r.ip || 'Direct HTTP';
+
+                const deviceBadgeColor = r.device_id === 'mytank123' 
+                    ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30' 
+                    : (r.device_id === 'rofilter' 
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' 
+                        : 'bg-purple-500/10 text-purple-400 border-purple-500/30');
+
+                return `
+                    <tr class="hover:bg-slate-800/40 transition">
+                        <td class="py-2.5 px-3.5 text-slate-500 font-mono text-[10px]">#${r.id}</td>
+                        <td class="py-2.5 px-3.5">
+                            <div class="flex items-center gap-1.5">
+                                <span class="px-2 py-0.5 rounded border text-[10px] font-bold ${deviceBadgeColor} truncate max-w-[150px]">
+                                    ${r.device_id}
+                                </span>
+                                <span class="text-slate-400 font-sans text-[10px] hidden sm:inline truncate max-w-[120px]">${r.device_name !== r.device_id ? r.device_name : ''}</span>
+                            </div>
+                        </td>
+                        <td class="py-2.5 px-3.5 font-sans">
+                            <div class="text-[11px] text-slate-200">${formattedTime}</div>
+                            <span class="text-[9px] text-slate-500 font-mono">${relTime}</span>
+                        </td>
+                        <td class="py-2.5 px-3.5 text-right font-mono font-bold text-cyan-400">${levelStr}</td>
+                        <td class="py-2.5 px-3.5 text-right font-mono font-bold text-emerald-400">${volStr}</td>
+                        <td class="py-2.5 px-3.5 text-right font-mono text-slate-300 text-[10px]">${dataKb}</td>
+                        <td class="py-2.5 px-3.5 text-center">
+                            <span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[9px] font-mono border border-slate-700">v${r.version}</span>
+                        </td>
+                        <td class="py-2.5 px-3.5 text-slate-400 text-[10px] font-mono truncate max-w-[110px]" title="${ipStr}">${ipStr}</td>
+                        <td class="py-2.5 px-3.5 text-center">
+                            <button onclick="openRawPacketModal(${r.id})" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-emerald-500/20 text-slate-300 hover:text-emerald-300 border border-slate-700 hover:border-emerald-500/30 text-[10px] font-sans font-bold transition">
+                                View JSON
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function filterRawDataTable() {
+            const input = document.getElementById('rawDataSearchInput');
+            rawDataSearchTerm = input ? input.value.trim() : '';
+            renderRawDataTable(rawDataRecords);
+        }
+
+        function updateRawDataPagination() {
+            const totalPages = Math.max(Math.ceil(rawDataTotal / rawDataLimit), 1);
+            const startIdx = (rawDataPage - 1) * rawDataLimit + 1;
+            const endIdx = Math.min(rawDataPage * rawDataLimit, rawDataTotal);
+
+            const lblPagination = document.getElementById('lblRawDataPaginationInfo');
+            if (lblPagination) {
+                lblPagination.innerText = rawDataTotal > 0 
+                    ? `Showing ${startIdx.toLocaleString()} - ${endIdx.toLocaleString()} of ${rawDataTotal.toLocaleString()} records`
+                    : `No records found`;
+            }
+
+            const lblPage = document.getElementById('lblRawDataCurrentPage');
+            if (lblPage) {
+                lblPage.innerText = `Page ${rawDataPage} of ${totalPages}`;
+            }
+
+            const btnPrev = document.getElementById('btnRawDataPrev');
+            const btnNext = document.getElementById('btnRawDataNext');
+            if (btnPrev) btnPrev.disabled = rawDataPage <= 1;
+            if (btnNext) btnNext.disabled = rawDataPage >= totalPages;
+        }
+
+        function prevRawDataPage() {
+            if (rawDataPage > 1) {
+                rawDataPage--;
+                fetchRawTelemetryData(true);
+            }
+        }
+
+        function nextRawDataPage() {
+            const totalPages = Math.ceil(rawDataTotal / rawDataLimit);
+            if (rawDataPage < totalPages) {
+                rawDataPage++;
+                fetchRawTelemetryData(true);
+            }
+        }
+
+        function updateRawDataPollingInterval() {
+            if (window.rawDataPollingTimer) {
+                clearInterval(window.rawDataPollingTimer);
+                window.rawDataPollingTimer = null;
+            }
+
+            if (activeMainTab !== 'rawdata') return;
+
+            const select = document.getElementById('rawDataRefreshInterval');
+            const intervalMs = select ? parseInt(select.value, 10) : 5000;
+
+            if (intervalMs > 0) {
+                window.rawDataPollingTimer = setInterval(() => {
+                    if (activeMainTab === 'rawdata') {
+                        fetchRawTelemetryData(false);
+                    }
+                }, intervalMs);
+            }
+        }
+
+        function openRawPacketModal(recordId) {
+            const rec = rawDataRecords.find(r => r.id === recordId);
+            if (!rec) return;
+
+            rawDataActivePacket = rec;
+            const modal = document.getElementById('rawPacketJsonModal');
+            const pre = document.getElementById('preRawPacketJson');
+            const title = document.getElementById('lblModalPacketTitle');
+
+            if (title) {
+                title.innerText = `ESP32 Raw Packet #${rec.id} (${rec.device_id})`;
+            }
+
+            const packetJson = {
+                packet_id: rec.id,
+                device_id: rec.device_id,
+                device_label: rec.device_name,
+                sensor_reading_cm: rec.level,
+                calculated_volume_liters: rec.volume,
+                data_usage_bytes: rec.data_usage,
+                data_usage_kb: (rec.data_usage / 1024).toFixed(2),
+                firmware_version: rec.version,
+                client_ip: rec.ip || 'Unknown',
+                timestamp_utc: rec.timestamp,
+                timestamp_local: new Date(rec.timestamp).toLocaleString()
+            };
+
+            if (pre) {
+                pre.innerText = JSON.stringify(packetJson, null, 2);
+            }
+
+            if (modal) {
+                modal.classList.remove('hidden');
+                setTimeout(() => {
+                    modal.classList.remove('opacity-0');
+                    modal.querySelector('.transform').classList.remove('scale-95');
+                }, 10);
+            }
+        }
+
+        function closeRawPacketModal() {
+            const modal = document.getElementById('rawPacketJsonModal');
+            if (modal) {
+                modal.classList.add('opacity-0');
+                modal.querySelector('.transform').classList.add('scale-95');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                }, 200);
+            }
+        }
+
+        function copyModalPacketJson() {
+            const pre = document.getElementById('preRawPacketJson');
+            if (!pre) return;
+            navigator.clipboard.writeText(pre.innerText).then(() => {
+                showToast('Raw packet JSON copied to clipboard!', 'success');
+            }).catch(() => {
+                showToast('Failed to copy JSON', 'error');
+            });
+        }
+
+        function exportRawDataToCSV() {
+            if (!rawDataRecords || rawDataRecords.length === 0) {
+                showToast('No raw data to export', 'info');
+                return;
+            }
+
+            const headers = ['Packet ID', 'Device ID', 'Device Name', 'Timestamp (ISO)', 'Level (cm)', 'Volume (L)', 'Data Usage (Bytes)', 'Firmware', 'Client IP'];
+            const rows = rawDataRecords.map(r => [
+                r.id,
+                `"${r.device_id}"`,
+                `"${(r.device_name || '').replace(/"/g, '""')}"`,
+                `"${r.timestamp}"`,
+                r.level !== null ? r.level : '',
+                r.volume !== null ? r.volume : '',
+                r.data_usage !== null ? r.data_usage : '',
+                `"${r.version}"`,
+                `"${r.ip || ''}"`
+            ]);
+
+            const csvContent = [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const filterTag = rawDataDatePreset !== 'all' ? `_${rawDataDatePreset}` : '';
+            a.setAttribute('download', `esp32_raw_telemetry_${rawDataSelectedDevice}${filterTag}_${new Date().toISOString().slice(0, 10)}.csv`);
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            showToast('CSV export downloaded successfully!', 'success');
         }
 
         window.activeSettingsSubTab = 'device_config';
@@ -3705,6 +4613,9 @@
                 if (!container) return;
 
                 const response = await fetch(`/api/sms/logs?device_id=${encodeURIComponent(deviceId)}`);
+                if (!response.ok) return;
+                const contentType = response.headers.get('content-type') || '';
+                if (!contentType.includes('application/json')) return;
                 const result = await response.json();
 
                 if (result.success && result.logs) {
@@ -3715,7 +4626,12 @@
 
                     container.innerHTML = result.logs.map(log => {
                         const isSuccess = log.status === 'SUCCESS';
-                        const badgeColor = isSuccess ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+                        const isSuppressed = log.status === 'SUPPRESSED' || log.status === 'SKIPPED_DEDUP';
+                        const badgeColor = isSuccess 
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                            : (isSuppressed 
+                                ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' 
+                                : 'bg-rose-500/10 text-rose-400 border-rose-500/20');
                         const formattedTime = new Date(log.timestamp).toLocaleString();
                         
                         return `
